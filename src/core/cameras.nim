@@ -4,12 +4,23 @@ import constructor/constructor
 type 
   Camera* = object
     pos*: Vec3
+    forward*: Vec3
     ortho*: Mat4
     view*: Mat4
     orthoView*: Mat4
     size*: float32
 
-proc init*(_: typedesc[Camera], pos: Vec3, ortho, view: Mat4, size: float32 ) {.constr.} = discard
+proc changeSize*(camera: var Camera, size: float32) =
+  let
+    sSize = screenSize()
+    aspect = float32(sSize.x / sSize.y)
+  camera.size = size
+  camera.ortho = ortho(-camera.size * aspect, camera.size * aspect, -camera.size, camera.size, 0.001f, 100f)
+  camera.view = lookat(camera.pos, (camera.pos + camera.forward), vec3(0, 1, 0))
+  camera.orthoView = camera.ortho * camera.view
+
+
+proc init*(_: typedesc[Camera], pos, forward: Vec3) {.constr.} = discard
 
 
 proc raycast*(cam: Camera, point: IVec2): Vec3 =

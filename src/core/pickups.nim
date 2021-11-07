@@ -11,6 +11,7 @@ type
     lLeft
     lRight
     tee
+    line
 
 const
   assetPath = "assets/pickupblocks"
@@ -20,7 +21,8 @@ const
     farQuad: assetPath / "quad_far.png",
     lLeft: assetPath / "l_left.png",
     lRight: assetPath / "l_right.png",
-    tee: assetPath / "tee.png"
+    tee: assetPath / "tee.png",
+    line: assetPath / "line.png"
   ]
 
 var pickupTextures: array[PickupType, Texture]

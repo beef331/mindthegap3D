@@ -46,23 +46,16 @@ addResourceProc do:
   levelShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/frag.glsl")
   cursorShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/cursorfrag.glsl")
   alphaClipShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/alphaclip.glsl")
-  cursorShader.setUniform("opacity", 0.3)
+  cursorShader.setUniform("opacity", 0.2)
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
 
 
-proc init*(_: typedesc[World], width, height: int): World = 
+proc init*(_: typedesc[World], width, height: int): World =
   result.width = width
   result.height = height
   result.tiles = newSeqWith(width * height, Tile(kind: empty))
   result.cursorTile = floor
   result.worldState = editing
-  #[
-  for i, x in result.tiles:
-    if i mod 5 == 0:
-      result.tiles[i] = wall
-    if i mod 8 == 0:
-      result.tiles[i] = empty
-  ]#
 
 iterator tileKindCoords(world: World): (Tile, Vec3) = 
   for i, tile in world.tiles:
@@ -136,3 +129,5 @@ proc render*(world: World, cam: Camera) =
       if world.cursorTile in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         cursorShader.setUniform("valid", world.cursorValid(true).ord)
         drawBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
+    glEnable(GlDepthTest)
+
