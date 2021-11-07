@@ -26,7 +26,11 @@ proc update(dt: float32) =
 
   let scroll = getMouseScroll()
   if scroll != 0:
-    world.nextTile(scroll.sgn)
+    if Keycodelshift.isPressed:
+      world.nextOptional(scroll.sgn)
+    else:
+      world.nextTile(scroll.sgn)
+
 
   if KeyCodeQ.isDown:
     quitTruss()
