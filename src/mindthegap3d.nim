@@ -17,8 +17,12 @@ addResourceProc do:
 var
   cameraDragPos, cameraStartPos: Vec3
   mouseStartPos, mouseOffset: Ivec2
-
+  lastScreenSize: IVec2
 proc update(dt: float32) =
+  if lastScreenSize != screenSize():
+    lastScreenSize = screenSize()
+    camera.calculateMatrix()
+
   world.updateCursor(getMousePos(), camera)
   if leftMb.isPressed:
     world.placeBlock()
