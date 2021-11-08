@@ -123,8 +123,6 @@ proc update*(player: var Player, world: var World, dt: float32) =
     player.presentPickup = none(PickupType)
   if moved and player.presentPickup.isNone:
     player.presentPickup = world.getPickups(player.targetPos) # Target is where we're moving, so end point
-    world.state = playing
-
 
 proc render*(player: Player, camera: Camera, world: World) =
   let safeDirections = world.getSafeDirections(player.posOffset)

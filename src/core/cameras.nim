@@ -37,12 +37,17 @@ proc raycast*(cam: Camera, point: IVec2): Vec3 =
     camRight = cross(camDir, up).normalize
     camUp = cross(camRight, camDir).normalize
     screenSize = screenSize()
-    aspect = screenSize.x / screenSize.y
     xNdc = (2 * point.x) / screenSize.x - 1
     yNdc = (2 * point.y) / screenSize.y - 1
-    rayOrigin = cam.pos + camRight * xNdc * cam.size * aspect + camUp * -yNdc * cam.size
-    dist = dot(rayOrigin, up) / dot(camDir, up)
-  result = -dist * camDir + rayOrigin
+    origin = 
+      if screenSize.x >= screenSize.y:
+        let aspect = screenSize.x / screenSize.y
+        cam.pos + camRight * xNdc * cam.size * aspect + camUp * -yNdc * cam.size
+      else:
+        let aspect = screenSize.y / screenSize.x
+        cam.pos + camRight * xNdc * cam.size + camUp * -yNdc * cam.size * aspect
+    dist = dot(origin, up) / dot(camDir, up)
+  result = -dist * camDir + origin
 
 
 proc screenPosFromWorld*(cam: Camera, pos: Vec3): IVec2 = 
