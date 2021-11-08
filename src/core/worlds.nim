@@ -38,7 +38,7 @@ var
   wallModel, floorModel, pedestalModel, pickupQuadModel: Model
   levelShader, cursorShader, alphaClipShader: Shader
 
-addResourceProc do:
+addResourceProc:
   floorModel = loadModel("assets/models/floor.dae")
   wallModel = loadModel("assets/models/wall.dae")
   pedestalModel = loadModel("assets/models/pickup_platform.dae")
@@ -66,10 +66,15 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
 
 
 proc updateCursor*(world: var World, mouse: IVec2, cam: Camera) =
-  world.cursor = cam.raycast(mouse)
+  let pos = cam.raycast(mouse)
+  world.cursor = vec3(pos.x.floor, pos.y, pos.z.floor)
 
-proc getCursorIndex(world: World): int = world.cursor.x.int + world.cursor.z.int * world.width
 proc cursorInWorld(world: World): bool = world.cursor.x.int in 0..<world.width and world.cursor.z.int in 0..<world.height
+proc getCursorIndex(world: World): int =
+  if world.cursorInWorld():
+    world.cursor.x.int + world.cursor.z.int * world.width
+  else:
+    -1
 
 proc cursorValid(world: World, emptyCheck = false): bool =
   let
@@ -99,14 +104,20 @@ proc nextOptional*(world: var World, dir: -1..1) =
 
 proc drawBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile in FloorDrawn:
-    shader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos)))
+    let modelMatrix = mat4() * translate(pos)
+    shader.setUniform("mvp", cam.orthoView * modelMatrix)
+    shader.setUniform("m", modelMatrix)
     render(floorModel)
   case tile:
   of wall:
-    shader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1, 0))))
+    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0))
+    shader.setUniform("mvp", cam.orthoView * modelMatrix)
+    shader.setUniform("m", modelMatrix)
     render(wallModel)
   of pickup:
-    shader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1, 0))))
+    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0))
+    shader.setUniform("m", modelMatrix)
+    shader.setUniform("mvp", cam.orthoView * modelMatrix)
     render(pedestalModel)
   of floor: discard
 

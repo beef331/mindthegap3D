@@ -7,6 +7,7 @@ layout(location = 3) in vec4 colour;
 
 
 uniform mat4 mvp;
+uniform mat4 m;
 out vec4 fColour;
 out vec3 fNormal;
 out vec2 fuv;
@@ -15,6 +16,6 @@ out vec2 fuv;
 void main() {
   gl_Position = mvp * vec4(vertex_position, 1.0);
   fColour = colour;
-  fNormal = normal;
+  fNormal = normalize((mat3(m) * normal).xyz);
   fuv = uv;
 }

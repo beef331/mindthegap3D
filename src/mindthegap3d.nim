@@ -14,12 +14,32 @@ addResourceProc do:
   camera.changeSize(camDefaultSize)
 
 
+var
+  cameraDragPos, cameraStartPos: Vec3
+  mouseStartPos, mouseOffset: Ivec2
+
 proc update(dt: float32) =
   world.updateCursor(getMousePos(), camera)
   if leftMb.isPressed:
     world.placeBlock()
   if rightMb.isPressed:
     world.placeEmpty()
+
+  if middleMb.isDown:
+    cameraDragPos = camera.raycast(getMousePos())
+    cameraStartPos = camera.pos
+    mouseStartPos = getMousePos()
+    mouseOffset = ivec2(0)
+  
+  if middleMb.isPressed:
+    mouseOffset += getMouseDelta()
+    let
+      newMousePos = mouseOffset + mouseStartPos
+      hitPos = camera.raycast(newMousePos)
+      offset = hitPos - cameraDragPos
+    camera.pos = cameraStartPos + offset
+    moveMouse(camera.screenPosFromWorld(cameraDragPos))
+
 
   if KeycodeW.isPressed:
     player.move(up)
@@ -40,7 +60,7 @@ proc update(dt: float32) =
     if KeycodeLShift.isPressed:
       world.nextOptional(scroll.sgn)
     elif KeycodeLCtrl.isPressed:
-      camera.changeSize(camera.size + scroll.float * dt * 1000 * camera.size)
+      camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000 * camera.size, 3, 20))
     else:
       world.nextTile(scroll.sgn)
 

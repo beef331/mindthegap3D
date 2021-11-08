@@ -1,7 +1,19 @@
 import truss3D/[shaders, models]
 import resources, cameras
 import vmath
-import constructor/constructor
+import pixie
+
+
+proc makeMoveImage(character: string, border = 20f, size = 256): Image =
+  result = newImage(size, size)
+  let ctx = newContext(result)
+  ctx.strokeStyle = rgba(255, 255, 255, 255)
+  ctx.lineWidth = border.float32
+  ctx.strokeRect(border, border, size.float32 - border * 2, size.float32 - border * 2)
+  result.writeFile("test.png")
+
+discard makeMoveImage("W")
+
 
 var
   playerModel: Model
@@ -9,7 +21,8 @@ var
 
 const
   MoveTime = 0.3f
-  RotationSpeed = Tau
+  RotationSpeed = Tau * 3
+  Height = 3
 
 type
   Direction* = enum
@@ -69,18 +82,23 @@ proc update*(player: var Player, dt: float32) =
   if player.moveProgress >= MoveTime:
     player.pos = player.targetPos
   else:
-    player.pos = mix(player.startPos, player.targetPos, player.moveProgress / MoveTime)
+    let
+      progress = player.moveProgress / MoveTime
+      sineOffset = vec3(0, sin(progress * Pi) * Height, 0)
+    player.pos = player.startPos + player.direction.toVec * progress + sineOffset
     player.moveProgress += dt
 
 
 
 proc render*(player: Player, camera: Camera) =
   with playerShader:
-    playerShader.setUniform("mvp", camera.orthoView * (mat4() * translate(player.pos + vec3(0, 1.3, 0)) * rotateY(player.rotation)))
+    let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.3, 0)) * rotateY(player.rotation))
+    playerShader.setUniform("mvp", camera.orthoView * modelMatrix)
+    playerShader.setUniform("m", modelMatrix)
     render(playerModel)
 
 
-addResourceProc do:
+addResourceProc:
   playerModel = loadModel("assets/models/player.dae")
   playerShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/frag.glsl")
 

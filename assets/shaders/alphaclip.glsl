@@ -13,5 +13,5 @@ void main() {
   if(col.a - 0.01 < 0){
     discard;
   }
-  frag_colour.rgb = col.rgb * (1 - dot(fNormal, normalize(vec3(-1, -1, 0))));
+  frag_colour.rgb = col.rgb;
 }
