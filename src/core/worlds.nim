@@ -168,4 +168,3 @@ proc render*(world: World, cam: Camera) =
         cursorShader.setUniform("valid", world.cursorValid(true).ord)
         drawBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
     glEnable(GlDepthTest)
-

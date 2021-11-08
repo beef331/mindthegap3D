@@ -17,9 +17,14 @@ proc makeMoveImage(character: string, border = 20f, size = 256): Image =
   let
     bounds = computeBounds(font.typeSet(character))
     offset = vec2(size.float - border * 2 - bounds.x, size.float - border * 2 - bounds.y)
-
   font.paint = color
   result.fillText(font.typeSet(character), translate(offset))
+
+proc makeShadow(radiusPercent = 0.75, size = 256): Image =
+  result = newImage(size, size)
+  let ctx = newContext(result)
+  ctx.fillStyle = rgba(0, 0, 0, 255)
+  ctx.fillCircle(circle(vec2(size / 2), size / 2 * radiusPercent))
 
 const
   MoveTime = 0.3f
@@ -40,7 +45,8 @@ type
 
 var
   playerModel, quadModel: Model
-  playerShader, alphaClipShader: Shader
+  playerShader, alphaClipShader, shadowShader: Shader
+  shadowTex: Texture
   dirTex: array[Direction, Texture]
 
 proc init*(_: typedesc[Player], pos: Vec3): Player =
@@ -111,6 +117,16 @@ proc render*(player: Player, camera: Camera, safeDirections: set[Direction]) =
           alphaClipShader.setUniform("mvp", camera.orthoView * modelMatrix)
           alphaClipShader.setUniform("tex", dirTex[x])
           render(quadModel)
+  else:
+    with shadowShader:
+      shadowShader.setUniform("opacity", 0.5)
+      let
+        pos = vec3(player.pos.x, 1, player.pos.z)
+        shadowMatrix = (mat4() * translate(pos)) * scale(vec3(1.4))
+      shadowShader.setUniform("mvp", camera.orthoView * shadowMatrix)
+      shadowShader.setUniform("tex", shadowTex)
+      render(quadModel)
+
 
 proc pos*(player: Player): Vec3 = player.pos
 
@@ -131,6 +147,9 @@ addResourceProc:
   sImage.copyTo(dirTex[down])
   aImage.copyTo(dirTex[left])
   alphaClipShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/alphaclip.glsl")
-  quadModel = loadModel("assets/models/pickup_quad.dae")
+  shadowShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/shadow.glsl")
 
+  quadModel = loadModel("assets/models/pickup_quad.dae")
+  shadowTex = genTexture()
+  makeShadow(1).copyTo shadowTex
 

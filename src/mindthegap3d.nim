@@ -40,7 +40,7 @@ proc update(dt: float32) =
     camera.pos = cameraStartPos + offset
     moveMouse(camera.screenPosFromWorld(cameraDragPos))
 
-  let safeDirs = world.getSafeDirections(player.pos)
+  let safeDirs = world.getSafeDirections(player.pos + vec3(0.5, 0, 0.5))
   if KeycodeW.isPressed and up in safeDirs:
     player.move(up)
 
@@ -70,5 +70,5 @@ proc update(dt: float32) =
 proc draw =
   glEnable(GlDepthTest)
   world.render(camera)
-  player.render(camera, world.getSafeDirections(player.pos))
+  player.render(camera, world.getSafeDirections(player.pos + vec3(0.5, 0, 0.5)))
 initTruss("Something", ivec2(1280, 720), invokeResourceProcs, update, draw)
