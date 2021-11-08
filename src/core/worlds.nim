@@ -2,7 +2,7 @@ import vmath
 import truss3D, truss3D/[models, shaders, textures]
 import pixie
 import opengl
-import resources, cameras, pickups
+import resources, cameras, pickups, players
 import std/[sequtils, fenv]
 
 {.experimental: "overloadableEnums".}
@@ -32,7 +32,9 @@ type
     cursor: Vec3
     cursorTile: TileKind
 
-const FloorDrawn = {wall, floor, pickup}
+const
+  FloorDrawn = {wall, floor, pickup}
+  Walkable = {TileKind.floor, TileKind.pickup}
 
 var
   wallModel, floorModel, pedestalModel, pickupQuadModel: Model
@@ -69,10 +71,17 @@ proc updateCursor*(world: var World, mouse: IVec2, cam: Camera) =
   let pos = cam.raycast(mouse)
   world.cursor = vec3(pos.x.floor, pos.y, pos.z.floor)
 
-proc cursorInWorld(world: World): bool = world.cursor.x.int in 0..<world.width and world.cursor.z.int in 0..<world.height
+proc contains(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
+
 proc getCursorIndex(world: World): int =
-  if world.cursorInWorld():
+  if world.cursor in world:
     world.cursor.x.int + world.cursor.z.int * world.width
+  else:
+    -1
+
+proc getPointIndex(world: World, point: Vec3): int =
+  if point in world:
+    floor(point.x).int + floor(point.z).int * world.width
   else:
     -1
 
@@ -80,14 +89,14 @@ proc cursorValid(world: World, emptyCheck = false): bool =
   let
     index = world.getCursorIndex
     isEmpty = not emptyCheck or (index in 0..<world.tiles.len and world.tiles[index].kind == empty)
-  isEmpty and world.cursorInWorld()
+  isEmpty and world.cursor in world
 
 proc placeBlock*(world: var World) =
   if world.cursorValid(true):
     world.tiles[world.getCursorIndex] = Tile(kind: world.cursorTile)
 
 proc placeEmpty*(world: var World) =
-  if world.cursorInWorld():
+  if world.cursor in world:
     world.tiles[world.getCursorIndex] = Tile(kind: empty)
 
 proc nextTile*(world: var World, dir: -1..1) =
@@ -120,6 +129,24 @@ proc drawBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     render(pedestalModel)
   of floor: discard
+
+proc getSafeDirections*(world: World, index: Natural): set[Direction] =
+  if index > world.width and world.tiles[index - world.width].kind in Walkable:
+    result.incl down
+  if index + world.width < world.tiles.len and world.tiles[index + world.width].kind in Walkable:
+    result.incl up
+  if index mod world.width > 0 and world.tiles[index - 1].kind in Walkable:
+    result.incl left
+  if index mod world.width < world.width - 1 and world.tiles[index + 1].kind in Walkable:
+    result.incl right
+
+proc getSafeDirections*(world: World, pos: Vec3): set[Direction] =
+  if pos in world:
+    world.getSafeDirections(world.getPointIndex(pos))
+  else:
+    {}
+
+
 
 proc render*(world: World, cam: Camera) =
   glEnable(GlDepthTest)

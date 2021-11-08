@@ -40,17 +40,17 @@ proc update(dt: float32) =
     camera.pos = cameraStartPos + offset
     moveMouse(camera.screenPosFromWorld(cameraDragPos))
 
-
-  if KeycodeW.isPressed:
+  let safeDirs = world.getSafeDirections(player.pos)
+  if KeycodeW.isPressed and up in safeDirs:
     player.move(up)
 
-  if KeycodeD.isPressed:
+  if KeycodeD.isPressed and left in safeDirs:
     player.move(left)
 
-  if KeycodeS.isPressed:
+  if KeycodeS.isPressed and down in safeDirs:
     player.move(down)
 
-  if KeycodeA.isPressed:
+  if KeycodeA.isPressed and right in safeDirs:
     player.move(right)
 
   player.update(dt)
@@ -70,5 +70,5 @@ proc update(dt: float32) =
 proc draw =
   glEnable(GlDepthTest)
   world.render(camera)
-  player.render(camera)
+  player.render(camera, world.getSafeDirections(player.pos))
 initTruss("Something", ivec2(1280, 720), invokeResourceProcs, update, draw)
