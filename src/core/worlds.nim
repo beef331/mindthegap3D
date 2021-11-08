@@ -2,7 +2,7 @@ import vmath
 import truss3D, truss3D/[models, shaders, textures]
 import pixie
 import opengl
-import resources, cameras, pickups, players
+import resources, cameras, pickups, directions
 import std/[sequtils, fenv]
 
 {.experimental: "overloadableEnums".}

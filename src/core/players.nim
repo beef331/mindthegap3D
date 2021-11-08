@@ -1,5 +1,5 @@
-import truss3D/[shaders, models, textures]
-import resources, cameras
+import truss3D/[shaders, models, textures, inputs]
+import resources, cameras, directions, worlds
 import vmath
 import pixie
 
@@ -32,8 +32,7 @@ const
   Height = 3
 
 type
-  Direction* = enum
-    up, right, down, left
+
   Player* = object
     startPos: Vec3
     targetPos: Vec3
@@ -76,7 +75,7 @@ proc move*(player: var Player, direction: Direction) =
     player.targetPos = direction.toVec + player.pos
     player.moveProgress = 0
 
-proc update*(player: var Player, dt: float32) =
+proc movementUpdate(player: var Player, dt: float32) = 
   let
     rotTarget = player.direction.targetRotation
   var
@@ -100,9 +99,24 @@ proc update*(player: var Player, dt: float32) =
     player.pos = player.startPos + player.direction.toVec * progress + sineOffset
     player.moveProgress += dt
 
+proc update*(player: var Player, world: var World, dt: float32) =
+  movementUpdate(player, dt)
+  let safeDirs = world.getSafeDirections(player.pos + vec3(0.5, 0, 0.5)) # Models are centred in centre of mass not corner
+  if KeycodeW.isPressed and up in safeDirs:
+    player.move(up)
+
+  if KeycodeD.isPressed and left in safeDirs:
+    player.move(left)
+
+  if KeycodeS.isPressed and down in safeDirs:
+    player.move(down)
+
+  if KeycodeA.isPressed and right in safeDirs:
+    player.move(right)
 
 
-proc render*(player: Player, camera: Camera, safeDirections: set[Direction]) =
+proc render*(player: Player, camera: Camera, world: World) =
+  let safeDirections = world.getSafeDirections(player.pos + vec3(0.5, 0, 0.5)) # Models are centred in centre of mass not corner
   with playerShader:
     let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.3, 0)) * rotateY(player.rotation))
     playerShader.setUniform("mvp", camera.orthoView * modelMatrix)
@@ -119,10 +133,11 @@ proc render*(player: Player, camera: Camera, safeDirections: set[Direction]) =
           render(quadModel)
   else:
     with shadowShader:
-      shadowShader.setUniform("opacity", 0.5)
+      shadowShader.setUniform("opacity", 0.75)
       let
+        progress = abs(player.moveProgress  - (MoveTime / 2)) / (MoveTime / 2)
         pos = vec3(player.pos.x, 1, player.pos.z)
-        shadowMatrix = (mat4() * translate(pos)) * scale(vec3(1.4))
+        shadowMatrix = (mat4() * translate(pos)) * scale(vec3(1.4) * progress)
       shadowShader.setUniform("mvp", camera.orthoView * shadowMatrix)
       shadowShader.setUniform("tex", shadowTex)
       render(quadModel)

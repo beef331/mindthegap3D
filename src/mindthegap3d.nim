@@ -1,6 +1,6 @@
 import truss3D, vmath, chroma
 import truss3D/shaders
-import core/[worlds, resources, cameras, players]
+import core/[worlds, resources, cameras, players, directions]
 
 const camDefaultSize = 8f
 var
@@ -40,20 +40,8 @@ proc update(dt: float32) =
     camera.pos = cameraStartPos + offset
     moveMouse(camera.screenPosFromWorld(cameraDragPos))
 
-  let safeDirs = world.getSafeDirections(player.pos + vec3(0.5, 0, 0.5))
-  if KeycodeW.isPressed and up in safeDirs:
-    player.move(up)
 
-  if KeycodeD.isPressed and left in safeDirs:
-    player.move(left)
-
-  if KeycodeS.isPressed and down in safeDirs:
-    player.move(down)
-
-  if KeycodeA.isPressed and right in safeDirs:
-    player.move(right)
-
-  player.update(dt)
+  player.update(world, dt)
 
   let scroll = getMouseScroll()
   if scroll != 0:
@@ -70,5 +58,5 @@ proc update(dt: float32) =
 proc draw =
   glEnable(GlDepthTest)
   world.render(camera)
-  player.render(camera, world.getSafeDirections(player.pos + vec3(0.5, 0, 0.5)))
+  player.render(camera, world)
 initTruss("Something", ivec2(1280, 720), invokeResourceProcs, update, draw)
