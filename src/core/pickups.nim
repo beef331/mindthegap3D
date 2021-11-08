@@ -2,6 +2,7 @@ import resources
 import truss3D/textures
 import truss3D, pixie
 import std/os
+import vmath
 
 type
   PickupType* = enum
@@ -24,6 +25,15 @@ const
     tee: assetPath / "tee.png",
     line: assetPath / "line.png"
   ]
+  offsets = [
+    single: @[vec3(0)],
+    closeQuad: @[vec3(0), vec3(0, 0, 1), vec3(1, 0, 1), vec3(1, 0, 0)],
+    farQuad: @[vec3(0), vec3(0, 0, 2), vec3(2, 0, 2), vec3(2, 0, 0)],
+    lLeft: @[vec3(0), vec3(-1, 0, 0), vec3(0, 0, -1), vec3(0, 0, -2)],
+    lRight: @[vec3(0), vec3(1, 0, 0), vec3(0, 0, -1), vec3(0, 0, -2)],
+    tee: @[vec3(0), vec3(-1, 0, 0), vec3(0, 0, -1), vec3(1, 0, 0)],
+    line: @[vec3(0), vec3(0, 0, 1), vec3(0, 0, 2), vec3(1, 0, -1)],
+  ]
 
 var pickupTextures: array[PickupType, Texture]
 
@@ -34,3 +44,7 @@ addResourceProc:
     img.copyTo pickupTextures[i]
 
 proc getPickupTexture*(pickupKind: PickupType): Texture = pickupTextures[pickupKind]
+
+iterator positions*(pickUpKind: PickupType): Vec3 = 
+  for x in offsets[pickUpKind]:
+    yield x

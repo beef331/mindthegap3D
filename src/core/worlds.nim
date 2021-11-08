@@ -3,7 +3,7 @@ import truss3D, truss3D/[models, shaders, textures]
 import pixie
 import opengl
 import resources, cameras, pickups, directions
-import std/[sequtils, fenv]
+import std/[sequtils, options]
 
 {.experimental: "overloadableEnums".}
 type
@@ -13,6 +13,7 @@ type
     case kind: TileKind
     of pickup:
       pickupKind*: PickupType
+      active: bool
     else: discard
 
   RenderedTile = TileKind.wall..TileKind.pickup
@@ -22,10 +23,10 @@ type
     flags: set[BlockFlag]
     index: int
     worldPos: Vec3
-  WorldState = enum
+  WorldState* = enum
     playing, editing, previewing
   World* = object
-    worldState: WorldState
+    state*: WorldState
     width, height: int
     tiles: seq[Tile]
     blocks: seq[Block]
@@ -57,7 +58,7 @@ proc init*(_: typedesc[World], width, height: int): World =
   result.height = height
   result.tiles = newSeqWith(width * height, Tile(kind: empty))
   result.cursorTile = floor
-  result.worldState = editing
+  result.state = editing
 
 iterator tileKindCoords(world: World): (Tile, Vec3) = 
   for i, tile in world.tiles:
@@ -93,7 +94,11 @@ proc cursorValid(world: World, emptyCheck = false): bool =
 
 proc placeBlock*(world: var World) =
   if world.cursorValid(true):
-    world.tiles[world.getCursorIndex] = Tile(kind: world.cursorTile)
+    case world.cursorTile
+    of pickup:
+      world.tiles[world.getCursorIndex] = Tile(kind: pickup, active: true)
+    else:
+      world.tiles[world.getCursorIndex] = Tile(kind: world.cursorTile)
 
 proc placeEmpty*(world: var World) =
   if world.cursor in world:
@@ -146,7 +151,12 @@ proc getSafeDirections*(world: World, pos: Vec3): set[Direction] =
   else:
     {}
 
-
+proc getPickups*(world: var World, pos: Vec3): Option[PickupType] =
+  if pos in world:
+    let index = world.getPointIndex(pos)
+    if world.tiles[index].kind == pickup and world.tiles[index].active:
+      world.tiles[index].active = false
+      result = some(world.tiles[index].pickupKind)
 
 proc render*(world: World, cam: Camera) =
   glEnable(GlDepthTest)
@@ -161,10 +171,24 @@ proc render*(world: World, cam: Camera) =
           render(pickupQuadModel)
           glUseProgram(levelShader.Gluint)
 
-  if world.worldState == editing:
+  if world.state == editing:
     glDisable(GlDepthTest)
     with cursorShader:
       if world.cursorTile in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         cursorShader.setUniform("valid", world.cursorValid(true).ord)
         drawBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
     glEnable(GlDepthTest)
+
+proc renderDrop*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
+  if world.state == playing:
+    glDisable(GlDepthTest)
+    let start = ivec3(cam.raycast(pos))
+    with cursorShader:
+      for x in pickup.positions:
+        let
+          pos = vec3(start) + x
+          isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
+        cursorShader.setUniform("valid", isValid.ord)
+        drawBlock(floor, cam, cursorShader, pos)
+    glEnable(GlDepthTest)
+
