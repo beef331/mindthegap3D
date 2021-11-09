@@ -1,7 +1,7 @@
 import truss3D, truss3D/[models, shaders, textures]
 import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions
-import std/[sequtils, options]
+import std/[sequtils, options, decls]
 
 {.experimental: "overloadableEnums".}
 
@@ -175,6 +175,15 @@ proc drawBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
 
 proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
 
+proc steppedOff*(world: var World, pos: Vec3) =
+  if pos in world:
+    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    case tile.kind
+    of box:
+      tile.isWalkable = false
+      tile.steppedOn = true
+    else: discard
+
 proc getSafeDirections*(world: World, index: Natural): set[Direction] =
   if index > world.width and world.tiles[index - world.width].canWalk():
     result.incl down
@@ -263,7 +272,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       if x.kind == box:
         if x.progress < FallTime:
           x.progress += dt
-        else:
+        elif not x.steppedOn:
           x.progress = FallTime
           x.isWalkable = true
   of editing:

@@ -114,6 +114,8 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
     if keycode.isPressed and dir in safeDirs:
       if not moved:
         moved = player.move(dir)
+        if moved:
+          world.steppedOff(player.posOffset)
 
   move(KeyCodeW, up)
   move(KeyCodeD, left)
@@ -122,7 +124,7 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
   if KeycodeR.isPressed:
     player.presentPickup = none(PickupType)
   if moved and player.presentPickup.isNone:
-    player.presentPickup = world.getPickups(player.targetPos) # Target is where we're moving, so end point
+    player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
     world.state = playing
   if leftMb.isPressed and player.presentPickup.isSome:
     let hitPos = camera.raycast(getMousePos()).ivec3
