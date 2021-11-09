@@ -40,6 +40,7 @@ type
     blocks: seq[Block]
     cursor: Vec3
     cursorTile: TileKind
+    playerSpawn: int
 
 const
   FloorDrawn = {wall, floor, pickup}
@@ -47,17 +48,19 @@ const
   Walkable = {TileKind.floor, pickup, box}
 
 var
-  wallModel, floorModel, pedestalModel, pickupQuadModel: Model
-  levelShader, cursorShader, alphaClipShader: Shader
+  wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel: Model
+  levelShader, cursorShader, alphaClipShader, flagShader: Shader
 
 addResourceProc:
   floorModel = loadModel("assets/models/floor.dae")
   wallModel = loadModel("assets/models/wall.dae")
   pedestalModel = loadModel("assets/models/pickup_platform.dae")
   pickupQuadModel = loadModel("assets/models/pickup_quad.dae")
+  flagModel = loadModel("assets/models/flag.dae")
   levelShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/frag.glsl")
   cursorShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/cursorfrag.glsl")
   alphaClipShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/alphaclip.glsl")
+  flagShader = loadShader("assets/shaders/flagvert.glsl", "assets/shaders/frag.glsl")
   cursorShader.setUniform("opacity", 0.2)
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
 
@@ -94,6 +97,8 @@ proc getPointIndex(world: World, point: Vec3): int =
   else:
     -1
 
+proc indexToWorld(world: World, ind: int): Vec3 = vec3((ind mod world.width).float, 0, (ind div world.width).float)
+
 proc cursorValid(world: World, emptyCheck = false): bool =
   let
     index = world.getCursorIndex
@@ -122,15 +127,6 @@ proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction):
     for x in kind.positions:
       let index = world.getPointIndex(pos + vec3(x))
       world.tiles[index] = Tile(kind: box, isWalkable: false)
-
-proc update*(world: var World, dt: float32) =
-  for x in world.tiles.mitems:
-    if x.kind == box:
-      if x.progress < FallTime:
-        x.progress += dt
-      else:
-        x.progress = FallTime
-        x.isWalkable = true
 
 proc placeEmpty*(world: var World) =
   if world.cursor in world:
@@ -219,6 +215,15 @@ proc render*(world: World, cam: Camera) =
           
 
   if world.state == editing:
+    with flagShader:
+      let
+        pos = world.indexToWorld(world.playerSpawn) + vec3(0, 1, 0)
+        flagMatrix = mat4() * translate(pos)
+      flagShader.setUniform("mvp", cam.orthoView * flagMatrix)
+      flagShader.setUniform("m", flagMatrix)
+      flagShader.setUniform("time", getTime())
+      render(flagModel)
+
     glDisable(GlDepthTest)
     with cursorShader:
       if world.cursorTile in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
@@ -239,3 +244,28 @@ proc renderDrop*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir:
         drawBlock(floor, cam, cursorShader, pos)
     glEnable(GlDepthTest)
 
+proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
+  case world.state
+  of playing:
+    for x in world.tiles.mitems:
+      if x.kind == box:
+        if x.progress < FallTime:
+          x.progress += dt
+        else:
+          x.progress = FallTime
+          x.isWalkable = true
+  of editing:
+    world.updateCursor(getMousePos(), cam)
+    let scroll = getMouseScroll()
+    if scroll != 0:
+      if KeycodeLShift.isPressed:
+        world.nextOptional(scroll.sgn)
+      else:
+        world.nextTile(scroll.sgn)
+
+    if leftMb.isPressed:
+      world.placeTile()
+    if rightMb.isPressed:
+      world.placeEmpty()
+  of previewing:
+    discard

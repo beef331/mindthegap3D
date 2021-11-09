@@ -23,11 +23,7 @@ proc update(dt: float32) =
     lastScreenSize = screenSize()
     camera.calculateMatrix()
 
-  world.updateCursor(getMousePos(), camera)
-  if leftMb.isPressed:
-    world.placeTile()
-  if rightMb.isPressed:
-    world.placeEmpty()
+
 
   if middleMb.isDown:
     cameraDragPos = camera.raycast(getMousePos())
@@ -46,16 +42,12 @@ proc update(dt: float32) =
 
 
   player.update(world, camera, dt)
-  world.update(dt)
+  world.update(camera, dt)
 
   let scroll = getMouseScroll()
   if scroll != 0:
-    if KeycodeLShift.isPressed:
-      world.nextOptional(scroll.sgn)
-    elif KeycodeLCtrl.isPressed:
+    if KeycodeLCtrl.isPressed:
       camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000 * camera.size, 3, 20))
-    else:
-      world.nextTile(scroll.sgn)
 
   if KeyCodeQ.isDown:
     quitTruss()
