@@ -156,7 +156,7 @@ proc render*(player: Player, camera: Camera, world: World) =
       shadowShader.setUniform("tex", shadowTex)
       render(quadModel)
   if player.presentPickup.isSome:
-    world.renderDrop(camera, player.presentPickup.get, getMousePos(), up)
+    world.renderDropCursor(camera, player.presentPickup.get, getMousePos(), up)
 
 proc pos*(player: Player): Vec3 = player.pos
 

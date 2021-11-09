@@ -24,6 +24,7 @@ type
     of box:
       boxFlag: set[BlockFlag]
       progress: float32
+      steppedOn: bool
     else: discard
 
   RenderedTile = TileKind.wall..TileKind.box
@@ -48,8 +49,8 @@ const
   Walkable = {TileKind.floor, pickup, box}
 
 var
-  wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel: Model
-  levelShader, cursorShader, alphaClipShader, flagShader: Shader
+  wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel, boxModel: Model
+  levelShader, cursorShader, alphaClipShader, flagShader, boxShader: Shader
 
 addResourceProc:
   floorModel = loadModel("assets/models/floor.dae")
@@ -61,8 +62,13 @@ addResourceProc:
   cursorShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/cursorfrag.glsl")
   alphaClipShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/alphaclip.glsl")
   flagShader = loadShader("assets/shaders/flagvert.glsl", "assets/shaders/frag.glsl")
+  boxShader = loadShader("assets/shaders/boxvert.glsl", "assets/shaders/frag.glsl")
+  boxModel = loadModel("assets/models/box.dae")
   cursorShader.setUniform("opacity", 0.2)
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
+  boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))
+  boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
+
 
 
 proc init*(_: typedesc[World], width, height: int): World =
@@ -167,7 +173,7 @@ proc drawBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
     let modelMatrix = mat4() * translate(pos)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
-    render(floorModel)
+    render(boxModel)
   of floor: discard
 
 proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
@@ -200,12 +206,21 @@ proc render*(world: World, cam: Camera) =
   with levelShader:
     for (tile, pos) in world.tileKindCoords:
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-        var pos = pos
         case tile.kind
         of box:
+          var pos = pos
           pos.y = mix(StartHeight, 0, tile.progress / FallTime)
-        else: discard
-        drawBlock(tile.kind, cam, levelShader, pos)
+          glUseProgram(boxShader.Gluint)
+          let modelMatrix = mat4() * translate(pos)
+          boxShader.setUniform("m", modelMatrix)
+          boxShader.setUniform("mvp", cam.orthoView * modelMatrix)
+          boxShader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
+          render(boxModel)
+
+
+          glUseProgram(levelShader.Gluint)
+        else:
+          drawBlock(tile.kind, cam, levelShader, pos)
         if tile.kind == pickup:
           glUseProgram(alphaClipShader.Gluint)
           alphaClipShader.setUniform("tex", getPickupTexture(tile.pickupKind))
@@ -231,7 +246,7 @@ proc render*(world: World, cam: Camera) =
         drawBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
     glEnable(GlDepthTest)
 
-proc renderDrop*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
+proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
   if world.state == playing:
     glDisable(GlDepthTest)
     let start = ivec3(cam.raycast(pos))
@@ -241,7 +256,7 @@ proc renderDrop*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir:
           pos = vec3(start) + x
           isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
         cursorShader.setUniform("valid", isValid.ord)
-        drawBlock(floor, cam, cursorShader, pos)
+        drawBlock(box, cam, cursorShader, pos)
     glEnable(GlDepthTest)
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
