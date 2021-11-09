@@ -1,7 +1,5 @@
-import vmath
 import truss3D, truss3D/[models, shaders, textures]
-import pixie
-import opengl
+import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions
 import std/[sequtils, options]
 
@@ -68,7 +66,6 @@ addResourceProc:
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
   boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))
   boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
-
 
 
 proc init*(_: typedesc[World], width, height: int): World =
@@ -209,7 +206,7 @@ proc render*(world: World, cam: Camera) =
         case tile.kind
         of box:
           var pos = pos
-          pos.y = mix(StartHeight, 0, tile.progress / FallTime)
+          pos.y = mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
           glUseProgram(boxShader.Gluint)
           let modelMatrix = mat4() * translate(pos)
           boxShader.setUniform("m", modelMatrix)
