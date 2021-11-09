@@ -25,7 +25,7 @@ proc update(dt: float32) =
 
   world.updateCursor(getMousePos(), camera)
   if leftMb.isPressed:
-    world.placeBlock()
+    world.placeTile()
   if rightMb.isPressed:
     world.placeEmpty()
 
@@ -45,7 +45,8 @@ proc update(dt: float32) =
     moveMouse(camera.screenPosFromWorld(cameraDragPos))
 
 
-  player.update(world, dt)
+  player.update(world, camera, dt)
+  world.update(dt)
 
   let scroll = getMouseScroll()
   if scroll != 0:

@@ -6,19 +6,27 @@ import resources, cameras, pickups, directions
 import std/[sequtils, options]
 
 {.experimental: "overloadableEnums".}
+
+const
+  StartHeight = 10f
+  FallTime = 0.3f
 type
   TileKind* = enum
-    empty, wall, floor, pickup
+    empty, wall, floor, pickup, box
+  BlockFlag* = enum
+    dropped, pushable, shooter
   Tile = object
+    isWalkable: bool
     case kind: TileKind
     of pickup:
       pickupKind*: PickupType
       active: bool
+    of box:
+      boxFlag: set[BlockFlag]
+      progress: float32
     else: discard
 
-  RenderedTile = TileKind.wall..TileKind.pickup
-  BlockFlag* = enum
-    dropped, pushable, shooter
+  RenderedTile = TileKind.wall..TileKind.box
   Block* = object
     flags: set[BlockFlag]
     index: int
@@ -35,7 +43,8 @@ type
 
 const
   FloorDrawn = {wall, floor, pickup}
-  Walkable = {TileKind.floor, TileKind.pickup}
+  Paintable = {Tilekind.floor, wall, empty, pickup}
+  Walkable = {TileKind.floor, pickup, box}
 
 var
   wallModel, floorModel, pedestalModel, pickupQuadModel: Model
@@ -67,7 +76,6 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
       z = i div world.width
     yield (tile, vec3(x.float, 0, z.float))
 
-
 proc updateCursor*(world: var World, mouse: IVec2, cam: Camera) =
   let pos = cam.raycast(mouse)
   world.cursor = vec3(pos.x.floor, pos.y, pos.z.floor)
@@ -92,13 +100,37 @@ proc cursorValid(world: World, emptyCheck = false): bool =
     isEmpty = not emptyCheck or (index in 0..<world.tiles.len and world.tiles[index].kind == empty)
   isEmpty and world.cursor in world
 
-proc placeBlock*(world: var World) =
-  if world.cursorValid(true):
+proc posValid(world: World, pos: Vec3): bool =
+  if pos in world and world.tiles[world.getPointIndex(pos)].kind == empty:
+    result = true
+
+proc placeTile*(world: var World) =
+  if world.cursorValid(true) and world.state == editing:
     case world.cursorTile
     of pickup:
       world.tiles[world.getCursorIndex] = Tile(kind: pickup, active: true)
     else:
       world.tiles[world.getCursorIndex] = Tile(kind: world.cursorTile)
+    world.tiles[world.getCursorIndex].isWalkable = true
+
+proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction): bool =
+  block placeBlock:
+    for x in kind.positions:
+      if not world.posValid(pos + x):
+        break placeBlock
+    result = true
+    for x in kind.positions:
+      let index = world.getPointIndex(pos + vec3(x))
+      world.tiles[index] = Tile(kind: box, isWalkable: false)
+
+proc update*(world: var World, dt: float32) =
+  for x in world.tiles.mitems:
+    if x.kind == box:
+      if x.progress < FallTime:
+        x.progress += dt
+      else:
+        x.progress = FallTime
+        x.isWalkable = true
 
 proc placeEmpty*(world: var World) =
   if world.cursor in world:
@@ -106,6 +138,8 @@ proc placeEmpty*(world: var World) =
 
 proc nextTile*(world: var World, dir: -1..1) =
   world.cursorTile = ((world.cursorTile.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
+  while world.cursorTile notin Paintable:
+    world.cursorTile = ((world.cursorTile.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
 
 proc nextOptional*(world: var World, dir: -1..1) = 
   let index = world.getCursorIndex
@@ -133,16 +167,23 @@ proc drawBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
     shader.setUniform("m", modelMatrix)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     render(pedestalModel)
+  of box:
+    let modelMatrix = mat4() * translate(pos)
+    shader.setUniform("mvp", cam.orthoView * modelMatrix)
+    shader.setUniform("m", modelMatrix)
+    render(floorModel)
   of floor: discard
 
+proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
+
 proc getSafeDirections*(world: World, index: Natural): set[Direction] =
-  if index > world.width and world.tiles[index - world.width].kind in Walkable:
+  if index > world.width and world.tiles[index - world.width].canWalk():
     result.incl down
-  if index + world.width < world.tiles.len and world.tiles[index + world.width].kind in Walkable:
+  if index + world.width < world.tiles.len and world.tiles[index + world.width].canWalk():
     result.incl up
-  if index mod world.width > 0 and world.tiles[index - 1].kind in Walkable:
+  if index mod world.width > 0 and world.tiles[index - 1].canWalk():
     result.incl left
-  if index mod world.width < world.width - 1 and world.tiles[index + 1].kind in Walkable:
+  if index mod world.width < world.width - 1 and world.tiles[index + 1].canWalk():
     result.incl right
 
 proc getSafeDirections*(world: World, pos: Vec3): set[Direction] =
@@ -163,6 +204,11 @@ proc render*(world: World, cam: Camera) =
   with levelShader:
     for (tile, pos) in world.tileKindCoords:
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
+        var pos = pos
+        case tile.kind
+        of box:
+          pos.y = mix(StartHeight, 0, tile.progress / FallTime)
+        else: discard
         drawBlock(tile.kind, cam, levelShader, pos)
         if tile.kind == pickup:
           glUseProgram(alphaClipShader.Gluint)
@@ -170,6 +216,7 @@ proc render*(world: World, cam: Camera) =
           alphaClipShader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
           render(pickupQuadModel)
           glUseProgram(levelShader.Gluint)
+          
 
   if world.state == editing:
     glDisable(GlDepthTest)

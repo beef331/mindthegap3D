@@ -49,7 +49,6 @@ proc raycast*(cam: Camera, point: IVec2): Vec3 =
     dist = dot(origin, up) / dot(camDir, up)
   result = -dist * camDir + origin
 
-
 proc screenPosFromWorld*(cam: Camera, pos: Vec3): IVec2 = 
   let
     size = screenSize()
@@ -57,7 +56,6 @@ proc screenPosFromWorld*(cam: Camera, pos: Vec3): IVec2 =
   var zeroToOne = (screenSpace.xy * 0.5 + 0.5).xy
   zeroToOne = vec2(zeroToOne.x, 1f - zeroToOne.y)
   result = iVec2((zeroToOne.x * size.x.float).int, (zeroToOne.y * size.y.float).int)
-
 
 proc `pos`*(camera: var Camera): Vec3 = camera.pos
 

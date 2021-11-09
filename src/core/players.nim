@@ -105,7 +105,7 @@ proc movementUpdate(player: var Player, dt: float32) =
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 
-proc update*(player: var Player, world: var World, dt: float32) =
+proc update*(player: var Player, world: var World, camera: Camera, dt: float32) =
   movementUpdate(player, dt)
   let safeDirs = world.getSafeDirections(player.posOffset) 
   var moved = false
@@ -123,6 +123,11 @@ proc update*(player: var Player, world: var World, dt: float32) =
     player.presentPickup = none(PickupType)
   if moved and player.presentPickup.isNone:
     player.presentPickup = world.getPickups(player.targetPos) # Target is where we're moving, so end point
+    world.state = playing
+  if leftMb.isPressed and player.presentPickup.isSome:
+    let hitPos = camera.raycast(getMousePos()).ivec3
+    if world.placeBlock(hitPos.vec3, player.presentPickup.get, player.pickupRotation):
+      player.presentPickup = none(PickupType)
 
 proc render*(player: Player, camera: Camera, world: World) =
   let safeDirections = world.getSafeDirections(player.posOffset)
