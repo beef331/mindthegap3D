@@ -8,7 +8,7 @@ import std/[sequtils, options, decls]
 const
   StartHeight = 10f
   FallTime = 1f
-  SinkHeight = -0.5
+  SinkHeight = -1
 type
   TileKind* = enum
     empty, wall, floor, pickup, box

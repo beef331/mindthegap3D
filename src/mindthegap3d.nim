@@ -26,7 +26,7 @@ addResourceProc do:
   camera.pos = vec3(0, 8, 0)
   camera.forward = normalize(vec3(5, 0, 5) - camera.pos)
   camera.changeSize(camDefaultSize)
-  depthBuffer = genFrameBuffer(screenSize(), tfRGB, {colour, depth})
+  depthBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
   waterQuad = makeRect(10, 10)
   depthShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/depthfrag.glsl")
   waterShader = loadShader("assets/shaders/watervert.glsl", "assets/shaders/waterfrag.glsl")
@@ -78,7 +78,7 @@ proc draw =
 
   with waterShader:
     glEnable(GlDepthTest)
-    waterShader.setUniform("tex", depthBuffer.texture)
+    waterShader.setUniform("tex", depthBuffer.depthTexture)
     watershader.setUniform("time", getTime())
     waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(0, 0.3, 0))))
     render(waterQuad)
