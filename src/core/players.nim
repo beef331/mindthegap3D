@@ -30,7 +30,7 @@ proc makeShadow(radiusPercent = 0.75, size = 256): Image =
 const
   MoveTime = 0.3f
   RotationSpeed = Tau * 3
-  Height = 3
+  Height = 2
 
 type
 
@@ -151,7 +151,7 @@ proc render*(player: Player, camera: Camera, world: World) =
     with shadowShader:
       shadowShader.setUniform("opacity", 0.75)
       let
-        progress = abs(player.moveProgress  - (MoveTime / 2)) / (MoveTime / 2)
+        progress = abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2)
         pos = vec3(player.pos.x, 1, player.pos.z)
         shadowMatrix = (mat4() * translate(pos)) * scale(vec3(1.4) * progress)
       shadowShader.setUniform("mvp", camera.orthoView * shadowMatrix)
@@ -181,6 +181,7 @@ addResourceProc:
   alphaClipShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/alphaclip.glsl")
   shadowShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/shadow.glsl")
 
+  
   quadModel = loadModel("assets/models/pickup_quad.dae")
   shadowTex = genTexture()
   makeShadow(1).copyTo shadowTex

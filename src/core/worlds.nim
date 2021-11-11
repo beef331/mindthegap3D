@@ -7,7 +7,8 @@ import std/[sequtils, options, decls]
 
 const
   StartHeight = 10f
-  FallTime = 0.3f
+  FallTime = 1f
+  SinkHeight = -0.5
 type
   TileKind* = enum
     empty, wall, floor, pickup, box
@@ -182,6 +183,7 @@ proc steppedOff*(world: var World, pos: Vec3) =
     of box:
       tile.isWalkable = false
       tile.steppedOn = true
+      tile.progress = 0
     else: discard
 
 proc getSafeDirections*(world: World, index: Natural): set[Direction] =
@@ -207,24 +209,33 @@ proc getPickups*(world: var World, pos: Vec3): Option[PickupType] =
       world.tiles[index].active = false
       result = some(world.tiles[index].pickupKind)
 
+proc renderBox(tile: Tile, cam: Camera, pos: Vec3) =
+  var pos = pos
+  pos.y =
+    if tile.steppedOn:
+      mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
+    else:
+      mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
+  glUseProgram(boxShader.Gluint)
+  let modelMatrix = mat4() * translate(pos)
+  boxShader.setUniform("m", modelMatrix)
+  boxShader.setUniform("mvp", cam.orthoView * modelMatrix)
+  boxShader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
+  render(boxModel)
+  glUseProgram(levelShader.Gluint)
+
+proc renderDepth*(world: World, cam: Camera, shader: Shader) =
+  for (tile, pos) in world.tileKindCoords:
+    if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
+      drawBlock(tile.kind.RenderedTile, cam, shader, pos)
+
 proc render*(world: World, cam: Camera) =
-  glEnable(GlDepthTest)
   with levelShader:
     for (tile, pos) in world.tileKindCoords:
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         case tile.kind
         of box:
-          var pos = pos
-          pos.y = mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
-          glUseProgram(boxShader.Gluint)
-          let modelMatrix = mat4() * translate(pos)
-          boxShader.setUniform("m", modelMatrix)
-          boxShader.setUniform("mvp", cam.orthoView * modelMatrix)
-          boxShader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
-          render(boxModel)
-
-
-          glUseProgram(levelShader.Gluint)
+         renderBox(tile, cam, pos)
         else:
           drawBlock(tile.kind, cam, levelShader, pos)
         if tile.kind == pickup:
@@ -275,6 +286,9 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
         elif not x.steppedOn:
           x.progress = FallTime
           x.isWalkable = true
+        else:
+          x.progress += dt
+        x.progress = clamp(x.progress, 0, FallTime)
   of editing:
     world.updateCursor(getMousePos(), cam)
     let scroll = getMouseScroll()
