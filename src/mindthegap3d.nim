@@ -15,12 +15,11 @@ proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
   data.appendVerts:
     [
-      vec3(0, 0, 0), vec3(w, 3, h),
+      vec3(0, 0, 0), vec3(w, 0, h),
       vec3(0, 0, h),
       vec3(w, 0, 0)
     ].items
   data.append([0u32, 1, 2, 0, 3, 1].items)
-  data.appendUV([vec2(1, 1), vec2(0, 0), vec2(1, 0), vec2(0, 1)].items)
   result = data.uploadData()
 
 addResourceProc do:
@@ -30,7 +29,7 @@ addResourceProc do:
   depthBuffer = genFrameBuffer(screenSize(), tfRGB, {colour, depth})
   waterQuad = makeRect(10, 10)
   depthShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/depthfrag.glsl")
-  waterShader = loadShader("assets/shaders/texvert.glsl", "assets/shaders/texfrag.glsl")
+  waterShader = loadShader("assets/shaders/watervert.glsl", "assets/shaders/waterfrag.glsl")
   depthBuffer.clearColor = color(0, 0, 0, 1)
 
 var
@@ -65,23 +64,26 @@ proc update(dt: float32) =
   let scroll = getMouseScroll()
   if scroll != 0:
     if KeycodeLCtrl.isPressed:
-      camera.changeSize(clamp(camera.size + -scroll.float * 1000 * camera.size, 3, 20))
+      camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000 * camera.size, 3, 20))
 
   if KeyCodeQ.isDown:
     quitTruss()
 
 proc draw =
   glEnable(GlDepthTest)
+  glCullFace(GlBack)
   with depthBuffer:
     depthBuffer.clear()
-    glEnable(GlDepthTest)
     world.renderDepth(camera, depthShader)
 
+  with waterShader:
+    glEnable(GlDepthTest)
+    waterShader.setUniform("tex", depthBuffer.texture)
+    watershader.setUniform("time", getTime())
+    waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(0, 0.3, 0))))
+    render(waterQuad)
   world.render(camera)
   player.render(camera, world)
-  with texShader:
-    texShader.setUniform("tex", depthBuffer.texture)
-    texShader.setUniform("mvp", camera.orthoView * mat4())
-    render(waterQuad)
+
 
 initTruss("Something", ivec2(1280, 720), invokeResourceProcs, update, draw)

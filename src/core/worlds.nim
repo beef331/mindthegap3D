@@ -150,7 +150,7 @@ proc nextOptional*(world: var World, dir: -1..1) =
   else:
     discard
 
-proc drawBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
+proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile in FloorDrawn:
     let modelMatrix = mat4() * translate(pos)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
@@ -209,25 +209,29 @@ proc getPickups*(world: var World, pos: Vec3): Option[PickupType] =
       world.tiles[index].active = false
       result = some(world.tiles[index].pickupKind)
 
-proc renderBox(tile: Tile, cam: Camera, pos: Vec3) =
+proc renderBox(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
   var pos = pos
   pos.y =
     if tile.steppedOn:
       mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
     else:
       mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
-  glUseProgram(boxShader.Gluint)
+  glUseProgram(shader.Gluint)
   let modelMatrix = mat4() * translate(pos)
-  boxShader.setUniform("m", modelMatrix)
-  boxShader.setUniform("mvp", cam.orthoView * modelMatrix)
-  boxShader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
+  shader.setUniform("m", modelMatrix)
+  shader.setUniform("mvp", cam.orthoView * modelMatrix)
+  shader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
   render(boxModel)
   glUseProgram(levelShader.Gluint)
 
 proc renderDepth*(world: World, cam: Camera, shader: Shader) =
   for (tile, pos) in world.tileKindCoords:
     if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-      drawBlock(tile.kind.RenderedTile, cam, shader, pos)
+      case tile.kind:
+      of box:
+        renderBox(tile, cam, pos, shader)
+      else:
+        renderBlock(tile.kind.RenderedTile, cam, shader, pos)
 
 proc render*(world: World, cam: Camera) =
   with levelShader:
@@ -235,9 +239,9 @@ proc render*(world: World, cam: Camera) =
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         case tile.kind
         of box:
-         renderBox(tile, cam, pos)
+          renderBox(tile, cam, pos, boxShader)
         else:
-          drawBlock(tile.kind, cam, levelShader, pos)
+          renderBlock(tile.kind, cam, levelShader, pos)
         if tile.kind == pickup:
           glUseProgram(alphaClipShader.Gluint)
           alphaClipShader.setUniform("tex", getPickupTexture(tile.pickupKind))
@@ -260,7 +264,7 @@ proc render*(world: World, cam: Camera) =
     with cursorShader:
       if world.cursorTile in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         cursorShader.setUniform("valid", world.cursorValid(true).ord)
-        drawBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
+        renderBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
     glEnable(GlDepthTest)
 
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
@@ -273,7 +277,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
           pos = vec3(start) + x
           isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
         cursorShader.setUniform("valid", isValid.ord)
-        drawBlock(box, cam, cursorShader, pos)
+        renderBlock(box, cam, cursorShader, pos)
     glEnable(GlDepthTest)
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
