@@ -63,7 +63,7 @@ addResourceProc:
   flagShader = loadShader("assets/shaders/flagvert.glsl", "assets/shaders/frag.glsl")
   boxShader = loadShader("assets/shaders/boxvert.glsl", "assets/shaders/frag.glsl")
   boxModel = loadModel("assets/models/box.dae")
-  cursorShader.setUniform("opacity", 0.2)
+  cursorShader.setUniform("opacity", 0.6)
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
   boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))
   boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))

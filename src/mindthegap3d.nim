@@ -80,7 +80,7 @@ proc draw =
     glEnable(GlDepthTest)
     waterShader.setUniform("tex", depthBuffer.depthTexture)
     watershader.setUniform("time", getTime())
-    waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(0, 0.3, 0))))
+    waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(0, 0.9, 0))))
     render(waterQuad)
   world.render(camera)
   player.render(camera, world)
