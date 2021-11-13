@@ -1,4 +1,3 @@
-
 var initProcs: seq[proc()]
 
 proc addResourceProc*(p: proc()) =

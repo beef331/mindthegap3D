@@ -10,7 +10,7 @@ in vec2 fuv;
 uniform sampler2D tex;
 void main() {
   vec4 col = texture(tex, fuv);
-  if(col.a - 0.01 < 0){
+  if(col.a - 0.9 < 0){
     discard;
   }
   frag_colour.rgb = col.rgb;

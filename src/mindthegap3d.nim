@@ -2,6 +2,9 @@ import truss3D, vmath, chroma
 import truss3D/[shaders, textures]
 import core/[worlds, resources, cameras, players, directions]
 
+shaderPath = "assets/shaders"
+modelPath = "assets/models"
+
 const camDefaultSize = 8f
 var
   camera: Camera
@@ -28,8 +31,8 @@ addResourceProc do:
   camera.changeSize(camDefaultSize)
   depthBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
   waterQuad = makeRect(10, 10)
-  depthShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/depthfrag.glsl")
-  waterShader = loadShader("assets/shaders/watervert.glsl", "assets/shaders/waterfrag.glsl")
+  depthShader = loadShader("vert.glsl", "depthfrag.glsl")
+  waterShader = loadShader("watervert.glsl", "waterfrag.glsl")
   depthBuffer.clearColor = color(0, 0, 0, 1)
 
 var
@@ -74,11 +77,12 @@ proc draw =
   glCullFace(GlBack)
   with depthBuffer:
     depthBuffer.clear()
-    world.renderDepth(camera, depthShader)
-
+    world.render(camera)
+  glClear(GLDepthBufferBit or GlColorBufferBit)
   with waterShader:
     glEnable(GlDepthTest)
-    waterShader.setUniform("tex", depthBuffer.depthTexture)
+    waterShader.setUniform("depthTex", depthBuffer.depthTexture)
+    waterShader.setUniform("colourTex", depthBuffer.colourTexture)
     watershader.setUniform("time", getTime())
     waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(0, 0.9, 0))))
     render(waterQuad)

@@ -1,4 +1,4 @@
-import truss3D, truss3D/[models, shaders, textures]
+import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions
 import std/[sequtils, options, decls]
@@ -52,17 +52,17 @@ var
   levelShader, cursorShader, alphaClipShader, flagShader, boxShader: Shader
 
 addResourceProc:
-  floorModel = loadModel("assets/models/floor.dae")
-  wallModel = loadModel("assets/models/wall.dae")
-  pedestalModel = loadModel("assets/models/pickup_platform.dae")
-  pickupQuadModel = loadModel("assets/models/pickup_quad.dae")
-  flagModel = loadModel("assets/models/flag.dae")
-  levelShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/frag.glsl")
-  cursorShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/cursorfrag.glsl")
-  alphaClipShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/alphaclip.glsl")
-  flagShader = loadShader("assets/shaders/flagvert.glsl", "assets/shaders/frag.glsl")
-  boxShader = loadShader("assets/shaders/boxvert.glsl", "assets/shaders/frag.glsl")
-  boxModel = loadModel("assets/models/box.dae")
+  floorModel = loadModel("floor.dae")
+  wallModel = loadModel("wall.dae")
+  pedestalModel = loadModel("pickup_platform.dae")
+  pickupQuadModel = loadModel("pickup_quad.dae")
+  flagModel = loadModel("flag.dae")
+  levelShader = loadShader("vert.glsl", "frag.glsl")
+  cursorShader = loadShader("vert.glsl", "cursorfrag.glsl")
+  alphaClipShader = loadShader("vert.glsl", "alphaclip.glsl")
+  flagShader = loadShader("flagvert.glsl", "frag.glsl")
+  boxShader = loadShader("boxvert.glsl", "frag.glsl")
+  boxModel = loadModel("box.dae")
   cursorShader.setUniform("opacity", 0.6)
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
   boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))

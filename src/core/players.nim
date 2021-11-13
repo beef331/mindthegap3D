@@ -20,6 +20,9 @@ proc makeMoveImage(character: string, border = 20f, size = 256): Image =
     offset = vec2(size.float - border * 2 - bounds.x, size.float - border * 2 - bounds.y)
   font.paint = color
   result.fillText(font.typeSet(character), translate(offset))
+  font.paint = rgba(255, 165, 0, 255)
+
+  result.strokeText(font.typeset(character), translate(offset), strokeWidth = 20)
 
 proc makeShadow(radiusPercent = 0.75, size = 256): Image =
   result = newImage(size, size)
@@ -163,8 +166,8 @@ proc render*(player: Player, camera: Camera, world: World) =
 proc pos*(player: Player): Vec3 = player.pos
 
 addResourceProc:
-  playerModel = loadModel("assets/models/player.dae")
-  playerShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/frag.glsl")
+  playerModel = loadModel("player.dae")
+  playerShader = loadShader("vert.glsl", "frag.glsl")
   let
     wImage = makeMoveImage("W")
     aImage = makeMoveImage("D")
@@ -178,11 +181,11 @@ addResourceProc:
   dImage.copyTo(dirTex[right])
   sImage.copyTo(dirTex[down])
   aImage.copyTo(dirTex[left])
-  alphaClipShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/alphaclip.glsl")
-  shadowShader = loadShader("assets/shaders/vert.glsl", "assets/shaders/shadow.glsl")
+  alphaClipShader = loadShader("vert.glsl", "alphaclip.glsl")
+  shadowShader = loadShader("vert.glsl", "shadow.glsl")
 
   
-  quadModel = loadModel("assets/models/pickup_quad.dae")
+  quadModel = loadModel("pickup_quad.dae")
   shadowTex = genTexture()
   makeShadow(1).copyTo shadowTex
 
