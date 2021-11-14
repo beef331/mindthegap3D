@@ -1,4 +1,4 @@
-import truss3D, vmath, chroma
+import truss3D, vmath, chroma, pixie
 import truss3D/[shaders, textures]
 import core/[worlds, resources, cameras, players, directions]
 
@@ -8,11 +8,12 @@ modelPath = "assets/models"
 const camDefaultSize = 8f
 var
   camera: Camera
-  world = World.init(10, 10)
+  world = World.init(30, 30)
   player = Player.init(vec3(5, 0, 5))
   depthBuffer: FrameBuffer
   depthShader, waterShader: Shader
   waterQuad: Model
+  waterTex: Texture
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -23,16 +24,20 @@ proc makeRect(w, h: float32): Model =
       vec3(w, 0, 0)
     ].items
   data.append([0u32, 1, 2, 0, 3, 1].items)
+  data.appendUv([vec2(0, 0), vec2(1, 1), vec2(0, 1), vec2(1, 0)].items)
   result = data.uploadData()
 
 addResourceProc do:
   camera.pos = vec3(0, 8, 0)
   camera.forward = normalize(vec3(5, 0, 5) - camera.pos)
+  camera.pos = camera.pos - camera.forward * 20
   camera.changeSize(camDefaultSize)
   depthBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
-  waterQuad = makeRect(10, 10)
+  waterQuad = makeRect(300, 300)
   depthShader = loadShader("vert.glsl", "depthfrag.glsl")
   waterShader = loadShader("watervert.glsl", "waterfrag.glsl")
+  waterTex = genTexture()
+  readImage("assets/water.png").copyTo(waterTex)
   depthBuffer.clearColor = color(0, 0, 0, 1)
 
 var
@@ -83,8 +88,9 @@ proc draw =
     glEnable(GlDepthTest)
     waterShader.setUniform("depthTex", depthBuffer.depthTexture)
     waterShader.setUniform("colourTex", depthBuffer.colourTexture)
+    waterShader.setUniform("waterTex", waterTex)
     watershader.setUniform("time", getTime())
-    waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(0, 0.9, 0))))
+    waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(-150, 0.9, -150))))
     render(waterQuad)
   world.render(camera)
   player.render(camera, world)
