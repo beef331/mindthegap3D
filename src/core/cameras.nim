@@ -29,12 +29,18 @@ proc changeSize*(camera: var Camera, size: float32) =
 
 proc init*(_: typedesc[Camera], pos, forward: Vec3) {.constr.} = discard
 
-const up = vec3(0, 1, 0)
+const globalUp = vec3(0, 1, 0)
+
+proc up*(cam: Camera): Vec3 =
+  let
+    camDir = normalize(cam.forward)
+    camRight = cross(camDir, globalUp).normalize
+  result = cross(camRight, camDir).normalize
 
 proc raycast*(cam: Camera, point: IVec2): Vec3 =
   let
     camDir = normalize(cam.forward)
-    camRight = cross(camDir, up).normalize
+    camRight = cross(camDir, globalUp).normalize
     camUp = cross(camRight, camDir).normalize
     screenSize = screenSize()
     xNdc = (2 * point.x) / screenSize.x - 1
@@ -46,7 +52,7 @@ proc raycast*(cam: Camera, point: IVec2): Vec3 =
       else:
         let aspect = screenSize.y / screenSize.x
         cam.pos + camRight * xNdc * cam.size + camUp * -yNdc * cam.size * aspect
-    dist = dot(origin, up) / dot(camDir, up)
+    dist = dot(origin, globalUp) / dot(camDir, globalUp)
   result = -dist * camDir + origin
 
 proc screenPosFromWorld*(cam: Camera, pos: Vec3): IVec2 = 

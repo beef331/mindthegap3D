@@ -30,7 +30,6 @@ const
   Height = 2
 
 type
-
   Player* = object
     startPos: Vec3
     targetPos: Vec3
@@ -55,7 +54,7 @@ proc init*(_: typedesc[Player], pos: Vec3): Player =
 
 proc toVec*(d: Direction): Vec3 =
   case d
-  of up: vec3(0, 0, 1)
+  of Direction.up: vec3(0, 0, 1)
   of right: vec3(1, 0, 0)
   of down: vec3(0, 0, -1)
   of left: vec3(-1, 0, 0)
@@ -63,7 +62,7 @@ proc toVec*(d: Direction): Vec3 =
 proc targetRotation*(d: Direction): float32 = 
   case d
   of right: 0f
-  of up: Tau / 4f
+  of Direction.up: Tau / 4f
   of left: Tau / 2f
   of down: 3f / 4f * Tau
 
@@ -113,7 +112,7 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
         if moved:
           world.steppedOff(player.posOffset)
 
-  move(KeyCodeW, up)
+  move(KeyCodeW, Direction.up)
   move(KeyCodeD, left)
   move(KeyCodeS, down)
   move(KeyCodeA, right)
@@ -149,7 +148,7 @@ proc render*(player: Player, camera: Camera, world: World) =
       pos = vec3(player.pos.x, 1, player.pos.z)
     renderShadow(camera, pos, scale)
   if player.presentPickup.isSome:
-    world.renderDropCursor(camera, player.presentPickup.get, getMousePos(), up)
+    world.renderDropCursor(camera, player.presentPickup.get, getMousePos(), Direction.up)
 
 proc pos*(player: Player): Vec3 = player.pos
 
@@ -165,7 +164,7 @@ addResourceProc:
   for x in dirTex.mitems:
     x = genTexture()
 
-  wImage.copyTo(dirTex[up])
+  wImage.copyTo(dirTex[Direction.up])
   dImage.copyTo(dirTex[right])
   sImage.copyTo(dirTex[down])
   aImage.copyTo(dirTex[left])

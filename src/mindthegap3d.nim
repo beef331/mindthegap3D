@@ -38,7 +38,7 @@ addResourceProc do:
   camera.pos = camera.pos - camera.forward * 20
   camera.changeSize(camDefaultSize)
   depthBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
-  signBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
+  signBuffer = genFrameBuffer(screenSize(), tfR, hasDepth = true)
   waterQuad = makeRect(300, 300)
   depthShader = loadShader("vert.glsl", "depthfrag.glsl")
   waterShader = loadShader("watervert.glsl", "waterfrag.glsl")
@@ -52,10 +52,12 @@ var
   lastScreenSize: IVec2
 
 proc update(dt: float32) =
-  if lastScreenSize != screenSize():
-    lastScreenSize = screenSize()
+  let scrSize = screenSize()
+  if lastScreenSize != scrSize:
+    lastScreenSize = scrSize
     camera.calculateMatrix()
-    depthBuffer.resize(screenSize())
+    depthBuffer.resize(scrSize)
+    signBuffer.resize(scrSize)
 
   if middleMb.isDown:
     cameraDragPos = camera.raycast(getMousePos())

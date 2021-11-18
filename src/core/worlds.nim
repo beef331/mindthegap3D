@@ -1,6 +1,6 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
-import resources, cameras, pickups, directions, shadows
+import resources, cameras, pickups, directions, shadows, signs
 import std/[sequtils, options, decls]
 
 {.experimental: "overloadableEnums".}
@@ -33,9 +33,6 @@ type
     worldPos: Vec3
   WorldState* = enum
     playing, editing, previewing
-  Sign = object
-    pos: Vec3
-    message: string
   World* = object
     state*: WorldState
     width, height: int
@@ -81,9 +78,6 @@ proc init*(_: typedesc[World], width, height: int): World =
   result.tiles = newSeqWith(width * height, Tile(kind: empty))
   result.cursorTile = floor
   result.state = editing
-  result.signs.add Sign(message: "Hello cruel world", pos: vec3(0, 1, 3))
-  result.signs.add Sign(message: "Hmmm is this thing on", pos: vec3(0, 1, 5))
-  result.signs.add Sign(message: "It really seems so", pos: vec3(5, 1, 10))
 
 
 iterator tileKindCoords(world: World): (Tile, Vec3) = 
@@ -243,8 +237,8 @@ proc renderDepth*(world: World, cam: Camera, shader: Shader) =
       else:
         renderBlock(tile.kind.RenderedTile, cam, shader, pos)
 
-proc hoverSign*(world: World, index: int) =
-  echo world.signs[index].message
+proc hoverSign*(world: var World, index: int) =
+  world.signs[index].hovered = true
 
 proc getSignColor(index, num: int): float = (index + 1) / num
 
@@ -258,10 +252,12 @@ proc renderSignBuff*(world: World, cam: Camera) =
     render(signModel)
 
 proc renderSigns(world: World, cam: Camera) =
-  for x in world.signs:
-    renderShadow(cam, x.pos, vec3(0.5), 0.9)
+  glEnable(GlDepthTest)
+  for sign in world.signs:
+    renderShadow(cam, sign.pos, vec3(0.5), 0.9)
+    sign.render(cam)
     levelShader.makeActive()
-    let mat = mat4() * translate(x.pos)
+    let mat = mat4() * translate(sign.pos)
     levelShader.setUniform("mvp", cam.orthoView * mat)
     levelShader.setUniform("m", mat)
     render(signModel)
@@ -315,8 +311,14 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
     glEnable(GlDepthTest)
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
+  if world.signs.len == 0:
+    world.signs.add Sign.init(vec3(0, 1, 3), "These signs can have some interesting material")
+    world.signs.add Sign.init(vec3(0, 1, 5), "Like really entire sentences written on them.")
+    world.signs.add Sign.init(vec3(5, 1, 10), "Damn Tutorialization has never been so easy")
   case world.state
   of playing:
+    for sign in world.signs.mitems:
+      sign.update(dt)
     for x in world.tiles.mitems:
       if x.kind == box:
         if x.progress < FallTime:
