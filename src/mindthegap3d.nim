@@ -1,6 +1,11 @@
-import truss3D, vmath, chroma, pixie
+import truss3D
+import vmath
+import chroma
+import pixie
 import truss3D/[shaders, textures]
 import core/[worlds, resources, cameras, players, directions]
+
+
 
 shaderPath = "assets/shaders"
 modelPath = "assets/models"
@@ -10,7 +15,7 @@ var
   camera: Camera
   world = World.init(30, 30)
   player = Player.init(vec3(5, 0, 5))
-  depthBuffer: FrameBuffer
+  depthBuffer, signBuffer: FrameBuffer
   depthShader, waterShader: Shader
   waterQuad: Model
   waterTex: Texture
@@ -33,6 +38,7 @@ addResourceProc do:
   camera.pos = camera.pos - camera.forward * 20
   camera.changeSize(camDefaultSize)
   depthBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
+  signBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
   waterQuad = makeRect(300, 300)
   depthShader = loadShader("vert.glsl", "depthfrag.glsl")
   waterShader = loadShader("watervert.glsl", "waterfrag.glsl")
@@ -56,7 +62,16 @@ proc update(dt: float32) =
     cameraStartPos = camera.pos
     mouseStartPos = getMousePos()
     mouseOffset = ivec2(0)
-  
+
+  with signBuffer:
+    let
+      mousePos = getMousePos()
+      colData = 0u8
+    glReadPixels(mousePos.x, screenSize().y - mousePos.y, 1, 1, GlRed, GlUnsignedByte, colData.unsafeAddr)
+    let selected = world.getSignIndex(colData / 255)
+    if selected >= 0:
+      world.hoverSign(selected)
+
   if middleMb.isPressed:
     mouseOffset += getMouseDelta()
     let
@@ -83,6 +98,11 @@ proc draw =
   with depthBuffer:
     depthBuffer.clear()
     world.render(camera)
+
+  with signBuffer:
+    signBuffer.clear()
+    world.renderSignBuff(camera)
+
   glClear(GLDepthBufferBit or GlColorBufferBit)
   with waterShader:
     glEnable(GlDepthTest)

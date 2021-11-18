@@ -33,12 +33,16 @@ type
     worldPos: Vec3
   WorldState* = enum
     playing, editing, previewing
+  Sign = object
+    pos: Vec3
+    message: string
   World* = object
     state*: WorldState
     width, height: int
     tiles: seq[Tile]
     blocks: seq[Block]
     cursor: Vec3
+    signs: seq[Sign]
     cursorTile: TileKind
     playerSpawn: int
 
@@ -48,8 +52,8 @@ const
   Walkable = {TileKind.floor, pickup, box}
 
 var
-  wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel, boxModel: Model
-  levelShader, cursorShader, alphaClipShader, flagShader, boxShader: Shader
+  wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel: Model
+  levelShader, cursorShader, alphaClipShader, flagShader, boxShader, signBuffShader: Shader
 
 addResourceProc:
   floorModel = loadModel("floor.dae")
@@ -57,17 +61,19 @@ addResourceProc:
   pedestalModel = loadModel("pickup_platform.dae")
   pickupQuadModel = loadModel("pickup_quad.dae")
   flagModel = loadModel("flag.dae")
+  boxModel = loadModel("box.dae")
+  signModel = loadModel("sign.dae")
+
   levelShader = loadShader("vert.glsl", "frag.glsl")
   cursorShader = loadShader("vert.glsl", "cursorfrag.glsl")
   alphaClipShader = loadShader("vert.glsl", "alphaclip.glsl")
   flagShader = loadShader("flagvert.glsl", "frag.glsl")
   boxShader = loadShader("boxvert.glsl", "frag.glsl")
-  boxModel = loadModel("box.dae")
+  signBuffShader = loadShader("vert.glsl", "signbufffrag.glsl")
   cursorShader.setUniform("opacity", 0.6)
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
   boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))
   boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
-
 
 proc init*(_: typedesc[World], width, height: int): World =
   result.width = width
@@ -75,6 +81,10 @@ proc init*(_: typedesc[World], width, height: int): World =
   result.tiles = newSeqWith(width * height, Tile(kind: empty))
   result.cursorTile = floor
   result.state = editing
+  result.signs.add Sign(message: "Hello cruel world", pos: vec3(0, 1, 3))
+  result.signs.add Sign(message: "Hmmm is this thing on", pos: vec3(0, 1, 5))
+  result.signs.add Sign(message: "It really seems so", pos: vec3(5, 1, 10))
+
 
 iterator tileKindCoords(world: World): (Tile, Vec3) = 
   for i, tile in world.tiles:
@@ -233,8 +243,30 @@ proc renderDepth*(world: World, cam: Camera, shader: Shader) =
       else:
         renderBlock(tile.kind.RenderedTile, cam, shader, pos)
 
+proc hoverSign*(world: World, index: int) =
+  echo world.signs[index].message
+
+proc getSignColor(index, num: int): float = (index + 1) / num
+
+proc getSignIndex*(world: World, val: float): int = (val * world.signs.len.float).int - 1
+
+proc renderSignBuff*(world: World, cam: Camera) =
+  for i, x in world.signs:
+    let mat = mat4() * translate(x.pos)
+    signBuffShader.setUniform("mvp", cam.orthoView * mat)
+    signBuffShader.setUniform("signColour" , i.getSignColor(world.signs.len))
+    render(signModel)
+
+proc renderSigns(world: World, cam: Camera) =
+  for x in world.signs:
+    let mat = mat4() * translate(x.pos)
+    levelShader.setUniform("mvp", cam.orthoView * mat)
+    levelShader.setUniform("m", mat)
+    render(signModel)
+
 proc render*(world: World, cam: Camera) =
   with levelShader:
+    renderSigns(world, cam)
     for (tile, pos) in world.tileKindCoords:
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         case tile.kind
