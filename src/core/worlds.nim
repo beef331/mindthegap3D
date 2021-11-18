@@ -1,6 +1,6 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
-import resources, cameras, pickups, directions
+import resources, cameras, pickups, directions, shadows
 import std/[sequtils, options, decls]
 
 {.experimental: "overloadableEnums".}
@@ -259,6 +259,8 @@ proc renderSignBuff*(world: World, cam: Camera) =
 
 proc renderSigns(world: World, cam: Camera) =
   for x in world.signs:
+    renderShadow(cam, x.pos, vec3(0.5), 0.9)
+    levelShader.makeActive()
     let mat = mat4() * translate(x.pos)
     levelShader.setUniform("mvp", cam.orthoView * mat)
     levelShader.setUniform("m", mat)

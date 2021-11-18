@@ -1,6 +1,6 @@
 import truss3D/[shaders, models, textures, inputs]
 import std/options
-import resources, cameras, directions, worlds, pickups
+import resources, cameras, directions, worlds, pickups, shadows
 import vmath
 import pixie
 
@@ -24,12 +24,6 @@ proc makeMoveImage(character: string, border = 20f, size = 256): Image =
 
   result.strokeText(font.typeset(character), translate(offset), strokeWidth = 20)
 
-proc makeShadow(radiusPercent = 0.75, size = 256): Image =
-  result = newImage(size, size)
-  let ctx = newContext(result)
-  ctx.fillStyle = rgba(0, 0, 0, 255)
-  ctx.fillCircle(circle(vec2(size / 2), size / 2 * radiusPercent))
-
 const
   MoveTime = 0.3f
   RotationSpeed = Tau * 3
@@ -49,9 +43,8 @@ type
 
 
 var
-  playerModel, quadModel: Model
-  playerShader, alphaClipShader, shadowShader: Shader
-  shadowTex: Texture
+  playerModel, dirModel: Model
+  playerShader, alphaClipShader: Shader
   dirTex: array[Direction, Texture]
 
 proc init*(_: typedesc[Player], pos: Vec3): Player =
@@ -149,17 +142,12 @@ proc render*(player: Player, camera: Camera, world: World) =
           let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.3, 0) + x.toVec) * rotateY(90.toRadians))
           alphaClipShader.setUniform("mvp", camera.orthoView * modelMatrix)
           alphaClipShader.setUniform("tex", dirTex[x])
-          render(quadModel)
+          render(dirModel)
   else:
-    with shadowShader:
-      shadowShader.setUniform("opacity", 0.75)
-      let
-        progress = abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2)
-        pos = vec3(player.pos.x, 1, player.pos.z)
-        shadowMatrix = (mat4() * translate(pos)) * scale(vec3(1.4) * progress)
-      shadowShader.setUniform("mvp", camera.orthoView * shadowMatrix)
-      shadowShader.setUniform("tex", shadowTex)
-      render(quadModel)
+    let
+      scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)
+      pos = vec3(player.pos.x, 1, player.pos.z)
+    renderShadow(camera, pos, scale)
   if player.presentPickup.isSome:
     world.renderDropCursor(camera, player.presentPickup.get, getMousePos(), up)
 
@@ -182,10 +170,4 @@ addResourceProc:
   sImage.copyTo(dirTex[down])
   aImage.copyTo(dirTex[left])
   alphaClipShader = loadShader("vert.glsl", "alphaclip.glsl")
-  shadowShader = loadShader("vert.glsl", "shadow.glsl")
-
-  
-  quadModel = loadModel("pickup_quad.dae")
-  shadowTex = genTexture()
-  makeShadow(1).copyTo shadowTex
-
+  dirModel = loadModel("pickup_quad.dae")
