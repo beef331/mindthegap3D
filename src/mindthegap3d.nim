@@ -59,6 +59,9 @@ proc update(dt: float32) =
     depthBuffer.resize(scrSize)
     signBuffer.resize(scrSize)
 
+  if Keycoder.isPressed:
+    world = World.init(30, 30)
+
   if middleMb.isDown:
     cameraDragPos = camera.raycast(getMousePos())
     cameraStartPos = camera.pos
@@ -99,6 +102,7 @@ proc draw =
   glCullFace(GlBack)
   with depthBuffer:
     depthBuffer.clear()
+    player.render(camera, world)
     world.render(camera)
 
   with signBuffer:

@@ -252,7 +252,6 @@ proc renderSignBuff*(world: World, cam: Camera) =
     render(signModel)
 
 proc renderSigns(world: World, cam: Camera) =
-  glEnable(GlDepthTest)
   for sign in world.signs:
     renderShadow(cam, sign.pos, vec3(0.5), 0.9)
     sign.render(cam)
@@ -264,7 +263,6 @@ proc renderSigns(world: World, cam: Camera) =
 
 proc render*(world: World, cam: Camera) =
   with levelShader:
-    renderSigns(world, cam)
     for (tile, pos) in world.tileKindCoords:
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         case tile.kind
@@ -290,25 +288,30 @@ proc render*(world: World, cam: Camera) =
       flagShader.setUniform("time", getTime())
       render(flagModel)
 
-    glDisable(GlDepthTest)
     with cursorShader:
       if world.cursorTile in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-        cursorShader.setUniform("valid", world.cursorValid(true).ord)
+        let isValid = world.cursorValid(true)
+        if not isValid:
+          glDisable(GlDepthTest)
+        cursorShader.setUniform("valid", isValid.ord)
         renderBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
-    glEnable(GlDepthTest)
+        glEnable(GlDepthTest)
+  renderSigns(world, cam)
+
 
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
   if world.state == playing:
-    glDisable(GlDepthTest)
     let start = ivec3(cam.raycast(pos))
     with cursorShader:
       for x in pickup.positions:
         let
           pos = vec3(start) + x
           isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
+        if not isValid:
+          glDisable(GlDepthTest)
         cursorShader.setUniform("valid", isValid.ord)
         renderBlock(box, cam, cursorShader, pos)
-    glEnable(GlDepthTest)
+        glEnable(GlDepthTest)
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
   if world.signs.len == 0:

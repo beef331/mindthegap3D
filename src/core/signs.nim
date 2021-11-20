@@ -32,7 +32,7 @@ addResourceProc:
 
 
 var font = readFont("assets/fonts/MarradaRegular-Yj0O.ttf")
-proc makeSignTexture(sign: var Sign, width = 512, height = 256, border = 10) =
+proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
   let
     img = newImage(width, height)
     ctx = newContext(img)
@@ -40,7 +40,7 @@ proc makeSignTexture(sign: var Sign, width = 512, height = 256, border = 10) =
     rectHeight = height.float - border.float * 2
   ctx.fillStyle = color(1, 1, 1, 1)
   ctx.fillRoundedRect(rect(border.float, border.float, rectWidth, rectHeight), 20, 20, 20, 20)
-  font.size = 60
+  font.size = 120
   img.fillText(font.typeset(sign.message, vec2(rectWidth, rectHeight), hAlign = haCenter, vAlign = vaMiddle), translate(vec2(border.float)))
 
   sign.messageTexture = genTexture()
