@@ -2,6 +2,7 @@ import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions, shadows, signs
 import std/[sequtils, options, decls]
+import constructor/constructor
 
 {.experimental: "overloadableEnums".}
 
@@ -11,19 +12,29 @@ const
   SinkHeight = -1
 type
   TileKind* = enum
-    empty, wall, floor, pickup, box
+    empty, wall, floor, pickup, box, shooter
   BlockFlag* = enum
-    dropped, pushable, shooter
+    dropped, pushable
+  ProjectileKind = enum
+    hitScan, dynamicProjectile
+  Projectile = object
+    pos: Vec3
+    timeToMove: float32
+    direction: Vec3
   Tile = object
     isWalkable: bool
+    boxFlag: set[BlockFlag]
     case kind: TileKind
     of pickup:
       pickupKind*: PickupType
       active: bool
     of box:
-      boxFlag: set[BlockFlag]
       progress: float32
       steppedOn: bool
+    of shooter:
+      shotDelay: float32 # Shooters and boxes are the same, but come here to make editing easier
+      projectileType: ProjectileKind
+      pool: seq[Projectile]
     else: discard
 
   RenderedTile = TileKind.wall..TileKind.box
@@ -34,14 +45,16 @@ type
   WorldState* = enum
     playing, editing, previewing
   World* = object
-    state*: WorldState
     width, height: int
     tiles: seq[Tile]
     blocks: seq[Block]
     cursor: Vec3
     signs: seq[Sign]
-    cursorTile: TileKind
     playerSpawn: int
+    case state*: WorldState
+    of editing:
+      editingTile: Tile
+    else: discard
 
 const
   FloorDrawn = {wall, floor, pickup}
@@ -73,14 +86,20 @@ addResourceProc:
   boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
 
 proc init*(_: typedesc[World], width, height: int): World =
-  result.width = width
-  result.height = height
+  result = World(state: editing, width: width, height: height, editingTile: Tile(kind: floor))
   result.tiles = newSeqWith(width * height, Tile(kind: empty))
-  result.cursorTile = floor
-  result.state = editing
+
+proc play*(world: var World) =
+  world = World(
+    width: world.width,
+    height: world.height,
+    tiles: world.tiles,
+    blocks: world.blocks,
+    signs: world.signs,
+    playerSpawn: world.playerSpawn)
 
 
-iterator tileKindCoords(world: World): (Tile, Vec3) = 
+iterator tileKindCoords(world: World): (Tile, Vec3) =
   for i, tile in world.tiles:
     let
       x = i mod world.width
@@ -119,11 +138,13 @@ proc posValid(world: World, pos: Vec3): bool =
 
 proc placeTile*(world: var World) =
   if world.cursorValid(true) and world.state == editing:
-    case world.cursorTile
+    case world.editingTile.kind
     of pickup:
-      world.tiles[world.getCursorIndex] = Tile(kind: pickup, active: true)
+      world.editingTile.active = true
+      world.tiles[world.getCursorIndex] = world.editingTile
+
     else:
-      world.tiles[world.getCursorIndex] = Tile(kind: world.cursorTile)
+      world.tiles[world.getCursorIndex] = world.editingTile
     world.tiles[world.getCursorIndex].isWalkable = true
 
 proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction): bool =
@@ -141,11 +162,12 @@ proc placeEmpty*(world: var World) =
     world.tiles[world.getCursorIndex] = Tile(kind: empty)
 
 proc nextTile*(world: var World, dir: -1..1) =
-  world.cursorTile = ((world.cursorTile.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
-  while world.cursorTile notin Paintable:
-    world.cursorTile = ((world.cursorTile.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
+  var newKind = ((world.editingTile.kind.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
+  while newKind notin Paintable:
+    newKind = ((newKind.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
+  world.editingTile = Tile(kind: newKind)
 
-proc nextOptional*(world: var World, dir: -1..1) = 
+proc nextOptional*(world: var World, dir: -1..1) =
   let index = world.getCursorIndex
   case world.tiles[index].kind
   of pickup:
@@ -248,7 +270,7 @@ proc renderSignBuff*(world: World, cam: Camera) =
   for i, x in world.signs:
     let mat = mat4() * translate(x.pos)
     signBuffShader.setUniform("mvp", cam.orthoView * mat)
-    signBuffShader.setUniform("signColour" , i.getSignColor(world.signs.len))
+    signBuffShader.setUniform("signColour", i.getSignColor(world.signs.len))
     render(signModel)
 
 proc renderSigns(world: World, cam: Camera) =
@@ -276,7 +298,7 @@ proc render*(world: World, cam: Camera) =
           alphaClipShader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
           render(pickupQuadModel)
           glUseProgram(levelShader.Gluint)
-          
+
 
   if world.state == editing:
     with flagShader:
@@ -289,12 +311,12 @@ proc render*(world: World, cam: Camera) =
       render(flagModel)
 
     with cursorShader:
-      if world.cursorTile in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
+      if world.editingTile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         let isValid = world.cursorValid(true)
         if not isValid:
           glDisable(GlDepthTest)
         cursorShader.setUniform("valid", isValid.ord)
-        renderBlock(world.cursorTile.RenderedTile, cam, cursorShader, world.cursor)
+        renderBlock(world.editingTile.kind.RenderedTile, cam, cursorShader, world.cursor)
         glEnable(GlDepthTest)
   renderSigns(world, cam)
 
@@ -314,10 +336,6 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         glEnable(GlDepthTest)
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
-  if world.signs.len == 0:
-    world.signs.add Sign.init(vec3(0, 1, 3), "These signs can have some interesting material")
-    world.signs.add Sign.init(vec3(0, 1, 5), "Like really entire sentences written on them.")
-    world.signs.add Sign.init(vec3(5, 1, 10), "Damn Tutorialization has never been so easy")
   case world.state
   of playing:
     for sign in world.signs.mitems:

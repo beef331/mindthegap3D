@@ -59,7 +59,7 @@ proc toVec*(d: Direction): Vec3 =
   of down: vec3(0, 0, -1)
   of left: vec3(-1, 0, 0)
 
-proc targetRotation*(d: Direction): float32 = 
+proc targetRotation*(d: Direction): float32 =
   case d
   of right: 0f
   of Direction.up: Tau / 4f
@@ -74,7 +74,7 @@ proc move*(player: var Player, direction: Direction): bool =
     player.moveProgress = 0
     result = true
 
-proc movementUpdate(player: var Player, dt: float32) = 
+proc movementUpdate(player: var Player, dt: float32) =
   let
     rotTarget = player.direction.targetRotation
   var
@@ -102,9 +102,9 @@ proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models a
 
 proc update*(player: var Player, world: var World, camera: Camera, dt: float32) =
   movementUpdate(player, dt)
-  let safeDirs = world.getSafeDirections(player.posOffset) 
+  let safeDirs = world.getSafeDirections(player.posOffset)
   var moved = false
-  
+
   template move(keycode: TKeycode, dir: Direction) =
     if keycode.isPressed and dir in safeDirs:
       if not moved:
@@ -120,7 +120,7 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
     player.presentPickup = none(PickupType)
   if moved and player.presentPickup.isNone:
     player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
-    world.state = playing
+    world.play()
   if leftMb.isPressed and player.presentPickup.isSome:
     let hitPos = camera.raycast(getMousePos()).ivec3
     if world.placeBlock(hitPos.vec3, player.presentPickup.get, player.pickupRotation):
