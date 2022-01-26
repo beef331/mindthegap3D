@@ -149,12 +149,12 @@ proc placeTile*(world: var World) =
 
 proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction): bool =
   block placeBlock:
-    for x in kind.positions(dir):
-      if not world.posValid(pos + x):
+    for x in kind.positions(dir, pos):
+      if not world.posValid(x):
         break placeBlock
     result = true
-    for x in kind.positions(dir):
-      let index = world.getPointIndex(pos + vec3(x))
+    for x in kind.positions(dir, pos):
+      let index = world.getPointIndex(vec3(x))
       world.tiles[index] = Tile(kind: box, isWalkable: false)
 
 proc placeEmpty*(world: var World) =
@@ -362,7 +362,13 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 
     if leftMb.isPressed:
       world.placeTile()
-    if rightMb.isPressed:
+    if KeyCodeLCtrl.isPressed and rightMb.isPressed:
+      let hit = cam.raycast(getMousePos())
+      if hit in world:
+        let index = world.getPointIndex(hit)
+        if world.tiles[index].kind != empty:
+          world.editingTile = world.tiles[index]
+    elif rightMb.isPressed:
       world.placeEmpty()
   of previewing:
     discard

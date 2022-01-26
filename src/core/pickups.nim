@@ -48,5 +48,5 @@ proc getPickupTexture*(pickupKind: PickupType): Texture = pickupTextures[pickupK
 iterator positions*(pickUpKind: PickupType, dir: Direction, origin = vec3(0, 0, 0)): Vec3 =
   let rot = dir.asRot
   for point in offsets[pickUpKind]:
-    let point = vec3(point.x * cos(rot) - point.z * sin(rot), 0, point.z * cos(rot) + point.x * sin(rot))
+    let point = vec3(round(point.x * cos(rot) - point.z * sin(rot)), 0, round(point.z * cos(rot) + point.x * sin(rot)))
     yield point + origin
