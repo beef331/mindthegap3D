@@ -1,6 +1,6 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
-import resources, cameras, pickups, directions, shadows, signs
+import resources, cameras, pickups, directions, shadows, signs, enumutils
 import std/[sequtils, options, decls]
 import constructor/constructor
 
@@ -33,7 +33,7 @@ type
       steppedOn: bool
     of shooter:
       shotDelay: float32 # Shooters and boxes are the same, but come here to make editing easier
-      projectileType: ProjectileKind
+      projectileKind: ProjectileKind
       pool: seq[Projectile]
     else: discard
 
@@ -162,17 +162,20 @@ proc placeEmpty*(world: var World) =
     world.tiles[world.getCursorIndex] = Tile(kind: empty)
 
 proc nextTile*(world: var World, dir: -1..1) =
-  var newKind = ((world.editingTile.kind.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
+  var newKind = world.editingTile.kind.nextWrapped
   while newKind notin Paintable:
-    newKind = ((newKind.ord + dir + TileKind.high.ord + 1) mod (TileKind.high.ord + 1)).TileKind
+    newKind = newKind.nextWrapped
   world.editingTile = Tile(kind: newKind)
 
 proc nextOptional*(world: var World, dir: -1..1) =
-  let index = world.getCursorIndex
-  case world.tiles[index].kind
+  let
+    index = world.getCursorIndex
+    tile {.byaddr.} = world.tiles[index]
+  case tile.kind
   of pickup:
-    let pickupKind = world.tiles[index].pickupKind
-    world.tiles[index].pickupKind = ((pickupKind.ord + dir + PickupType.high.ord + 1) mod (PickupType.high.ord + 1)).PickupType
+    tile.pickupKind = tile.pickupKind.nextWrapped
+  of shooter:
+    tile.projectileKind = tile.projectileKind.nextwrapped
   else:
     discard
 
