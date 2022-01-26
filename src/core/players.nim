@@ -121,10 +121,14 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
   if moved and player.presentPickup.isNone:
     player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
     world.play()
+  if KeycodeLCtrl.isNothing:
+    let scroll = getMouseScroll().sgn
+    player.pickupRotation.nextDirection(scroll)
   if leftMb.isPressed and player.presentPickup.isSome:
     let hitPos = camera.raycast(getMousePos()).ivec3
     if world.placeBlock(hitPos.vec3, player.presentPickup.get, player.pickupRotation):
       player.presentPickup = none(PickupType)
+
 
 proc render*(player: Player, camera: Camera, world: World) =
   let safeDirections = world.getSafeDirections(player.posOffset)
@@ -148,7 +152,7 @@ proc render*(player: Player, camera: Camera, world: World) =
       pos = vec3(player.pos.x, 1, player.pos.z)
     renderShadow(camera, pos, scale)
   if player.presentPickup.isSome:
-    world.renderDropCursor(camera, player.presentPickup.get, getMousePos(), Direction.up)
+    world.renderDropCursor(camera, player.presentPickup.get, getMousePos(), player.pickupRotation)
 
 proc pos*(player: Player): Vec3 = player.pos
 

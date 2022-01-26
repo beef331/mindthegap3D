@@ -149,11 +149,11 @@ proc placeTile*(world: var World) =
 
 proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction): bool =
   block placeBlock:
-    for x in kind.positions:
+    for x in kind.positions(dir):
       if not world.posValid(pos + x):
         break placeBlock
     result = true
-    for x in kind.positions:
+    for x in kind.positions(dir):
       let index = world.getPointIndex(pos + vec3(x))
       world.tiles[index] = Tile(kind: box, isWalkable: false)
 
@@ -325,10 +325,8 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
   if world.state == playing:
     let start = ivec3(cam.raycast(pos))
     with cursorShader:
-      for x in pickup.positions:
-        let
-          pos = vec3(start) + x
-          isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
+      for pos in pickup.positions(dir, vec3 start):
+        let isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
         if not isValid:
           glDisable(GlDepthTest)
         cursorShader.setUniform("valid", isValid.ord)

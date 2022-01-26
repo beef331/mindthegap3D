@@ -1,4 +1,4 @@
-import resources
+import resources, directions
 import truss3D/textures
 import truss3D, pixie
 import std/os
@@ -45,6 +45,8 @@ addResourceProc:
 
 proc getPickupTexture*(pickupKind: PickupType): Texture = pickupTextures[pickupKind]
 
-iterator positions*(pickUpKind: PickupType): Vec3 = 
-  for x in offsets[pickUpKind]:
-    yield x
+iterator positions*(pickUpKind: PickupType, dir: Direction, origin = vec3(0, 0, 0)): Vec3 =
+  let rot = dir.asRot
+  for point in offsets[pickUpKind]:
+    let point = vec3(point.x * cos(rot) - point.z * sin(rot), 0, point.z * cos(rot) + point.x * sin(rot))
+    yield point + origin
