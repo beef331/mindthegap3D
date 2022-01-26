@@ -58,7 +58,7 @@ type
 
 const
   FloorDrawn = {wall, floor, pickup}
-  Paintable = {Tilekind.floor, wall, empty, pickup}
+  Paintable = {Tilekind.floor, wall, pickup}
   Walkable = {TileKind.floor, pickup, box}
 
 var
