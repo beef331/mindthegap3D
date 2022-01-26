@@ -1,7 +1,7 @@
 import vmath
 import truss3D
 import constructor/constructor
-type 
+type
   Camera* = object
     pos: Vec3
     forward*: Vec3
@@ -27,7 +27,7 @@ proc changeSize*(camera: var Camera, size: float32) =
   camera.size = size
   camera.calculateMatrix()
 
-proc init*(_: typedesc[Camera], pos, forward: Vec3) {.constr.} = discard
+proc init*(_: typedesc[Camera], pos, forward: Vec3): Camera {.constr.}
 
 const globalUp = vec3(0, 1, 0)
 
@@ -45,7 +45,7 @@ proc raycast*(cam: Camera, point: IVec2): Vec3 =
     screenSize = screenSize()
     xNdc = (2 * point.x) / screenSize.x - 1
     yNdc = (2 * point.y) / screenSize.y - 1
-    origin = 
+    origin =
       if screenSize.x >= screenSize.y:
         let aspect = screenSize.x / screenSize.y
         cam.pos + camRight * xNdc * cam.size * aspect + camUp * -yNdc * cam.size
@@ -55,7 +55,7 @@ proc raycast*(cam: Camera, point: IVec2): Vec3 =
     dist = dot(origin, globalUp) / dot(camDir, globalUp)
   result = -dist * camDir + origin
 
-proc screenPosFromWorld*(cam: Camera, pos: Vec3): IVec2 = 
+proc screenPosFromWorld*(cam: Camera, pos: Vec3): IVec2 =
   let
     size = screenSize()
     screenSpace = (cam.orthoView * vec4(pos.x, pos.y, pos.z, 1))
