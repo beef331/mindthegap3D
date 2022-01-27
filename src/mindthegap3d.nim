@@ -47,9 +47,36 @@ addResourceProc do:
   depthBuffer.clearColor = color(0, 0, 0, 1)
 
 var
-  cameraDragPos, cameraStartPos: Vec3
-  mouseStartPos, mouseOffset: Ivec2
   lastScreenSize: IVec2
+
+
+proc cameraMovement =
+  var
+    cameraDragPos {.global.}: Vec3
+    cameraStartPos {.global.}: Vec3
+    mouseCamDrag {.global.}: IVec2
+    mouseStartPos {.global.}: IVec2
+
+  case middleMb.state()
+  of pressed:
+    cameraDragPos = camera.raycast(getMousePos())
+    cameraStartPos = camera.pos
+    mouseStartPos = getMousePos()
+    mouseCamDrag = iVec2 0
+    setMouseMode(MouseRelative)
+  of held:
+    mouseCamDrag += getMouseDelta()
+    let
+      hitPos = camera.raycast(getMouseDelta() + mouseStartPos)
+      offset = hitPos - cameraDragPos
+    camera.pos = cameraStartPos + offset
+    moveMouse(mouseStartPos - mouseCamDrag)
+  of released:
+    setMouseMode(MouseAbsolute)
+    moveMouse(mouseStartPos - mouseCamDrag)
+  else:
+    discard
+
 
 proc update(dt: float32) =
   let scrSize = screenSize()
@@ -62,11 +89,7 @@ proc update(dt: float32) =
   if Keycoder.isPressed:
     world = World.init(30, 30)
 
-  if middleMb.isDown:
-    cameraDragPos = camera.raycast(getMousePos())
-    cameraStartPos = camera.pos
-    mouseStartPos = getMousePos()
-    mouseOffset = ivec2(0)
+  cameraMovement()
 
   with signBuffer:
     let
@@ -77,14 +100,6 @@ proc update(dt: float32) =
     if selected >= 0:
       world.hoverSign(selected)
 
-  if middleMb.isPressed:
-    mouseOffset += getMouseDelta()
-    let
-      newMousePos = mouseOffset + mouseStartPos
-      hitPos = camera.raycast(newMousePos)
-      offset = hitPos - cameraDragPos
-    camera.pos = cameraStartPos + offset
-    moveMouse(camera.screenPosFromWorld(cameraDragPos))
 
   player.update(world, camera, dt)
   world.update(camera, dt)
@@ -92,7 +107,7 @@ proc update(dt: float32) =
   let scroll = getMouseScroll()
   if scroll != 0:
     if KeycodeLCtrl.isPressed:
-      camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000 * camera.size, 3, 20))
+      camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
 
   if KeyCodeQ.isDown:
     quitTruss()

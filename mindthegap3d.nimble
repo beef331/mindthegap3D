@@ -11,6 +11,6 @@ bin           = @["mindthegap3d"]
 # Dependencies
 
 requires "nim >= 1.6.0"
-requires "https://github.com/beef331/truss3d >= 0.1.0"
+requires "truss3d"
 requires "constructor"
 requires "easings" # Odd library that could be pure Nim
