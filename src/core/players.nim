@@ -118,9 +118,9 @@ proc move(player: var Player, world: var World, camera: Camera, dt: float32) =
   move(KeyCodeA, right)
 
   if leftMb.isDown:
-    let hit = camera.raycast(getMousePos())
+    let hit = vec3 ivec3 camera.raycast(getMousePos())
     for dir in Direction:
-      if dir in safeDirs and distSq(hit, player.posOffset + dir.toVec) < 0.1:
+      if dir in safeDirs and distSq(hit, player.pos + dir.toVec) < 0.1:
         moved = player.move(dir)
         if moved:
           world.steppedOff(player.posOffset)
