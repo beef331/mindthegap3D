@@ -100,7 +100,7 @@ proc movementUpdate(player: var Player, dt: float32) =
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 
-proc update*(player: var Player, world: var World, camera: Camera, dt: float32) =
+proc move(player: var Player, world: var World, camera: Camera, dt: float32) =
   movementUpdate(player, dt)
   let safeDirs = world.getSafeDirections(player.posOffset)
   var moved = false
@@ -116,11 +116,25 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
   move(KeyCodeD, left)
   move(KeyCodeS, down)
   move(KeyCodeA, right)
-  if KeycodeR.isPressed:
-    player.presentPickup = none(PickupType)
+
+  if leftMb.isDown:
+    let hit = camera.raycast(getMousePos())
+    for dir in Direction:
+      if dir in safeDirs and distSq(hit, player.posOffset + dir.toVec) < 0.1:
+        moved = player.move(dir)
+        if moved:
+          world.steppedOff(player.posOffset)
+
   if moved and player.presentPickup.isNone:
     player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
     world.play()
+
+proc update*(player: var Player, world: var World, camera: Camera, dt: float32) =
+  player.move(world, camera, dt)
+
+  if KeycodeR.isPressed:
+    player.presentPickup = none(PickupType)
+
   if KeycodeLCtrl.isNothing:
     let scroll = getMouseScroll().sgn
     player.pickupRotation.nextDirection(scroll)
