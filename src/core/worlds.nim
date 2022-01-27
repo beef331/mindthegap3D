@@ -12,7 +12,12 @@ const
   SinkHeight = -1
 type
   TileKind* = enum
-    empty, wall, floor, pickup, box, shooter
+    empty
+    wall # Insert before wall for non rendered tiles
+    floor
+    pickup
+    box
+    shooter
   BlockFlag* = enum
     dropped, pushable
   ProjectileKind = enum
@@ -24,6 +29,7 @@ type
   Tile = object
     isWalkable: bool
     boxFlag: set[BlockFlag]
+    direction: Direction
     case kind: TileKind
     of pickup:
       pickupKind*: PickupType
@@ -32,12 +38,14 @@ type
       progress: float32
       steppedOn: bool
     of shooter:
+      toggledOn: bool
+      timeToShot: float32
       shotDelay: float32 # Shooters and boxes are the same, but come here to make editing easier
       projectileKind: ProjectileKind
       pool: seq[Projectile]
     else: discard
 
-  RenderedTile = TileKind.wall..TileKind.box
+  RenderedTile = TileKind.wall..TileKind.high
   Block* = object
     flags: set[BlockFlag]
     index: int
@@ -57,8 +65,8 @@ type
     else: discard
 
 const
-  FloorDrawn = {wall, floor, pickup}
-  Paintable = {Tilekind.floor, wall, pickup}
+  FloorDrawn = {wall, floor, pickup, shooter}
+  Paintable = {Tilekind.floor, wall, pickup, shooter}
   Walkable = {TileKind.floor, pickup, box}
 
 var
@@ -141,10 +149,11 @@ proc placeTile*(world: var World) =
     case world.editingTile.kind
     of pickup:
       world.editingTile.active = true
-      world.tiles[world.getCursorIndex] = world.editingTile
+    of shooter:
+      world.editingTile.shotDelay = 1
+    else: discard
 
-    else:
-      world.tiles[world.getCursorIndex] = world.editingTile
+    world.tiles[world.getCursorIndex] = world.editingTile
     world.tiles[world.getCursorIndex].isWalkable = true
 
 proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction): bool =
@@ -173,21 +182,21 @@ proc nextOptional*(world: var World, dir: -1..1) =
     tile {.byaddr.} = world.tiles[index]
   case tile.kind
   of pickup:
-    tile.pickupKind = tile.pickupKind.nextWrapped
+    tile.pickupKind = tile.pickupKind.nextWrapped(dir)
   of shooter:
-    tile.projectileKind = tile.projectileKind.nextwrapped
+    tile.projectileKind = tile.projectileKind.nextwrapped(dir)
   else:
     discard
 
-proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3) =
+proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
   if tile in FloorDrawn:
     let modelMatrix = mat4() * translate(pos)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
     render(floorModel)
   case tile:
-  of wall:
-    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0))
+  of wall, shooter:
+    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0)) * rotateY dir.asRot
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
     render(wallModel)
@@ -323,7 +332,6 @@ proc render*(world: World, cam: Camera) =
         glEnable(GlDepthTest)
   renderSigns(world, cam)
 
-
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
   if world.state == playing:
     let start = ivec3(cam.raycast(pos))
@@ -336,21 +344,45 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         renderBlock(box, cam, cursorShader, pos)
         glEnable(GlDepthTest)
 
+proc updateShooter(shtr: var Tile, dt: float32) =
+  assert shtr.kind == shooter
+  case shtr.projectileKind
+  of dynamicProjectile:
+    ## Check if time to shoot another projectile
+  of hitScan:
+    shtr.timeToShot -= dt
+    if shtr.timeToShot <= 0:
+      shtr.toggledOn = not shtr.toggledOn
+      shtr.timeToShot = shtr.shotDelay
+      if shtr.toggledOn:
+        echo "Shoot"
+    ## Toggle ray
+
+proc updateBox(boxTile: var Tile, dt: float32) =
+  assert boxTile.kind == box
+  if boxTile.progress < FallTime:
+    boxTile.progress += dt
+  elif not boxTile.steppedOn:
+    boxTile.progress = FallTime
+    boxTile.isWalkable = true
+  else:
+    boxTile.progress += dt
+  boxTile.progress = clamp(boxTile.progress, 0, FallTime)
+
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
   case world.state
   of playing:
     for sign in world.signs.mitems:
       sign.update(dt)
     for x in world.tiles.mitems:
-      if x.kind == box:
-        if x.progress < FallTime:
-          x.progress += dt
-        elif not x.steppedOn:
-          x.progress = FallTime
-          x.isWalkable = true
-        else:
-          x.progress += dt
-        x.progress = clamp(x.progress, 0, FallTime)
+      case x.kind
+      of box:
+        x.updateBox(dt)
+      of shooter:
+        x.updateSHooter(dt)
+      else:
+        discard
+
   of editing:
     world.updateCursor(getMousePos(), cam)
     let scroll = getMouseScroll()
