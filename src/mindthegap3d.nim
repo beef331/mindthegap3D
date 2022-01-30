@@ -13,7 +13,7 @@ modelPath = "assets/models"
 const camDefaultSize = 8f
 var
   camera: Camera
-  world = World.init(30, 30)
+  world: World
   player = Player.init(vec3(5, 0, 5))
   depthBuffer, signBuffer: FrameBuffer
   depthShader, waterShader: Shader
@@ -85,9 +85,6 @@ proc update(dt: float32) =
     camera.calculateMatrix()
     depthBuffer.resize(scrSize)
     signBuffer.resize(scrSize)
-
-  if Keycoder.isPressed:
-    world = World.init(30, 30)
 
   cameraMovement()
 

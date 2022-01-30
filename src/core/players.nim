@@ -127,7 +127,6 @@ proc move(player: var Player, world: var World, camera: Camera, dt: float32) =
 
   if moved and player.presentPickup.isNone:
     player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
-    world.play()
 
 proc update*(player: var Player, world: var World, camera: Camera, dt: float32) =
   player.move(world, camera, dt)

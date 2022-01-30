@@ -1,8 +1,7 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
-import resources, cameras, pickups, directions, shadows, signs, enumutils
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles
 import std/[sequtils, options, decls]
-import constructor/constructor
 
 {.experimental: "overloadableEnums".}
 
@@ -10,59 +9,23 @@ const
   StartHeight = 10f
   FallTime = 1f
   SinkHeight = -1
-type
-  TileKind* = enum
-    empty
-    wall # Insert before wall for non rendered tiles
-    floor
-    pickup
-    box
-    shooter
-  BlockFlag* = enum
-    dropped, pushable
-  ProjectileKind = enum
-    hitScan, dynamicProjectile
-  Projectile = object
-    pos: Vec3
-    timeToMove: float32
-    direction: Vec3
-  Tile = object
-    isWalkable: bool
-    boxFlag: set[BlockFlag]
-    direction: Direction
-    case kind: TileKind
-    of pickup:
-      pickupKind*: PickupType
-      active: bool
-    of box:
-      progress: float32
-      steppedOn: bool
-    of shooter:
-      toggledOn: bool
-      timeToShot: float32
-      shotDelay: float32 # Shooters and boxes are the same, but come here to make editing easier
-      projectileKind: ProjectileKind
-      pool: seq[Projectile]
-    else: discard
 
+type
   RenderedTile = TileKind.wall..TileKind.high
   Block* = object
     flags: set[BlockFlag]
     index: int
     worldPos: Vec3
   WorldState* = enum
-    playing, editing, previewing
+    playing, previewing
   World* = object
     width, height: int
     tiles: seq[Tile]
     blocks: seq[Block]
     cursor: Vec3
-    signs: seq[Sign]
+    signs*: seq[Sign]
     playerSpawn: int
-    case state*: WorldState
-    of editing:
-      editingTile: Tile
-    else: discard
+    state*: WorldState
 
 const
   FloorDrawn = {wall, floor, pickup, shooter}
@@ -93,20 +56,6 @@ addResourceProc:
   boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))
   boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
 
-proc init*(_: typedesc[World], width, height: int): World =
-  result = World(state: editing, width: width, height: height, editingTile: Tile(kind: floor))
-  result.tiles = newSeqWith(width * height, Tile(kind: empty))
-
-proc play*(world: var World) =
-  world = World(
-    width: world.width,
-    height: world.height,
-    tiles: world.tiles,
-    blocks: world.blocks,
-    signs: world.signs,
-    playerSpawn: world.playerSpawn)
-
-
 iterator tileKindCoords(world: World): (Tile, Vec3) =
   for i, tile in world.tiles:
     let
@@ -114,17 +63,7 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
       z = i div world.width
     yield (tile, vec3(x.float, 0, z.float))
 
-proc updateCursor*(world: var World, mouse: IVec2, cam: Camera) =
-  let pos = cam.raycast(mouse)
-  world.cursor = vec3(pos.x.floor, pos.y, pos.z.floor)
-
 proc contains(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
-
-proc getCursorIndex(world: World): int =
-  if world.cursor in world:
-    world.cursor.x.int + world.cursor.z.int * world.width
-  else:
-    -1
 
 proc getPointIndex(world: World, point: Vec3): int =
   if point in world:
@@ -132,29 +71,9 @@ proc getPointIndex(world: World, point: Vec3): int =
   else:
     -1
 
-proc indexToWorld(world: World, ind: int): Vec3 = vec3((ind mod world.width).float, 0, (ind div world.width).float)
-
-proc cursorValid(world: World, emptyCheck = false): bool =
-  let
-    index = world.getCursorIndex
-    isEmpty = not emptyCheck or (index in 0..<world.tiles.len and world.tiles[index].kind == empty)
-  isEmpty and world.cursor in world
-
 proc posValid(world: World, pos: Vec3): bool =
   if pos in world and world.tiles[world.getPointIndex(pos)].kind == empty:
     result = true
-
-proc placeTile*(world: var World) =
-  if world.cursorValid(true) and world.state == editing:
-    case world.editingTile.kind
-    of pickup:
-      world.editingTile.active = true
-    of shooter:
-      world.editingTile.shotDelay = 1
-    else: discard
-
-    world.tiles[world.getCursorIndex] = world.editingTile
-    world.tiles[world.getCursorIndex].isWalkable = true
 
 proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction): bool =
   block placeBlock:
@@ -165,28 +84,6 @@ proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction):
     for x in kind.positions(dir, pos):
       let index = world.getPointIndex(vec3(x))
       world.tiles[index] = Tile(kind: box, isWalkable: false)
-
-proc placeEmpty*(world: var World) =
-  if world.cursor in world:
-    world.tiles[world.getCursorIndex] = Tile(kind: empty)
-
-proc nextTile*(world: var World, dir: -1..1) =
-  var newKind = world.editingTile.kind.nextWrapped
-  while newKind notin Paintable:
-    newKind = newKind.nextWrapped
-  world.editingTile = Tile(kind: newKind)
-
-proc nextOptional*(world: var World, dir: -1..1) =
-  let
-    index = world.getCursorIndex
-    tile {.byaddr.} = world.tiles[index]
-  case tile.kind
-  of pickup:
-    tile.pickupKind = tile.pickupKind.nextWrapped(dir)
-  of shooter:
-    tile.projectileKind = tile.projectileKind.nextwrapped(dir)
-  else:
-    discard
 
 proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
   if tile in FloorDrawn:
@@ -210,7 +107,28 @@ proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, dir
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
     render(boxModel)
-  of floor: discard
+  of TileKind.floor: discard
+
+proc resize*(world: var World, newSize: IVec2) =
+  var newWorld = World(width: newSize.x, height: newSize.y, tiles: newSeq[Tile](newSize.x * newSize.y))
+  for x in 0..<newWorld.width:
+    if x < world.width:
+      for y in 0..<newWorld.height:
+        if y < world.height:
+          newWorld.tiles[x + y * newWorld.width] = world.tiles[x + y * world.width]
+  world = newWorld
+
+proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
+  let
+    newWidth = max(world.width, pos.x)
+    newHeight = max(world.height, pos.y)
+  if newWidth notin 0..<world.width or newHeight notin 0..<world.height:
+    world.resize(ivec2(newWidth, newHeight))
+  let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
+  echo newWidth, " ", newHeight
+  if ind >= 0:
+    world.tiles[ind] = tile
+
 
 proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
 
@@ -311,25 +229,6 @@ proc render*(world: World, cam: Camera) =
           render(pickupQuadModel)
           glUseProgram(levelShader.Gluint)
 
-
-  if world.state == editing:
-    with flagShader:
-      let
-        pos = world.indexToWorld(world.playerSpawn) + vec3(0, 1, 0)
-        flagMatrix = mat4() * translate(pos)
-      flagShader.setUniform("mvp", cam.orthoView * flagMatrix)
-      flagShader.setUniform("m", flagMatrix)
-      flagShader.setUniform("time", getTime())
-      render(flagModel)
-
-    with cursorShader:
-      if world.editingTile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-        let isValid = world.cursorValid(true)
-        if not isValid:
-          glDisable(GlDepthTest)
-        cursorShader.setUniform("valid", isValid.ord)
-        renderBlock(world.editingTile.kind.RenderedTile, cam, cursorShader, world.cursor)
-        glEnable(GlDepthTest)
   renderSigns(world, cam)
 
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
@@ -382,25 +281,9 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
         x.updateSHooter(dt)
       else:
         discard
-
-  of editing:
-    world.updateCursor(getMousePos(), cam)
-    let scroll = getMouseScroll()
-    if scroll != 0:
-      if KeycodeLShift.isPressed:
-        world.nextOptional(scroll.sgn)
-      else:
-        world.nextTile(scroll.sgn)
-
-    if leftMb.isPressed:
-      world.placeTile()
-    if KeyCodeLCtrl.isPressed and rightMb.isPressed:
-      let hit = cam.raycast(getMousePos())
-      if hit in world:
-        let index = world.getPointIndex(hit)
-        if world.tiles[index].kind != empty:
-          world.editingTile = world.tiles[index]
-    elif rightMb.isPressed:
-      world.placeEmpty()
   of previewing:
     discard
+
+iterator tiles*(world: World): (int, int, Tile) =
+  for i, tile in world.tiles:
+    yield (i mod world.width, i div world.width, tile)
