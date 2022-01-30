@@ -29,7 +29,6 @@ type
 
 const
   FloorDrawn = {wall, floor, pickup, shooter}
-  Paintable = {Tilekind.floor, wall, pickup, shooter}
   Walkable = {TileKind.floor, pickup, box}
 
 var
@@ -125,7 +124,6 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   if newWidth notin 0..<world.width or newHeight notin 0..<world.height:
     world.resize(ivec2(newWidth, newHeight))
   let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
-  echo newWidth, " ", newHeight
   if ind >= 0:
     world.tiles[ind] = tile
 

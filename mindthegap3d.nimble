@@ -14,7 +14,7 @@ requires "nim >= 1.6.0"
 requires "truss3d"
 requires "constructor"
 requires "easings" # Odd library that could be pure Nim
-requires "nico == 0.4.9" # For the Level editor
+requires "nigui == 0.2.5" # For the Level editor
 
 
 

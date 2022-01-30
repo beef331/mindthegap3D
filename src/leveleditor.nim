@@ -1,47 +1,69 @@
-import nico
 import vmath
+import std/sugar
 import core/[worlds, pickups, directions, tiles]
+import nigui
 
+const Paintable = {Tilekind.floor, wall, pickup, shooter}
 
-
-
-const 
-  orgName = "jasonbeetham"
-  appName = "mindthegapeditor"
-  tileSize = 10
-  colors = [
-    empty: 0,
-    wall: 1,
-    TileKind.floor: 2,
-    pickup: 3,
-    TileKind.box: 4,
-    shooter: 5
-  ]
-
-var
-  activeTile = Tile(kind: TileKind.floor)
-  inspectedTile = -1
+type EditorWindow = ref object of WindowImpl
+  tile: Tile
   world: World
+  liveEditing: bool
+  name: string
 
-proc gameInit() =
-  loadFont(0, "./leveleditor/font.png")
+proc newEditorWindow(): EditorWindow =
+  new result
+  result.WindowImpl.init()
+  result.tile = Tile(kind: TileKind.floor)
 
-proc gameUpdate(dt: float32) =
-  if mouseBtn(0):
-    let mousePos = ivec2(mouse()[0] div tileSize, mouse()[1] div tileSize)
-    echo mousePos
-    world.placeTile(activeTile, mousePos)
+proc topBar*(window: EditorWindow) =
+  let
+    vert = newLayoutContainer(LayoutVertical)
+    tileSelect = newLayoutContainer(LayoutHorizontal)
+  for x in Paintable:
+    let button = newButton($x) # Todo replace with images?
+    tileSelect.add button
+    button.enabled = window.tile.kind != x
+    closureScope:
+      button.onClick = proc(event: ClickEvent) =
+        let button = Button(event.control)
+        window.tile = Tile(kind: x)
+        for cntrl in button.parentControl.childControls:
+          if cntrl of Button:
+            Button(cntrl).enabled = true
+        button.enabled = false
+  let
+    worldLine = newLayoutContainer(LayoutHorizontal)
+    textBox = newTextBox("Name")
+    liveEditButton = newButton("Live Edit")
+    loadButton = newButton("Load")
+    saveButton = newButton("Save")
 
 
-proc gameDraw() =
-  cls()
-  for x, y, tile in world.tiles:
-    setColor(colors[tile.kind])
-    let
-      startX = x * tileSize
-      startY = y * tileSize
-    rectFill(startX, startY, startX + tileSize, startY + tileSize)
+  textbox.onTextChange = proc(textEvent: TextChangeEvent) =
+    window.name = textEvent.control.TextBox.text
 
-nico.init(orgName, appName)
-nico.createWindow(appName, 256, 256, 4, false)
-nico.run(gameInit, gameUpdate, gameDraw)
+  liveEditButton.onClick = proc(clickEvent: ClickEvent) =
+    if not window.liveEditing:
+      echo "Live editing"
+      clickEvent.control.Button.enabled = false
+
+
+  worldLine.add textBox
+  worldLine.add liveEditButton
+  worldLine.add loadButton
+  worldLine.add saveButton
+  vert.add tileSelect
+  vert.add worldLine
+  window.add vert
+
+
+app.init()
+
+var window = newEditorWindow()
+window.topBar()
+window.show()
+app.run
+
+
+
