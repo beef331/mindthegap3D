@@ -16,12 +16,14 @@ type EditorWindow = ref object of WindowImpl
   inspector: Control
   editor: Control
   name: string
+  onSelectionChange: proc(){.closure.}
 
 proc newEditorWindow(): EditorWindow =
   new result
   result.WindowImpl.init()
   result.tile = Tile(kind: TileKind.floor)
   result.world = World.init(10, 10)
+  result.selected = -1
 
 proc worldInspector(window: EditorWindow, container: LayoutContainer) =
   let
@@ -45,8 +47,6 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
       textBox.text = $newSize
       window.world.resize(ivec2(newSize, window.world.height))
       window.editor.show
-      window.editor.scrollableHeight = window.world.width * TileSize
-      window.editor.scrollableWidth = window.world.width * TileSize
 
 
 
@@ -66,8 +66,6 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
       textBox.text = $newSize
       window.world.resize(ivec2(window.world.width, newSize))
       window.editor.show
-      window.editor.scrollableHeight = window.world.width * TileSize
-      window.editor.scrollableWidth = window.world.width * TileSize
 
 
   container.add newLabel("Width")
@@ -143,13 +141,26 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
     canvas.lineWidth = 5
     canvas.drawRectOutline(-canv.xScrollPos, -canv.yScrollPos, window.world.width * TileSize - canv.xScrollPos, window.world.height * TileSize - canv.yScrollPos)
   canv.onMouseButtonDown = proc(mouseEvent: MouseEvent) =
-    echo mouseEvent.x, " ", mouseEvent.y
-  canv.scrollableHeight = window.world.width * TileSize
-  canv.scrollableWidth = window.world.width * TileSize
+    let
+      x = (mouseEvent.x + canv.xScrollPos) div TileSize
+      y = (mouseEvent.y + canv.yScrollPos) div TileSize
+      ind = x mod window.world.width + y div window.world.width
+    case mouseEvent.button
+    of MouseButtonLeft:
+      discard
+    of MouseButtonMiddle:
+      if vec3(float x, 0, float y) in window.world:
+        window.selected = ind
+      else:
+        window.selected = -1
+      window.onSelectionChange()
+    of MouseButtonRight:
+      discard
+
+  canv.scrollableHeight = TileSize * MaxLevelSize
+  canv.scrollableWidth = TileSize * MaxLevelSize
   canv.heightMode = HeightMode_Expand
   container.add canv
-
-
 
 
 proc makeInspector(window: EditorWindow, container: LayoutContainer) =
@@ -157,6 +168,24 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
   window.inspector = canv
   canv.heightMode = HeightModeExpand
   canv.widthMode = WidthModeExpand
+  window.onSelectionChange = proc() =
+    if window.selected in 0 ..< window.world.width * window.world.height:
+      canv.show
+    else:
+      canv.hide
+
+  let
+    direction = collect:
+      for x in Direction:
+        $x
+    directionSelector = newComboBox(direction)
+  directionSelector.onChange = proc(event: ComboBoxChangeEvent) =
+    let
+      comboBox = event.control.ComboBox
+      win = EditorWindow(event.control.parentWindow)
+    win.world.tiles[win.selected].direction = parseEnum[Direction](comboBox.value)
+  canv.hide
+  canv.add directionSelector
   container.add canv
 
 

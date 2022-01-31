@@ -21,4 +21,4 @@ requires "nigui" # For the Level editor
 task leveleditor, "builds and run elevel editor":
   selfexec("c --out:leveleditor -r ./src/core/leveleditor.nim")
 task wleveleditor, "builds and run elevel editor":
-  selfexec("c --out:leveleditor -d:mingw ./src/core/leveleditor.nim")
+  selfexec("c --out:leveleditor -d:mingw -r ./src/core/leveleditor.nim")

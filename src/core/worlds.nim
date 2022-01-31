@@ -20,7 +20,7 @@ type
     playing, previewing
   World* = object
     width*, height*: int
-    tiles: seq[Tile]
+    tiles*: seq[Tile]
     blocks: seq[Block]
     cursor: Vec3
     signs*: seq[Sign]
@@ -65,7 +65,7 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
 proc init*(_: typedesc[World], width, height: int): World =
   World(width: width, height: height, tiles: newSeq[Tile](width * height))
 
-proc contains(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
+proc contains*(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
 
 proc getPointIndex(world: World, point: Vec3): int =
   if point in world:
