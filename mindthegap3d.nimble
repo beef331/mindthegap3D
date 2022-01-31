@@ -14,9 +14,11 @@ requires "nim >= 1.6.0"
 requires "truss3d"
 requires "constructor"
 requires "easings" # Odd library that could be pure Nim
-requires "nigui == 0.2.5" # For the Level editor
+requires "nigui" # For the Level editor
 
 
 
 task leveleditor, "builds and run elevel editor":
-  selfexec("c --out:leveleditor -r ./src/leveleditor.nim")
+  selfexec("c --out:leveleditor -r ./src/core/leveleditor.nim")
+task wleveleditor, "builds and run elevel editor":
+  selfexec("c --out:leveleditor -d:mingw ./src/core/leveleditor.nim")

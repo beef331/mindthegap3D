@@ -19,7 +19,7 @@ type
   WorldState* = enum
     playing, previewing
   World* = object
-    width, height: int
+    width*, height*: int
     tiles: seq[Tile]
     blocks: seq[Block]
     cursor: Vec3
@@ -61,6 +61,9 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
       x = i mod world.width
       z = i div world.width
     yield (tile, vec3(x.float, 0, z.float))
+
+proc init*(_: typedesc[World], width, height: int): World =
+  World(width: width, height: height, tiles: newSeq[Tile](width * height))
 
 proc contains(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
 
