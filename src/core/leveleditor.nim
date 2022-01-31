@@ -10,7 +10,7 @@ const
 
 type EditorWindow = ref object of WindowImpl
   tile: Tile
-  selected: int
+  sel: int
   world: World
   liveEditing: bool
   inspector: Control
@@ -18,12 +18,29 @@ type EditorWindow = ref object of WindowImpl
   name: string
   onSelectionChange: proc(){.closure.}
 
+
+proc selected(editor: EditorWindow): int = editor.sel
+
+proc `selected=`(editor: EditorWindow, val: int) =
+  editor.sel = val
+  if editor.onSelectionChange != nil:
+    editor.onSelectionChange()
+
 proc newEditorWindow(): EditorWindow =
   new result
   result.WindowImpl.init()
   result.tile = Tile(kind: TileKind.floor)
   result.world = World.init(10, 10)
-  result.selected = -1
+  result.sel = -1
+
+proc scaleEditor(window: EditorWindow) =
+  window.editor.scrollableWidth = TileSize * window.world.width
+  window.editor.scrollableHeight = TileSize * window.world.height
+  let width = window.world.width * TileSize
+  if width < int(window.width.float * 0.7):
+    window.editor.width = width
+  else:
+    window.editor.width = int(window.width.float * 0.7)
 
 proc worldInspector(window: EditorWindow, container: LayoutContainer) =
   let
@@ -47,6 +64,8 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
       textBox.text = $newSize
       window.world.resize(ivec2(newSize, window.world.height))
       window.editor.show
+      window.selected = -1
+      window.scaleEditor()
 
 
 
@@ -66,7 +85,8 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
       textBox.text = $newSize
       window.world.resize(ivec2(window.world.width, newSize))
       window.editor.show
-
+      window.selected = -1
+      window.scaleEditor()
 
   container.add newLabel("Width")
   container.add widthField
@@ -128,7 +148,6 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
   window.worldInspector(horz)
   vert.add horz
 
-
 proc makeEditor(window: EditorWindow, container: LayoutContainer) =
   let canv = newControl()
   window.editor = canv
@@ -139,12 +158,20 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
     canvas.fill()
     canvas.lineColor = rgb(255, 0, 0)
     canvas.lineWidth = 5
-    canvas.drawRectOutline(-canv.xScrollPos, -canv.yScrollPos, window.world.width * TileSize - canv.xScrollPos, window.world.height * TileSize - canv.yScrollPos)
+    canvas.drawRectOutline(-canv.xScrollPos, -canv.yScrollPos, window.world.width * TileSize, window.world.height * TileSize)
+    canvas.lineColor = rgb(255, 255, 0)
+    if window.selected in 0..<window.world.tiles.len:
+      let
+        selectedX = (window.selected mod window.world.width) * TileSize - canv.xScrollPos
+        selectedY = (window.selected div window.world.width) * TileSize - canv.yScrollPos
+      canvas.drawRectOutline(selectedX, selectedY, TileSize, TileSize)
+
+
   canv.onMouseButtonDown = proc(mouseEvent: MouseEvent) =
     let
       x = (mouseEvent.x + canv.xScrollPos) div TileSize
       y = (mouseEvent.y + canv.yScrollPos) div TileSize
-      ind = x mod window.world.width + y div window.world.width
+      ind = x mod window.world.width + y * window.world.width
     case mouseEvent.button
     of MouseButtonLeft:
       discard
@@ -157,35 +184,35 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
     of MouseButtonRight:
       discard
 
-  canv.scrollableHeight = TileSize * MaxLevelSize
-  canv.scrollableWidth = TileSize * MaxLevelSize
+  window.scaleEditor()
   canv.heightMode = HeightMode_Expand
   container.add canv
-
 
 proc makeInspector(window: EditorWindow, container: LayoutContainer) =
   let canv = newLayoutContainer(LayoutVertical)
   window.inspector = canv
-  canv.heightMode = HeightModeExpand
-  canv.widthMode = WidthModeExpand
-  window.onSelectionChange = proc() =
-    if window.selected in 0 ..< window.world.width * window.world.height:
-      canv.show
-    else:
-      canv.hide
-
   let
     direction = collect:
       for x in Direction:
         $x
     directionSelector = newComboBox(direction)
+
+  window.onSelectionChange = proc() =
+    if window.selected in 0..< window.world.tiles.len:
+      canv.show
+      directionSelector.index = window.world.tiles[window.selected].direction.ord
+    else:
+      canv.hide
   directionSelector.onChange = proc(event: ComboBoxChangeEvent) =
     let
       comboBox = event.control.ComboBox
       win = EditorWindow(event.control.parentWindow)
     win.world.tiles[win.selected].direction = parseEnum[Direction](comboBox.value)
   canv.hide
-  canv.add directionSelector
+  let dir = newLayoutContainer(LayoutHorizontal)
+  dir.add newLabel("Direction:")
+  dir.add directionSelector
+  canv.add dir
   container.add canv
 
 
@@ -198,9 +225,7 @@ var
 window.makeEditor(canvasInspector)
 window.makeInspector(canvasInspector)
 
-window.onResize = proc(resize: ResizeEvent) =
-  let win = EditorWindow(resize.window)
-  win.editor.width = int(win.width.float * 0.7)
+window.onResize = proc(resize: ResizeEvent) = window.scaleEditor()
 
 window.topBar(vert)
 vert.add canvasInspector
