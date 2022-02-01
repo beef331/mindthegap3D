@@ -1,5 +1,5 @@
 import vmath, flatty, nigui
-import std/[sugar, strutils]
+import std/[sugar, strutils, os]
 import worlds, pickups, directions, tiles, editorbridge
 
 const
@@ -18,7 +18,28 @@ type EditorWindow = ref object of WindowImpl
   onSelectionChange: proc(){.closure.}
   onChange: proc(ew: EditorWindow)
   editorCon: EditorConnection
+  tileImages: array[TileKind, Image]
+  pickupImages: array[PickupType, Image]
 
+const assetPath = "assets" / "leveleditor"
+
+proc loadImages(ew: EditorWindow) =
+  ew.tileImages[TileKind.floor] = newImage()
+  ew.tileImages[TileKind.floor].loadFromFile assetPath / "floor.png"
+  const
+    pickupPath = [
+      single:  assetPath / "single.png",
+      closeQuad: assetPath / "closequad.png",
+      farQuad: assetPath / "farquad.png",
+      lLeft: assetPath / "leftl.png",
+      lRight: assetPath / "rightl.png",
+      tee: assetPath / "tee.png",
+      line: assetPath / "line.png"
+    ]
+
+  for pickup in PickupType:
+    ew.pickupImages[pickup] = newImage()
+    ew.pickupImages[pickup].loadFromFile(pickupPath[pickup])
 
 proc selected(editor: EditorWindow): int = editor.sel
 
@@ -36,6 +57,8 @@ proc newEditorWindow(): EditorWindow =
   result.editorCon = connectToClient()
   result.onChange = proc(ew: EditorWindow) =
     ew.editorCon.addr.sendWorld(ew.world)
+    ew.editor.show
+  result.loadImages()
 
 proc scaleEditor(window: EditorWindow) =
   window.editor.scrollableWidth = int TileSize * window.world.width
@@ -99,18 +122,26 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
   container.add newLabel("Height")
   container.add heightField
 
+
+template newComboBox(iter: untyped, onChangeVal: untyped): ComboBox =
+  let
+    cbVals = collect:
+      for x in iter:
+        $x
+    res = newComboBox(cbVals)
+
+  res.onChange = proc(event: ComboBoxChangeEvent) =
+    let comboBox {.inject.} = event.control.ComboBox
+    onChangeVal
+  res
 proc topBar*(window: EditorWindow, vert: LayoutContainer) =
   let
     horz = newLayoutContainer(LayoutHorizontal)
-    paintable = collect:
-      for x in Paintable:
-        $x
-    paintSelector = newComboBox(paintable)
+    paintSelector = newComboBox(Paintable):
+      window.tile = Tile(kind: parseEnum[TileKind](comboBox.value))
+
 
   paintSelector.minWidth = 100
-  paintSelector.onChange = proc(event: ComboBoxChangeEvent) =
-    let comboBox = event.control.ComboBox
-    window.tile = Tile(kind: parseEnum[TileKind](comboBox.value))
 
   let
     liveEditButton = newButton("Live Edit")
@@ -165,6 +196,17 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
     canvas.lineWidth = 5
     canvas.drawRectOutline(-canv.xScrollPos, -canv.yScrollPos, int window.world.width * TileSize, int window.world.height * TileSize)
     canvas.lineColor = rgb(255, 255, 0)
+    for i, tile in window.world.tiles.pairs:
+      let
+        x = int i mod window.world.width * TileSize - canv.xScrollPos
+        y = int i div window.world.width * TileSize- canv.yScrollPos
+      case tile.kind
+      of TileKind.floor:
+        canvas.drawImage(window.tileImages[TileKind.floor], x, y)
+      of TileKind.pickup:
+        canvas.drawImage(window.pickupImages[tile.pickupKind], x, y)
+      else: discard
+
     if window.selected in 0..<window.world.tiles.len:
       let
         selectedX = int (window.selected mod window.world.width) * TileSize - canv.xScrollPos
@@ -201,27 +243,35 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
   let canv = newLayoutContainer(LayoutVertical)
   window.inspector = canv
   let
-    direction = collect:
-      for x in Direction:
-        $x
-    directionSelector = newComboBox(direction)
-
+    directionSelector = newComboBox(Direction):
+      let win = EditorWindow(comboBox.parentWindow)
+      win.world.tiles[win.selected].direction = parseEnum[Direction](comboBox.value)
+    pickupSelector = newComboBox(PickupType):
+      let win = EditorWindow(comboBox.parentWindow)
+      win.world.tiles[win.selected].pickupKind = parseEnum[PickupType](comboBox.value)
+      win.onChange(win)
+    pickupLabel = newLabel("Direction:")
+    pickupCont = newLayoutContainer(Layout_Horizontal)
+  pickupCont.add pickupLabel
+  pickupCont.add pickupSelector
   window.onSelectionChange = proc() =
     if window.selected in 0..< window.world.tiles.len:
       canv.show
       directionSelector.index = window.world.tiles[window.selected].direction.ord
+      case window.world.tiles[window.selected].kind
+      of pickup:
+        pickupCont.show
+      else:
+        pickupCont.hide
     else:
       canv.hide
-  directionSelector.onChange = proc(event: ComboBoxChangeEvent) =
-    let
-      comboBox = event.control.ComboBox
-      win = EditorWindow(event.control.parentWindow)
-    win.world.tiles[win.selected].direction = parseEnum[Direction](comboBox.value)
+  pickupCont.hide
   canv.hide
   let dir = newLayoutContainer(LayoutHorizontal)
   dir.add newLabel("Direction:")
   dir.add directionSelector
   canv.add dir
+  canv.add pickupCont
   container.add canv
 
 

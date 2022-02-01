@@ -14,6 +14,7 @@ type
 
 proc connectToClient*(): EditorConnection =
   result.server = newSocket()
+  result.server.setSockOpt(OptReusePort, true)
   result.server.bindAddr(editorPort)
   result.server.listen()
 
