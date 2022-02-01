@@ -3,9 +3,8 @@ import vmath
 import chroma
 import pixie
 import truss3D/[shaders, textures]
-import core/[worlds, resources, cameras, players, directions]
-
-
+import core/[worlds, resources, cameras, players, directions, editorbridge]
+import std/os
 
 shaderPath = "assets/shaders"
 modelPath = "assets/models"
@@ -48,7 +47,10 @@ addResourceProc do:
 
 var
   lastScreenSize: IVec2
+  editorSocket: Socket
 
+if paramCount() >= 1:
+  editorSocket = connectToEditor()
 
 proc cameraMovement =
   var
@@ -79,6 +81,14 @@ proc cameraMovement =
 
 
 proc update(dt: float32) =
+  if editorSocket != nil:
+    let newWorld = editorSocket.getWorld()
+    if newWorld.isSome:
+      world = newWorld.get
+  elif paramCount() >= 1:
+    editorSocket = connectToEditor()
+
+
   let scrSize = screenSize()
   if lastScreenSize != scrSize:
     lastScreenSize = scrSize

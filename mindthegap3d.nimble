@@ -15,6 +15,7 @@ requires "truss3d"
 requires "constructor"
 requires "easings" # Odd library that could be pure Nim
 requires "nigui" # For the Level editor
+requires "flatty" # For level editor bridge
 
 
 

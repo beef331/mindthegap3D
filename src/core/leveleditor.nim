@@ -1,7 +1,6 @@
-import vmath
+import vmath, flatty, nigui
 import std/[sugar, strutils]
-import worlds, pickups, directions, tiles
-import nigui
+import worlds, pickups, directions, tiles, editorbridge
 
 const
   Paintable = {Tilekind.floor, wall, pickup, shooter}
@@ -17,6 +16,8 @@ type EditorWindow = ref object of WindowImpl
   editor: Control
   name: string
   onSelectionChange: proc(){.closure.}
+  onChange: proc(ew: EditorWindow)
+  editorCon: EditorConnection
 
 
 proc selected(editor: EditorWindow): int = editor.sel
@@ -32,13 +33,16 @@ proc newEditorWindow(): EditorWindow =
   result.tile = Tile(kind: TileKind.floor)
   result.world = World.init(10, 10)
   result.sel = -1
+  result.editorCon = connectToClient()
+  result.onChange = proc(ew: EditorWindow) =
+    ew.editorCon.addr.sendWorld(ew.world)
 
 proc scaleEditor(window: EditorWindow) =
-  window.editor.scrollableWidth = TileSize * window.world.width
-  window.editor.scrollableHeight = TileSize * window.world.height
+  window.editor.scrollableWidth = int TileSize * window.world.width
+  window.editor.scrollableHeight = int TileSize * window.world.height
   let width = window.world.width * TileSize
   if width < int(window.width.float * 0.7):
-    window.editor.width = width
+    window.editor.width = int width
   else:
     window.editor.width = int(window.width.float * 0.7)
 
@@ -62,10 +66,11 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
     if text.len > 0:
       let newSize = clamp(parseint(text), 1, MaxLevelSize)
       textBox.text = $newSize
-      window.world.resize(ivec2(newSize, window.world.height))
+      window.world.resize(ivec2(newSize, int window.world.height))
       window.editor.show
       window.selected = -1
       window.scaleEditor()
+      window.onChange(window)
 
 
 
@@ -83,10 +88,11 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
     if text.len > 0:
       let newSize = clamp(parseint(text), 1, MaxLevelSize)
       textBox.text = $newSize
-      window.world.resize(ivec2(window.world.width, newSize))
+      window.world.resize(ivec2(int window.world.width, newSize))
       window.editor.show
       window.selected = -1
       window.scaleEditor()
+      window.onChange(window)
 
   container.add newLabel("Width")
   container.add widthField
@@ -137,9 +143,8 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
 
 
   liveEditButton.onClick = proc(clickEvent: ClickEvent) =
-    if not window.liveEditing:
-      echo "Live editing"
-      #clickEvent.control.Button.enabled = false
+    window.liveEditing = not window.liveEditing
+    echo "Is Live editing: ", window.liveEditing
 
   horz.add paintSelector
   horz.add liveEditButton
@@ -158,12 +163,12 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
     canvas.fill()
     canvas.lineColor = rgb(255, 0, 0)
     canvas.lineWidth = 5
-    canvas.drawRectOutline(-canv.xScrollPos, -canv.yScrollPos, window.world.width * TileSize, window.world.height * TileSize)
+    canvas.drawRectOutline(-canv.xScrollPos, -canv.yScrollPos, int window.world.width * TileSize, int window.world.height * TileSize)
     canvas.lineColor = rgb(255, 255, 0)
     if window.selected in 0..<window.world.tiles.len:
       let
-        selectedX = (window.selected mod window.world.width) * TileSize - canv.xScrollPos
-        selectedY = (window.selected div window.world.width) * TileSize - canv.yScrollPos
+        selectedX = int (window.selected mod window.world.width) * TileSize - canv.xScrollPos
+        selectedY = int (window.selected div window.world.width) * TileSize - canv.yScrollPos
       canvas.drawRectOutline(selectedX, selectedY, TileSize, TileSize)
 
 
@@ -171,16 +176,20 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
     let
       x = (mouseEvent.x + canv.xScrollPos) div TileSize
       y = (mouseEvent.y + canv.yScrollPos) div TileSize
-      ind = x mod window.world.width + y * window.world.width
+      ind = int x mod window.world.width + y * window.world.width
+      inWorld = vec3(float x, 0, float y) in window.world
     case mouseEvent.button
     of MouseButtonLeft:
-      discard
+      if inWorld:
+        echo "paint Tile"
+        window.world.tiles[ind] = window.tile
+        window.onChange(window)
     of MouseButtonMiddle:
-      if vec3(float x, 0, float y) in window.world:
-        window.selected = ind
-      else:
-        window.selected = -1
-      window.onSelectionChange()
+      window.selected =
+        if inWorld:
+          ind
+        else:
+          -1
     of MouseButtonRight:
       discard
 

@@ -14,17 +14,17 @@ type
   RenderedTile = TileKind.wall..TileKind.high
   Block* = object
     flags: set[BlockFlag]
-    index: int
+    index: int64
     worldPos: Vec3
   WorldState* = enum
     playing, previewing
   World* = object
-    width*, height*: int
+    width*, height*: int64
     tiles*: seq[Tile]
     blocks: seq[Block]
     cursor: Vec3
     signs*: seq[Sign]
-    playerSpawn: int
+    playerSpawn: int64
     state*: WorldState
 
 const
@@ -69,7 +69,7 @@ proc contains*(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and
 
 proc getPointIndex(world: World, point: Vec3): int =
   if point in world:
-    floor(point.x).int + floor(point.z).int * world.width
+    int floor(point.x).int + floor(point.z).int * world.width
   else:
     -1
 
@@ -125,7 +125,7 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
     newWidth = max(world.width, pos.x)
     newHeight = max(world.height, pos.y)
   if newWidth notin 0..<world.width or newHeight notin 0..<world.height:
-    world.resize(ivec2(newWidth, newHeight))
+    world.resize(ivec2(int newWidth, int newHeight))
   let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0:
     world.tiles[ind] = tile
@@ -287,4 +287,4 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 
 iterator tiles*(world: World): (int, int, Tile) =
   for i, tile in world.tiles:
-    yield (i mod world.width, i div world.width, tile)
+    yield (int i mod world.width, int i div world.width, tile)
