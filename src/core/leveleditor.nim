@@ -7,19 +7,25 @@ const
   TileSize = 64
   MaxLevelSize = 30
 
-type EditorWindow = ref object of WindowImpl
-  tile: Tile
-  sel: int
-  world: World
-  liveEditing: bool
-  inspector: Control
-  editor: Control
-  name: string
-  onSelectionChange: proc(){.closure.}
-  onChange: proc(ew: EditorWindow)
-  editorCon: EditorConnection
-  tileImages: array[TileKind, Image]
-  pickupImages: array[PickupType, Image]
+type
+  PaintState = enum
+    psNone
+    psTile
+    psRemove
+
+  EditorWindow = ref object of WindowImpl
+    tile: Tile
+    sel: int
+    world: World
+    liveEditing: bool
+    inspector: Control
+    editor: Control
+    name: string
+    onSelectionChange: proc(){.closure.}
+    onChange: proc(ew: EditorWindow)
+    tileImages: array[TileKind, Image]
+    pickupImages: array[PickupType, Image]
+    paintState: PaintState
 
 const assetPath = "assets" / "leveleditor"
 
@@ -54,9 +60,9 @@ proc newEditorWindow(): EditorWindow =
   result.tile = Tile(kind: TileKind.floor)
   result.world = World.init(10, 10)
   result.sel = -1
-  result.editorCon = connectToClient()
   result.onChange = proc(ew: EditorWindow) =
-    ew.editorCon.addr.sendWorld(ew.world)
+    sendWorld(ew.world)
+    ew.editor.hide
     ew.editor.show
   result.loadImages()
 
@@ -187,6 +193,7 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
 proc makeEditor(window: EditorWindow, container: LayoutContainer) =
   let canv = newControl()
   window.editor = canv
+  var paintState = psNone
   canv.onDraw = proc(drawEvent: DrawEvent) =
     let
       canvas = drawEvent.control.canvas
@@ -212,9 +219,32 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
         selectedX = int (window.selected mod window.world.width) * TileSize - canv.xScrollPos
         selectedY = int (window.selected div window.world.width) * TileSize - canv.yScrollPos
       canvas.drawRectOutline(selectedX, selectedY, TileSize, TileSize)
+  var timer: Timer
+  let
+    timeProc = proc(event: TimerEvent) =
+      let
+        (mouseX, mouseY) = canv.mousePosition()
+        x = (mouseX + canv.xScrollPos) div TileSize
+        y = (mouseY + canv.yScrollPos) div TileSize
+        ind = int x mod window.world.width + y * window.world.width
+        inWorld = vec3(float x, 0, float y) in window.world
+      if mouseX in 0..canv.width and mouseY in 0..canv.height and inWorld:
+        case paintState
+        of psTile:
+          window.world.tiles[ind] = window.tile
+          window.onChange(window)
+        of psRemove:
+          window.world.tiles[ind] = Tile(kind: empty)
+          window.onChange(window)
+        else: discard
+      else:
+        stop timer
+      canv.show
 
 
   canv.onMouseButtonDown = proc(mouseEvent: MouseEvent) =
+    timer.stop()
+    timer = startRepeatingTimer(20, timeProc)
     let
       x = (mouseEvent.x + canv.xScrollPos) div TileSize
       y = (mouseEvent.y + canv.yScrollPos) div TileSize
@@ -222,10 +252,7 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
       inWorld = vec3(float x, 0, float y) in window.world
     case mouseEvent.button
     of MouseButtonLeft:
-      if inWorld:
-        echo "paint Tile"
-        window.world.tiles[ind] = window.tile
-        window.onChange(window)
+      paintState = psTile
     of MouseButtonMiddle:
       window.selected =
         if inWorld:
@@ -233,7 +260,12 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
         else:
           -1
     of MouseButtonRight:
-      discard
+      paintState = psRemove
+
+
+  canv.onMouseButtonUp = proc(mouseEvent: MouseEvent) =
+    paintState = psNone
+    timer.stop()
 
   window.scaleEditor()
   canv.heightMode = HeightMode_Expand

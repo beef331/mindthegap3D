@@ -5,29 +5,7 @@ export options, net
 const
   editorPort = Port(34213)
   gamePort = Port(25422)
-
-type
-  EditorConnection* = object
-    server: Socket
-    client: Socket
-
-
-proc connectToClient*(): EditorConnection =
-  result.server = newSocket()
-  result.server.setSockOpt(OptReusePort, true)
-  result.server.bindAddr(editorPort)
-  result.server.listen()
-
-proc connectToEditor*(): Socket =
-  result = newSocket()
-  try:
-    result.connect("127.0.0.1", editorPort)
-    echo "Connected to editor"
-  except:
-    echo "failed to connect to editor ", getCurrentExceptionMsg()
-    result.close()
-    result = nil
-
+  footerMessage = "levelended"
 
 proc toFlatty[T](s: var string; x: set[T]) =
   let startPos = s.len
@@ -38,32 +16,35 @@ proc fromFlatty[T](s: string; i: var int, x: var set[T]) =
   copyMem(x.addr, s[i].unsafeAddr, sizeof(x))
   inc i, sizeof(x)
 
-
-proc sendWorld*(ec: ptr EditorConnection, world: World) =
-  if ec.client == nil:
-    var address = ""
-    ec.server.acceptAddr(ec.client, address)
+proc sendWorld*(world: World) =
+  let socket = newSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
   try:
     let
       data = world.toFlatty
       dataSize = data.len
-    var dataSent = 0
-    discard ec.client.send(dataSize.unsafeAddr, sizeof(int))
-    while dataSent < data.len:
-      dataSent += ec.client.send(data[dataSent].unsafeAddr, min(1024, data.len - dataSent))
+    socket.sendTo("127.0.0.1", gamePort, dataSize.unsafeAddr, sizeof(int))
+    socket.sendTo("127.0.0.1", gamePort, data)
+    socket.sendTo("127.0.0.1", gamePort, footerMessage)
   except:
-    ec.client = nil
     echo getCurrentExceptionMsg()
+  finally:
+    socket.close()
 
-proc getWorld*(sock: Socket): Option[World] =
+proc createGameSocket*(): Socket =
+  result = newSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+  result.bindAddr(gamePort)
+
+proc getWorld*(socket: Socket): Option[World] =
   try:
     var size = 0
-    let read = sock.recv(size.addr, sizeof(int), 1)
+    let read = socket.recv(size.addr, sizeof(int), 1)
     if read == sizeof(int):
       let
         buf = newString(size)
-        bufRead =  sock.recv(buf[0].addr, size)
-      if bufRead == size:
+        bufRead = socket.recv(buf[0].addr, size)
+      var footer = newString(footerMessage.len)
+      let footerRead = socket.recv(footer[0].addr, footerMessage.len, 1)
+      if bufRead == size and footer == footerMessage and footerRead == footerMessage.len:
         result = some fromFlatty(buf, World)
   except TimeoutError:
     result = none(World)

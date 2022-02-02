@@ -50,7 +50,7 @@ var
   editorSocket: Socket
 
 if paramCount() >= 1:
-  editorSocket = connectToEditor()
+  editorSocket = createGameSocket()
 
 proc cameraMovement =
   var
@@ -81,12 +81,10 @@ proc cameraMovement =
 
 
 proc update(dt: float32) =
-  if editorSocket != nil:
+  if paramCount() >= 1:
     let newWorld = editorSocket.getWorld()
     if newWorld.isSome:
       world = newWorld.get
-  elif paramCount() >= 1:
-    editorSocket = connectToEditor()
 
 
   let scrSize = screenSize()
