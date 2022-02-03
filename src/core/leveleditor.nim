@@ -1,5 +1,5 @@
 import vmath, flatty, nigui
-import std/[sugar, strutils, os]
+import std/[sugar, strutils, os, decls]
 import worlds, pickups, directions, tiles, editorbridge
 
 const
@@ -140,6 +140,7 @@ template newComboBox(iter: untyped, onChangeVal: untyped): ComboBox =
     let comboBox {.inject.} = event.control.ComboBox
     onChangeVal
   res
+
 proc topBar*(window: EditorWindow, vert: LayoutContainer) =
   let
     horz = newLayoutContainer(LayoutHorizontal)
@@ -228,28 +229,27 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
         y = (mouseY + canv.yScrollPos) div TileSize
         ind = int x mod window.world.width + y * window.world.width
         inWorld = vec3(float x, 0, float y) in window.world
-      if mouseX in 0..canv.width and mouseY in 0..canv.height and inWorld:
+      if inWorld:
         case paintState
         of psTile:
           window.world.tiles[ind] = window.tile
-          window.onChange(window)
         of psRemove:
           window.world.tiles[ind] = Tile(kind: empty)
-          window.onChange(window)
         else: discard
+        window.onSelectionChange()
+        window.onChange(window)
       else:
         stop timer
-      canv.show
-
 
   canv.onMouseButtonDown = proc(mouseEvent: MouseEvent) =
-    timer.stop()
-    timer = startRepeatingTimer(20, timeProc)
     let
       x = (mouseEvent.x + canv.xScrollPos) div TileSize
       y = (mouseEvent.y + canv.yScrollPos) div TileSize
       ind = int x mod window.world.width + y * window.world.width
       inWorld = vec3(float x, 0, float y) in window.world
+    if mouseEvent.button in {MouseButtonLeft, MouseButtonRight}:
+      timer.stop()
+      timer = startRepeatingTimer(30, timeProc)
     case mouseEvent.button
     of MouseButtonLeft:
       paintState = psTile
@@ -264,8 +264,9 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
 
 
   canv.onMouseButtonUp = proc(mouseEvent: MouseEvent) =
-    paintState = psNone
-    timer.stop()
+    if mouseEvent.button in {MouseButtonLeft, MouseButtonRight}:
+      timer.stop
+      paintState = psNone
 
   window.scaleEditor()
   canv.heightMode = HeightMode_Expand
@@ -282,26 +283,39 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
       let win = EditorWindow(comboBox.parentWindow)
       win.world.tiles[win.selected].pickupKind = parseEnum[PickupType](comboBox.value)
       win.onChange(win)
-    pickupLabel = newLabel("Direction:")
+    pickupLabel = newLabel("Pickup:")
     pickupCont = newLayoutContainer(Layout_Horizontal)
-  pickupCont.add pickupLabel
-  pickupCont.add pickupSelector
-  window.onSelectionChange = proc() =
-    if window.selected in 0..< window.world.tiles.len:
-      canv.show
-      directionSelector.index = window.world.tiles[window.selected].direction.ord
-      case window.world.tiles[window.selected].kind
-      of pickup:
-        pickupCont.show
-      else:
-        pickupCont.hide
-    else:
-      canv.hide
-  pickupCont.hide
-  canv.hide
-  let dir = newLayoutContainer(LayoutHorizontal)
+    dir = newLayoutContainer(LayoutHorizontal)
+
   dir.add newLabel("Direction:")
   dir.add directionSelector
+
+  pickupCont.add pickupLabel
+  pickupCont.add pickupSelector
+
+  directionSelector.enabled = false
+  pickupSelector.enabled = false
+
+
+
+
+
+  window.onSelectionChange = proc() =
+    if window.selected in 0..<window.world.tiles.len:
+      var tile {.byaddr.} = window.world.tiles[window.selected]
+      case tile.kind
+      of pickup:
+        directionSelector.enabled = false
+        pickupSelector.enabled = true
+      else:
+        directionSelector.enabled = false
+        pickupSelector.enabled = false
+      window.editor.show()
+    else:
+      directionSelector.enabled = false
+      pickupSelector.enabled = false
+
+
   canv.add dir
   canv.add pickupCont
   container.add canv
