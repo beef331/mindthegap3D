@@ -6,7 +6,7 @@ type
   Sign* = object
     pos*: Vec3
     hovered*: bool
-    message: string
+    message*: string
     messageTexture: Texture
     progress: float
 

@@ -204,6 +204,14 @@ proc getSignColor(index, num: int): float = (index + 1) / num
 
 proc getSignIndex*(world: World, val: float): int = (val * world.signs.len.float).int - 1
 
+proc getSign*(world: World, pos: Vec3): Sign =
+  let index = world.getPointIndex(pos)
+  for sign in world.signs.items:
+    if world.getPointIndex(sign.pos) == index:
+      result = sign
+      break
+
+
 proc renderSignBuff*(world: World, cam: Camera) =
   for i, x in world.signs:
     let mat = mat4() * translate(x.pos)

@@ -308,7 +308,8 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
         if index == window.selected:
           sign = Sign.init(sign.pos, signField.text)
           break addText
-      window.world.signs.add Sign.init(window.world.getPos(window.selected) + vec3(0, 1, 0), signField.text)
+      if signField.text.len > 0:
+        window.world.signs.add Sign.init(window.world.getPos(window.selected) + vec3(0, 1, 0), signField.text)
     window.onChange(window)
 
 
@@ -322,14 +323,16 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
       else:
         directionSelector.enabled = false
         pickupSelector.enabled = false
-      if tile.kind != empty:
+      if tile.kind == empty:
+        signField.hide()
+      else:
         signField.show()
       window.editor.show()
+      signField.text = window.world.getSign(window.world.getPos(window.selected)).message
     else:
       directionSelector.enabled = false
       pickupSelector.enabled = false
       signField.hide()
-
 
   canv.add dir
   canv.add pickupCont
