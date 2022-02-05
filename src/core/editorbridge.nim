@@ -43,8 +43,8 @@ proc getWorld*(socket: Socket): Option[World] =
         buf = newString(size)
         bufRead = socket.recv(buf[0].addr, size)
       var footer = newString(footerMessage.len)
-      let footerRead = socket.recv(footer[0].addr, footerMessage.len, 1)
-      if bufRead == size and footer == footerMessage and footerRead == footerMessage.len:
+      discard socket.recv(footer[0].addr, footerMessage.len, 1)
+      if bufRead == size and footer == footerMessage:
         result = some fromFlatty(buf, World)
   except TimeoutError:
     result = none(World)
