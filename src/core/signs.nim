@@ -32,6 +32,7 @@ addResourceProc:
 
 
 var font = readFont("assets/fonts/MarradaRegular-Yj0O.ttf")
+
 proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
   let
     img = newImage(width, height)
@@ -48,7 +49,6 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
 
 proc init*(_: typedesc[Sign], pos: Vec3, message: string): Sign =
   result = Sign(pos: pos, message: message, progress: 0)
-  result.makeSignTexture()
 
 proc update*(sign: var Sign, dt: float32) =
   if sign.hovered:
@@ -72,3 +72,10 @@ proc render*(sign: Sign, cam: Camera) =
       messageShader.setUniform("mvp", cam.orthoView * mat)
       messageShader.setUniform("tex", sign.messageTexture)
       render(messageModel)
+
+
+proc load*(sign: var Sign) =
+  sign.makeSignTexture()
+
+proc free*(sign: var Sign) = 
+  sign.messageTexture.delete()

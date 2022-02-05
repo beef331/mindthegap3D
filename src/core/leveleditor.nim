@@ -1,6 +1,6 @@
 import vmath, flatty, nigui
 import std/[sugar, strutils, os, decls]
-import worlds, pickups, directions, tiles, editorbridge
+import worlds, pickups, directions, tiles, editorbridge, signs
 
 const
   Paintable = {Tilekind.floor, wall, pickup, shooter}
@@ -289,6 +289,7 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
     pickupLabel = newLabel("Pickup:")
     pickupCont = newLayoutContainer(Layout_Horizontal)
     dir = newLayoutContainer(LayoutHorizontal)
+    signField = newTextArea("")
 
   dir.add newLabel("Direction:")
   dir.add directionSelector
@@ -298,9 +299,17 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
 
   directionSelector.enabled = false
   pickupSelector.enabled = false
+  signField.hide()
 
-
-
+  signField.onTextChange = proc(textEvent: TextChangeEvent) =
+    block addText:
+      for sign in window.world.signs.mitems:
+        let index = window.world.getPointIndex(sign.pos)
+        if index == window.selected:
+          sign = Sign.init(sign.pos, signField.text)
+          break addText
+      window.world.signs.add Sign.init(window.world.getPos(window.selected) + vec3(0, 1, 0), signField.text)
+    window.onChange(window)
 
 
   window.onSelectionChange = proc() =
@@ -313,14 +322,18 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
       else:
         directionSelector.enabled = false
         pickupSelector.enabled = false
+      if tile.kind != empty:
+        signField.show()
       window.editor.show()
     else:
       directionSelector.enabled = false
       pickupSelector.enabled = false
+      signField.hide()
 
 
   canv.add dir
   canv.add pickupCont
+  canv.add signField
   container.add canv
 
 

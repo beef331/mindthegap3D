@@ -68,7 +68,7 @@ proc init*(_: typedesc[World], width, height: int): World =
 
 proc contains*(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
 
-proc getPointIndex(world: World, point: Vec3): int =
+proc getPointIndex*(world: World, point: Vec3): int =
   if point in world:
     int floor(point.x).int + floor(point.z).int * world.width
   else:
@@ -238,6 +238,14 @@ proc render*(world: World, cam: Camera) =
           glUseProgram(levelShader.Gluint)
 
   renderSigns(world, cam)
+
+proc unload*(world: var World) =
+  for sign in world.signs.mitems:
+    sign.free()
+
+proc load*(world: var World) =
+  for sign in world.signs.mitems:
+    sign.load()
 
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
   if world.state == playing:

@@ -19,7 +19,7 @@ proc calculateMatrix*(camera: var Camera) =
     let aspect = float32(sSize.y / sSize.x)
     camera.ortho = ortho(-camera.size, camera.size, -camera.size * aspect, camera.size * aspect, 0.001f, 50f)
 
-  camera.view = lookat(camera.pos, (camera.pos + camera.forward), vec3(0, 1, 0))
+  camera.view = lookat(camera.pos, (camera.pos + camera.forward), vec3(0, 11, 0))
   camera.orthoView = camera.ortho * camera.view
 
 

@@ -84,7 +84,9 @@ proc update(dt: float32) =
   if paramCount() >= 1:
     let newWorld = editorSocket.getWorld()
     if newWorld.isSome:
+      world.unload()
       world = newWorld.get
+      world.load()
       if world.playerSpawn in 0..<world.tiles.len:
         player = Player.init(world.getPos(int world.playerSpawn))
 
