@@ -24,12 +24,13 @@ type
     blocks: seq[Block]
     cursor: Vec3
     signs*: seq[Sign]
-    playerSpawn: int64
+    playerSpawn*: int64
     state*: WorldState
 
 const
   FloorDrawn = {wall, floor, pickup, shooter}
   Walkable = {TileKind.floor, pickup, box}
+  AlwaysWalkable = {TileKind.floor, pickup}
 
 var
   wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel: Model
@@ -73,6 +74,8 @@ proc getPointIndex(world: World, point: Vec3): int =
   else:
     -1
 
+proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
+
 proc posValid(world: World, pos: Vec3): bool =
   if pos in world and world.tiles[world.getPointIndex(pos)].kind == empty:
     result = true
@@ -85,7 +88,7 @@ proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction):
     result = true
     for x in kind.positions(dir, pos):
       let index = world.getPointIndex(vec3(x))
-      world.tiles[index] = Tile(kind: box, isWalkable: false)
+      world.tiles[index] = Tile(kind: box)
 
 proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
   if tile in FloorDrawn:
@@ -130,6 +133,11 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   if ind >= 0:
     world.tiles[ind] = tile
 
+proc isWalkable(tile: Tile): bool =
+  (tile.kind in AlwaysWalkable) or
+  (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
+
+
 
 proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
 
@@ -138,7 +146,6 @@ proc steppedOff*(world: var World, pos: Vec3) =
     var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
     case tile.kind
     of box:
-      tile.isWalkable = false
       tile.steppedOn = true
       tile.progress = 0
     else: discard
@@ -264,7 +271,6 @@ proc updateBox(boxTile: var Tile, dt: float32) =
     boxTile.progress += dt
   elif not boxTile.steppedOn:
     boxTile.progress = FallTime
-    boxTile.isWalkable = true
   else:
     boxTile.progress += dt
   boxTile.progress = clamp(boxTile.progress, 0, FallTime)

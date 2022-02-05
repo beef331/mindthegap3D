@@ -50,7 +50,7 @@ proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
   result.startPos = pos
   result.targetPos = pos
-  result.moveProgress = MoveTime
+  result.moveProgress = MoveTime + 0.1 # epsilon offset
 
 proc toVec*(d: Direction): Vec3 =
   case d
@@ -104,7 +104,6 @@ proc move(player: var Player, world: var World, camera: Camera, dt: float32) =
   movementUpdate(player, dt)
   let safeDirs = world.getSafeDirections(player.posOffset)
   var moved = false
-
   template move(keycode: TKeycode, dir: Direction) =
     if keycode.isPressed and dir in safeDirs:
       if not moved:

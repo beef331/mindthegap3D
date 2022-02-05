@@ -18,7 +18,6 @@ type
     timeToMove: float32
     direction: Vec3
   Tile* = object
-    isWalkable*: bool
     boxFlag*: set[BlockFlag]
     direction*: Direction
     case kind*: TileKind

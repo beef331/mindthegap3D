@@ -85,6 +85,8 @@ proc update(dt: float32) =
     let newWorld = editorSocket.getWorld()
     if newWorld.isSome:
       world = newWorld.get
+      if world.playerSpawn in 0..<world.tiles.len:
+        player = Player.init(world.getPos(int world.playerSpawn))
 
 
   let scrSize = screenSize()

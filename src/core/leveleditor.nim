@@ -12,6 +12,7 @@ type
     psNone
     psTile
     psRemove
+    psSpawn
 
   EditorWindow = ref object of WindowImpl
     tile: Tile
@@ -25,6 +26,7 @@ type
     onChange: proc(ew: EditorWindow)
     tileImages: array[TileKind, Image]
     pickupImages: array[PickupType, Image]
+    spawnSprite: Image
     paintState: PaintState
 
 const assetPath = "assets" / "leveleditor"
@@ -32,6 +34,8 @@ const assetPath = "assets" / "leveleditor"
 proc loadImages(ew: EditorWindow) =
   ew.tileImages[TileKind.floor] = newImage()
   ew.tileImages[TileKind.floor].loadFromFile assetPath / "floor.png"
+  ew.spawnSprite = newImage()
+  ew.spawnSprite.loadFromFile assetPath / "playerspawn.png"
   const
     pickupPath = [
       single:  assetPath / "single.png",
@@ -42,6 +46,7 @@ proc loadImages(ew: EditorWindow) =
       tee: assetPath / "tee.png",
       line: assetPath / "line.png"
     ]
+  ew.world.playerSpawn = -1
 
   for pickup in PickupType:
     ew.pickupImages[pickup] = newImage()
@@ -151,6 +156,7 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
   paintSelector.minWidth = 100
 
   let
+    playerSpawnButton = newButton("Player Spawn")
     liveEditButton = newButton("Live Edit")
     loadButton = newButton("Load")
     saveButton = newButton("Save")
@@ -184,7 +190,11 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
     window.liveEditing = not window.liveEditing
     echo "Is Live editing: ", window.liveEditing
 
+  playerSpawnButton.onClick = proc(clickEvent: ClickEvent) =
+    window.paintState = psSpawn
+
   horz.add paintSelector
+  horz.add playerSpawnButton
   horz.add liveEditButton
   horz.add loadButton
   horz.add saveButton
@@ -194,7 +204,8 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
 proc makeEditor(window: EditorWindow, container: LayoutContainer) =
   let canv = newControl()
   window.editor = canv
-  var paintState = psNone
+  window.paintState = psNone
+
   canv.onDraw = proc(drawEvent: DrawEvent) =
     let
       canvas = drawEvent.control.canvas
@@ -207,7 +218,7 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
     for i, tile in window.world.tiles.pairs:
       let
         x = int i mod window.world.width * TileSize - canv.xScrollPos
-        y = int i div window.world.width * TileSize- canv.yScrollPos
+        y = int i div window.world.width * TileSize - canv.yScrollPos
       case tile.kind
       of TileKind.floor:
         canvas.drawImage(window.tileImages[TileKind.floor], x, y)
@@ -215,31 +226,17 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
         canvas.drawImage(window.pickupImages[tile.pickupKind], x, y)
       else: discard
 
+    if window.world.playerSpawn in 0..<window.world.tiles.len:
+      let
+        x = int window.world.playerSpawn mod window.world.width
+        y = int window.world.playerSpawn div window.world.width
+      canvas.drawImage(window.spawnSprite, x * TileSize, y * TileSize)
+
     if window.selected in 0..<window.world.tiles.len:
       let
         selectedX = int (window.selected mod window.world.width) * TileSize - canv.xScrollPos
         selectedY = int (window.selected div window.world.width) * TileSize - canv.yScrollPos
       canvas.drawRectOutline(selectedX, selectedY, TileSize, TileSize)
-  var timer: Timer
-  let
-    timeProc = proc(event: TimerEvent) =
-      let
-        (mouseX, mouseY) = canv.mousePosition()
-        x = (mouseX + canv.xScrollPos) div TileSize
-        y = (mouseY + canv.yScrollPos) div TileSize
-        ind = int x mod window.world.width + y * window.world.width
-        inWorld = vec3(float x, 0, float y) in window.world
-      if inWorld:
-        case paintState
-        of psTile:
-          window.world.tiles[ind] = window.tile
-        of psRemove:
-          window.world.tiles[ind] = Tile(kind: empty)
-        else: discard
-        window.onSelectionChange()
-        window.onChange(window)
-      else:
-        stop timer
 
   canv.onMouseButtonDown = proc(mouseEvent: MouseEvent) =
     let
@@ -247,12 +244,21 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
       y = (mouseEvent.y + canv.yScrollPos) div TileSize
       ind = int x mod window.world.width + y * window.world.width
       inWorld = vec3(float x, 0, float y) in window.world
-    if mouseEvent.button in {MouseButtonLeft, MouseButtonRight}:
-      timer.stop()
-      timer = startRepeatingTimer(30, timeProc)
+
     case mouseEvent.button
     of MouseButtonLeft:
-      paintState = psTile
+      if inWorld:
+        if window.paintState == psSpawn:
+          window.world.playerSpawn = ind
+          window.paintState = psTile
+        else:
+          case window.tile.kind
+          of pickup:
+            window.tile.active = true
+          else:
+            discard
+          window.world.tiles[ind] = window.tile
+
     of MouseButtonMiddle:
       window.selected =
         if inWorld:
@@ -260,13 +266,10 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
         else:
           -1
     of MouseButtonRight:
-      paintState = psRemove
+      if inWorld:
+        window.world.tiles[ind] = Tile(kind: empty)
+    window.onChange(window)
 
-
-  canv.onMouseButtonUp = proc(mouseEvent: MouseEvent) =
-    if mouseEvent.button in {MouseButtonLeft, MouseButtonRight}:
-      timer.stop
-      paintState = psNone
 
   window.scaleEditor()
   canv.heightMode = HeightMode_Expand
