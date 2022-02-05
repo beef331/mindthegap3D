@@ -51,6 +51,7 @@ proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.startPos = pos
   result.targetPos = pos
   result.moveProgress = MoveTime + 0.1 # epsilon offset
+  result.rotation = up.targetRotation
 
 proc toVec*(d: Direction): Vec3 =
   case d

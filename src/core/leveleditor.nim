@@ -303,11 +303,17 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
 
   signField.onTextChange = proc(textEvent: TextChangeEvent) =
     block addText:
+      var ind = 0
       for sign in window.world.signs.mitems:
         let index = window.world.getPointIndex(sign.pos)
         if index == window.selected:
-          sign = Sign.init(sign.pos, signField.text)
+          if signField.text.len > 0:
+            sign = Sign.init(sign.pos, signField.text)
+          else:
+            window.world.signs.del(ind)
           break addText
+        inc ind
+          
       if signField.text.len > 0:
         window.world.signs.add Sign.init(window.world.getPos(window.selected) + vec3(0, 1, 0), signField.text)
     window.onChange(window)
@@ -315,7 +321,9 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
 
   window.onSelectionChange = proc() =
     if window.selected in 0..<window.world.tiles.len:
-      var tile {.byaddr.} = window.world.tiles[window.selected]
+      var
+        tile {.byaddr.} = window.world.tiles[window.selected]
+
       case tile.kind
       of pickup:
         directionSelector.enabled = false
