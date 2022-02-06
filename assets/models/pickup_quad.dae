@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 2.93.3</authoring_tool>
     </contributor>
-    <created>2021-11-06T18:55:03</created>
-    <modified>2021-11-06T18:55:03</modified>
+    <created>2022-02-05T22:41:14</created>
+    <modified>2022-02-05T22:41:14</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -25,9 +25,9 @@
           </technique_common>
         </source>
         <source id="Plane-tex_002-mesh-normals">
-          <float_array id="Plane-tex_002-mesh-normals-array" count="3">0 1 0</float_array>
+          <float_array id="Plane-tex_002-mesh-normals-array" count="6">0 1 0 0 1 0</float_array>
           <technique_common>
-            <accessor source="#Plane-tex_002-mesh-normals-array" count="1" stride="3">
+            <accessor source="#Plane-tex_002-mesh-normals-array" count="2" stride="3">
               <param name="X" type="float"/>
               <param name="Y" type="float"/>
               <param name="Z" type="float"/>
@@ -35,7 +35,7 @@
           </technique_common>
         </source>
         <source id="Plane-tex_002-mesh-map-0">
-          <float_array id="Plane-tex_002-mesh-map-0-array" count="12">0.9999 0.9999001 9.998e-5 9.998e-5 0.9999 1.0012e-4 0.9999 0.9999001 9.998e-5 0.9999 9.998e-5 9.998e-5</float_array>
+          <float_array id="Plane-tex_002-mesh-map-0-array" count="12">9.9957e-5 0.9999001 0.9999 9.99868e-5 9.9957e-5 1.00106e-4 9.9957e-5 0.9999001 0.9999 0.9999 0.9999 9.99868e-5</float_array>
           <technique_common>
             <accessor source="#Plane-tex_002-mesh-map-0-array" count="6" stride="2">
               <param name="S" type="float"/>
@@ -62,7 +62,7 @@
           <input semantic="NORMAL" source="#Plane-tex_002-mesh-normals" offset="1"/>
           <input semantic="TEXCOORD" source="#Plane-tex_002-mesh-map-0" offset="2" set="0"/>
           <input semantic="COLOR" source="#Plane-tex_002-mesh-colors-Plane-tex-mesh-0-colors" offset="3" set="0"/>
-          <p>2 0 0 0 1 0 1 1 0 0 2 2 2 0 3 3 3 0 4 4 1 0 5 5</p>
+          <p>2 0 0 0 1 0 1 1 0 0 2 2 2 1 3 3 3 1 4 4 1 1 5 5</p>
         </triangles>
       </mesh>
     </geometry>

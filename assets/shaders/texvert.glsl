@@ -12,6 +12,4 @@ out vec2 fuv;
 void main() {
   gl_Position = mvp * vec4(vertex_position, 1.0);
   fuv = uv;
-  fuv.x = 1 - uv.x;
-
 }

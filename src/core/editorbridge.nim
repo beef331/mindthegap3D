@@ -16,6 +16,10 @@ proc fromFlatty[T](s: string; i: var int, x: var set[T]) =
   copyMem(x.addr, s[i].unsafeAddr, sizeof(x))
   inc i, sizeof(x)
 
+proc createGameSocket*(): Socket =
+  result = newSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+  result.bindAddr(gamePort)
+
 proc sendWorld*(world: World) =
   let socket = newSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
   try:
@@ -29,10 +33,6 @@ proc sendWorld*(world: World) =
     echo getCurrentExceptionMsg()
   finally:
     socket.close()
-
-proc createGameSocket*(): Socket =
-  result = newSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-  result.bindAddr(gamePort)
 
 proc getWorld*(socket: Socket): Option[World] =
   try:

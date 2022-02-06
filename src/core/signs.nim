@@ -20,7 +20,7 @@ proc makeQuad(width, height: float32): Model =
   var data: MeshData[Vec3]
   let halfPos = vec3(width / 2, height / 2, 0)
   data.appendVerts([vec3(0) - halfPos, vec3(width, height, 0) - halfPos, vec3(0, height, 0) - halfPos, vec3(width, 0, 0) - halfPos].items)
-  data.appendUV([vec2(0, 1), vec2(1, 0), vec2(0, 0), vec2(1, 1)].items)
+  data.appendUV([vec2(1, 1), vec2(0, 0), vec2(1, 0), vec2(0, 1)].items)
   data.append([1u32, 0, 2, 0, 1, 3].items)
   result = data.uploadData()
 
