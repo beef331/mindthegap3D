@@ -315,7 +315,7 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
         inc ind
           
       if signField.text.len > 0:
-        window.world.signs.add Sign.init(window.world.getPos(window.selected) + vec3(0, 1, 0), signField.text)
+        window.world.signs.add Sign.init(window.world.getPos(window.selected), signField.text)
     window.onChange(window)
 
 

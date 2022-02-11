@@ -48,6 +48,8 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
   img.copyTo(sign.messageTexture)
 
 proc init*(_: typedesc[Sign], pos: Vec3, message: string): Sign =
+  var pos = pos
+  pos.y = 1.25
   result = Sign(pos: pos, message: message, progress: 0)
 
 proc update*(sign: var Sign, dt: float32) =

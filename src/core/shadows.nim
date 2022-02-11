@@ -23,7 +23,7 @@ proc renderShadow*(camera: Camera, pos, scale: Vec3, opacity = 0.75) =
   with shadowShader:
     shadowShader.setUniform("opacity", opacity)
     let 
-      pos = vec3(pos.x, 1, pos.z)
+      pos = vec3(pos.x, pos.y, pos.z)
       shadowMatrix = (mat4() * translate(pos)) * scale(scale)
     shadowShader.setUniform("mvp", camera.orthoView * shadowMatrix)
     shadowShader.setUniform("tex", shadowTex)
