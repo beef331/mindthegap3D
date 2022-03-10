@@ -79,7 +79,7 @@ proc cameraMovement =
   else:
     discard
 
-
+addMoveEvents(player, world)
 proc update(dt: float32) =
   if paramCount() >= 1:
     let newWorld = editorSocket.getWorld()

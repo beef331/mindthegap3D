@@ -1,7 +1,7 @@
 import std/math
 type
   Direction* = enum
-    up, right, down, left
+    up, left, down, right
 
 proc nextDirection*(d: var Direction, val: -1..1) =
   const count = (Direction.high.ord + 1)

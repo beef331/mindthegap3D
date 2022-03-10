@@ -1,5 +1,5 @@
 import truss3D/[shaders, models, textures, inputs]
-import std/options
+import std/[options, decls]
 import resources, cameras, directions, worlds, pickups, shadows
 import vmath
 import pixie
@@ -105,17 +105,6 @@ proc move(player: var Player, world: var World, camera: Camera, dt: float32) =
   movementUpdate(player, dt)
   let safeDirs = world.getSafeDirections(player.posOffset)
   var moved = false
-  template move(keycode: TKeycode, dir: Direction) =
-    if keycode.isPressed and dir in safeDirs:
-      if not moved:
-        moved = player.move(dir)
-        if moved:
-          world.steppedOff(player.posOffset)
-
-  move(KeyCodeW, Direction.up)
-  move(KeyCodeD, left)
-  move(KeyCodeS, down)
-  move(KeyCodeA, right)
 
   if leftMb.isDown:
     let hit = vec3 ivec3 camera.raycast(getMousePos())
@@ -141,6 +130,24 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
     let hitPos = camera.raycast(getMousePos()).ivec3
     if world.placeBlock(hitPos.vec3, player.presentPickup.get, player.pickupRotation):
       player.presentPickup = none(PickupType)
+
+proc addMoveEvents*(player: var Player, world: var World) =
+  template move(keycodes: set[TKeycode], dir: Direction) =
+    var
+      player {.byaddr.} = player
+      world {.byaddr.} = world
+    addEvent(keycodes, held, epMedium) do(keyEV: var KeyEvent, dt: float):
+      let safeDirs = world.getSafeDirections(player.posOffset)
+      if dir in world.getSafeDirections(player.posOffset):
+        if player.move(dir):
+          world.steppedOff(player.posOffset)
+          if player.presentPickup.isNone:
+            player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
+
+  move({KeyCodeW, KeyCodeUp}, Direction.up)
+  move({KeyCodeD, KeyCodeRight}, left)
+  move({KeyCodeS, KeyCodeDown}, down)
+  move({KeyCodeA, KeyCodeLeft}, right)
 
 
 proc render*(player: Player, camera: Camera, world: World) =
