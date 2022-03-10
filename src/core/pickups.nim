@@ -31,7 +31,7 @@ const
     farQuad: @[vec3(0), vec3(0, 0, 2), vec3(2, 0, 2), vec3(2, 0, 0)],
     lLeft: @[vec3(0), vec3(1, 0, 0), vec3(0, 0, -1), vec3(0, 0, -2)],
     lRight: @[vec3(0), vec3(-1, 0, 0), vec3(0, 0, -1), vec3(0, 0, -2)],
-    tee: @[vec3(0), vec3(1, 0, 0), vec3(0, 0, -1), vec3(1, 0, 0)],
+    tee: @[vec3(0), vec3(1, 0, 0), vec3(0, 0, 1), vec3(-1, 0, 0)],
     line: @[vec3(0), vec3(0, 0, 1), vec3(0, 0, 2), vec3(0, 0, -1)],
   ]
 
