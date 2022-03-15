@@ -116,7 +116,7 @@ proc update(dt: float32) =
   let scroll = getMouseScroll()
   if scroll != 0:
     if KeycodeLCtrl.isPressed:
-      camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
+      camera.changeSize(clamp(camera.size + -scroll.float * dt * 10000, 3, 20))
 
   if KeyCodeQ.isDown:
     quitTruss()
@@ -135,12 +135,15 @@ proc draw =
 
   glClear(GLDepthBufferBit or GlColorBufferBit)
   with waterShader:
+    let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
     glEnable(GlDepthTest)
+    waterShader.setUniform("modelMatrix", waterMatrix)
+    waterShader.setUniform("worldSize", vec2(world.width.float - 1, world.height.float - 1))
     waterShader.setUniform("depthTex", depthBuffer.depthTexture)
     waterShader.setUniform("colourTex", depthBuffer.colourTexture)
     waterShader.setUniform("waterTex", waterTex)
     watershader.setUniform("time", getTime())
-    waterShader.setUniform("mvp", camera.orthoView * (mat4() * translate(vec3(-150, 0.9, -150))))
+    waterShader.setUniform("mvp", camera.orthoView * waterMatrix)
     render(waterQuad)
   world.render(camera)
   player.render(camera, world)
