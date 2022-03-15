@@ -24,8 +24,9 @@ float rectangle(vec2 samplePosition, vec2 halfSize){
 void main() {
   vec2 uv = (mvp * vec4(pos, 1)).xy * 0.5 + 0.5;
   float depth = texture(depthTex, uv).r;
-  float foam = 1 - (abs(gl_FragCoord.z - depth) / (0.02 + sin(time * 2 + pos.x + pos.y) * 0.01));
-  float rectDist = rectangle(worldPos.xz - worldSize / 2, worldSize / 2 + vec2(0.4));
+  float sineVal = (0.02 + sin(time * 2 + pos.x + pos.y) * 0.01);
+  float foam = 1 - (abs(gl_FragCoord.z - depth) / sineVal);
+  float rectDist = rectangle(worldPos.xz - worldSize / 2, worldSize / 2 + vec2(0.4) + vec2(sineVal * 10));
   if(rectDist >= 0.5 && rectDist < 1){
     foam = rectDist;
     vec2 newVs = worldPos.xz + (0.02 + sin(time * 2 + pos.x + pos.y) * 0.1);
@@ -34,7 +35,8 @@ void main() {
     newVs.x += -time * 0.3;
     newVs.y += -time * 0.2;
     foamSample += texture(waterTex, newVs).r * 0.3;
-    frag_colour = mix(vec4(1, 1, 1, 1), vec4(0, 0, 1, 1), 1 - (foam * foamSample));
+    foamSample = abs(0.75 - rectDist) > 0.2 ? 1: foamSample;
+    frag_colour = mix(vec4(1, 1, 1, 1), vec4(0, 0, 1, 1), 1 - foamSample);
   }else{
     frag_colour = mix(vec4(0, 0, 1, 1), vec4(0, 0.6, 1, 1), foam);
     frag_colour += vec4(clamp(float(foam > 0.7) * round(foam / 0.3) * 0.3, 0.0, 1.0));
