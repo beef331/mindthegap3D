@@ -8,7 +8,7 @@ import std/[sequtils, options, decls]
 const
   StartHeight = 10f
   FallTime = 1f
-  SinkHeight = -1
+  SinkHeight = -0.6
 
 type
   RenderedTile = TileKind.wall..TileKind.high

@@ -27,7 +27,7 @@ void main() {
   float sineVal = (0.02 + sin(time * 2 + pos.x + pos.y) * 0.01);
   float foam = 1 - (abs(gl_FragCoord.z - depth) / sineVal);
   float rectDist = rectangle(worldPos.xz - worldSize / 2, worldSize / 2 + vec2(0.4) + vec2(sineVal * 10));
-  if(rectDist >= 0.5 && rectDist < 1){
+  if(abs(0.75 - rectDist) < 0.25){
     foam = rectDist;
     vec2 newVs = worldPos.xz + (0.02 + sin(time * 2 + pos.x + pos.y) * 0.1);
     newVs += vec2(time * 0.1);
@@ -37,6 +37,8 @@ void main() {
     foamSample += texture(waterTex, newVs).r * 0.3;
     foamSample = abs(0.75 - rectDist) > 0.2 ? 1: foamSample;
     frag_colour = mix(vec4(1, 1, 1, 1), vec4(0, 0, 1, 1), 1 - foamSample);
+  }else if(rectDist >= 1){
+    frag_colour = vec4(0, 0, 0.7, 1) + texture(waterTex, worldPos.xz + vec2(0, sineVal * 5) + vec2(time / 2, time / 4)).r * 0.3;
   }else{
     frag_colour = mix(vec4(0, 0, 1, 1), vec4(0, 0.6, 1, 1), foam);
     frag_colour += vec4(clamp(float(foam > 0.7) * round(foam / 0.3) * 0.3, 0.0, 1.0));

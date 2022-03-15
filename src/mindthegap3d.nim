@@ -116,7 +116,7 @@ proc update(dt: float32) =
   let scroll = getMouseScroll()
   if scroll != 0:
     if KeycodeLCtrl.isPressed:
-      camera.changeSize(clamp(camera.size + -scroll.float * dt * 10000, 3, 20))
+      camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
 
   if KeyCodeQ.isDown:
     quitTruss()
