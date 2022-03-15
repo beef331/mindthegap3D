@@ -31,6 +31,7 @@ const
   FloorDrawn = {wall, floor, pickup, shooter}
   Walkable = {TileKind.floor, pickup, box}
   AlwaysWalkable = {TileKind.floor, pickup}
+  AlwaysCompleted = {TileKind.floor, wall, shooter, pickup}
 
 var
   wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel: Model
@@ -65,6 +66,18 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
 
 proc init*(_: typedesc[World], width, height: int): World =
   World(width: width, height: height, tiles: newSeq[Tile](width * height))
+
+proc isFinished*(world: World): bool =
+  for x in world.tiles:
+    case x.kind
+    of empty:
+      return false
+    of box:
+      if not x.steppedOn:
+        return false
+    of AlwaysCompleted:
+      discard
+  result = true
 
 proc contains*(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
 
@@ -137,8 +150,6 @@ proc isWalkable(tile: Tile): bool =
   (tile.kind in AlwaysWalkable) or
   (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
 
-
-
 proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
 
 proc steppedOff*(world: var World, pos: Vec3) =
@@ -149,6 +160,8 @@ proc steppedOff*(world: var World, pos: Vec3) =
       tile.steppedOn = true
       tile.progress = 0
     else: discard
+    if world.isFinished:
+      echo "Donezo"
 
 proc getSafeDirections*(world: World, index: Natural): set[Direction] =
   if index > world.width and world.tiles[index - world.width].canWalk():

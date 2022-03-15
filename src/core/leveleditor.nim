@@ -1,11 +1,12 @@
 import vmath, flatty, nigui
-import std/[sugar, strutils, os, decls]
+import std/[sugar, strutils, os, decls, streams]
 import worlds, pickups, directions, tiles, editorbridge, signs
 
 const
   Paintable = {Tilekind.floor, wall, pickup, shooter}
   TileSize = 64
   MaxLevelSize = 30
+  levelEnding = "levelended"
 
 type
   PaintState = enum
@@ -165,11 +166,26 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
     let
       saveFileDialog = newSaveFileDialog()
     saveFileDialog.title = "Save Level as"
-    saveFileDialog.defaultName = "Untitled.lvl"
     saveFileDialog.run()
     if saveFileDialog.file.len != 0:
       try:
-        ## Save level
+        let
+          data = window.world.toFlatty()
+          path =
+            if saveFileDialog.file.endsWith".lvl":
+              saveFileDialog.file
+            else:
+              var res = saveFileDialog.file
+              res.add ".lvl"
+              res
+          fStream = openFileStream(path, fmWrite)
+
+
+        fStream.write data.len
+        fStream.write data
+        fStream.write levelEnding
+        fStream.close()
+
       except:
         ## Handle invalid file name
 
@@ -181,7 +197,18 @@ proc topBar*(window: EditorWindow, vert: LayoutContainer) =
     openFileDialog.run()
     if openFileDialog.files.len != 0 and openFileDialog.files[0].len > 0:
       try:
-        ## Open level
+        let
+          fStream = openFileStream(openFileDialog.files[0], fmRead)
+        var
+          size: int
+          flattyWorld: string
+        fStream.read size
+        fStream.readStr(size, flattyWorld)
+        if fStream.readLine() != levelEnding:
+          raise newException(ValueError, "Invalid level")
+        else:
+          window.world = flattyWorld.fromFlatty(World)
+          window.onChange(window)
       except:
         ## Handle invalid file name
 
