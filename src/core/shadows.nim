@@ -14,7 +14,7 @@ var
   shadowTex: Texture
 
 addResourceProc:
-  shadowShader = loadShader("vert.glsl", "shadow.glsl")
+  shadowShader = loadShader(ShaderPath"vert.glsl", ShaderPath"shadow.glsl")
   shadowModel = loadModel("pickup_quad.dae")
   shadowTex = genTexture()
   makeShadow(1).copyTo shadowTex

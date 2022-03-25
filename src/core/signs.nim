@@ -26,7 +26,7 @@ proc makeQuad(width, height: float32): Model =
 
 
 addResourceProc:
-  messageShader = loadShader("texvert.glsl", "alphaclip.glsl")
+  messageShader = loadShader(ShaderPath"texvert.glsl", ShaderPath"alphaclip.glsl")
   messageModel = makeQuad(4, 2)
 
 

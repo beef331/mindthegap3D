@@ -178,7 +178,7 @@ proc pos*(player: Player): Vec3 = player.pos
 
 addResourceProc:
   playerModel = loadModel("player.dae")
-  playerShader = loadShader("vert.glsl", "frag.glsl")
+  playerShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
   let
     wImage = makeMoveImage("W")
     aImage = makeMoveImage("D")
@@ -192,5 +192,5 @@ addResourceProc:
   dImage.copyTo(dirTex[right])
   sImage.copyTo(dirTex[down])
   aImage.copyTo(dirTex[left])
-  alphaClipShader = loadShader("vert.glsl", "alphaclip.glsl")
+  alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
   dirModel = loadModel("pickup_quad.dae")
