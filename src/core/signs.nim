@@ -42,7 +42,7 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
   ctx.fillStyle = color(1, 1, 1, 1)
   ctx.fillRoundedRect(rect(border.float, border.float, rectWidth, rectHeight), 20, 20, 20, 20)
   font.size = 120
-  img.fillText(font.typeset(sign.message, vec2(rectWidth, rectHeight), hAlign = haCenter, vAlign = vaMiddle), translate(vec2(border.float)))
+  img.fillText(font.typeset(sign.message, vec2(rectWidth, rectHeight), hAlign = CenterAlign, vAlign = MiddleAlign), translate(vec2(border.float)))
 
   sign.messageTexture = genTexture()
   img.copyTo(sign.messageTexture)

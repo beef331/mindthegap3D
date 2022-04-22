@@ -1,6 +1,6 @@
 import truss3D/[shaders, models, textures, inputs]
 import std/[options, decls]
-import resources, cameras, directions, worlds, pickups, shadows
+import resources, cameras, directions, pickups, shadows
 import vmath
 import pixie
 
@@ -31,15 +31,14 @@ const
 
 type
   Player* = object
-    startPos: Vec3
-    targetPos: Vec3
+    fromPos: Vec3
+    toPos: Vec3
     pos: Vec3
     moveProgress: float32
     direction: Direction
     presentPickup: Option[PickupType]
     pickupRotation: Direction
     rotation: float32
-
 
 var
   playerModel, dirModel: Model
@@ -48,9 +47,9 @@ var
 
 proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
-  result.startPos = pos
-  result.targetPos = pos
-  result.moveProgress = MoveTime + 0.1 # epsilon offset
+  result.fromPos = pos
+  result.toPos = pos
+  result.moveProgress = MoveTime + 0.01 # epsilon offset
   result.rotation = up.targetRotation
 
 proc toVec*(d: Direction): Vec3 =
@@ -67,13 +66,25 @@ proc targetRotation*(d: Direction): float32 =
   of left: Tau / 2f
   of down: 3f / 4f * Tau
 
-proc move*(player: var Player, direction: Direction): bool =
+func move(player: var Player, direction: Direction): bool =
   if player.moveProgress >= MoveTime:
     player.direction = direction
-    player.startPos = player.pos
-    player.targetPos = direction.toVec + player.pos
+    player.fromPos = player.pos
+    player.toPos = direction.toVec + player.pos
     player.moveProgress = 0
     result = true
+
+func isMoving*(player: Player): bool = player.moveProgress < 1
+
+func hasPickup*(player: Player): bool = player.presentPickup.isSome
+
+func givePickup*(player: var Player, pickup: PickupType) = player.presentPickup = some(pickup)
+
+func clearPickup*(player: var Player) = player.presentPickup = none(PickupType)
+
+func getPickup*(player: Player): PickupType = player.presentPickup.get
+
+func pickupRotation*(player: Player): Direction = player.pickupRotation
 
 proc movementUpdate(player: var Player, dt: float32) =
   let
@@ -91,34 +102,44 @@ proc movementUpdate(player: var Player, dt: float32) =
     player.rotation += dt * RotationSpeed * -sgn(rotDiff).float32
 
   if player.moveProgress >= MoveTime:
-    player.pos = player.targetPos
+    player.pos = player.toPos
   else:
     let
       progress = player.moveProgress / MoveTime
       sineOffset = vec3(0, sin(progress * Pi) * Height, 0)
-    player.pos = player.startPos + player.direction.toVec * progress + sineOffset
+    player.pos = player.frompos + player.direction.toVec * progress + sineOffset
     player.moveProgress += dt
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 
-proc move(player: var Player, world: var World, camera: Camera, dt: float32) =
+proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, didMove: var bool) =
   movementUpdate(player, dt)
-  let safeDirs = world.getSafeDirections(player.posOffset)
-  var moved = false
+  didMove = false
+
+  template move(keycodes: set[TKeycode], dir: Direction) =
+    var player{.byaddr.} = player
+    if not didMove:
+      for key in keycodes:
+        if key.isPressed:
+          if dir in safeDirs:
+            didMove = player.move(dir)
+
+  move({KeyCodeW, KeyCodeUp}, Direction.up)
+  move({KeyCodeD, KeyCodeRight}, left)
+  move({KeyCodeS, KeyCodeDown}, down)
+  move({KeyCodeA, KeyCodeLeft}, right)
 
   if leftMb.isDown:
     let hit = vec3 ivec3 camera.raycast(getMousePos())
     for dir in Direction:
       if dir in safeDirs and distSq(hit, player.pos + dir.toVec) < 0.1:
-        moved = player.move(dir)
-        if moved:
-          world.steppedOff(player.posOffset)
+        didMove = player.move(dir)
 
-  if moved and player.presentPickup.isNone:
-    player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
+proc doPlace*(player: var Player): bool =
+  leftMb.isDown and player.hasPickup
 
-proc update*(player: var Player, world: var World, camera: Camera, dt: float32) =
-  player.move(world, camera, dt)
+proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, didMove: var bool) =
+  player.move(safeDirs, camera, dt, didMove)
 
   if KeycodeR.isPressed:
     player.presentPickup = none(PickupType)
@@ -126,32 +147,8 @@ proc update*(player: var Player, world: var World, camera: Camera, dt: float32) 
   if KeycodeLCtrl.isNothing:
     let scroll = getMouseScroll().sgn
     player.pickupRotation.nextDirection(scroll)
-  if leftMb.isPressed and player.presentPickup.isSome:
-    let hitPos = camera.raycast(getMousePos()).ivec3
-    if world.placeBlock(hitPos.vec3, player.presentPickup.get, player.pickupRotation):
-      player.presentPickup = none(PickupType)
 
-proc addMoveEvents*(player: var Player, world: var World) =
-  template move(keycodes: set[TKeycode], dir: Direction) =
-    var
-      player {.byaddr.} = player
-      world {.byaddr.} = world
-    addEvent(keycodes, held, epMedium) do(keyEV: var KeyEvent, dt: float):
-      let safeDirs = world.getSafeDirections(player.posOffset)
-      if dir in world.getSafeDirections(player.posOffset):
-        if player.move(dir):
-          world.steppedOff(player.posOffset)
-          if player.presentPickup.isNone:
-            player.presentPickup = world.getPickups(player.targetPos + vec3(0.5, 0, 0.5))
-
-  move({KeyCodeW, KeyCodeUp}, Direction.up)
-  move({KeyCodeD, KeyCodeRight}, left)
-  move({KeyCodeS, KeyCodeDown}, down)
-  move({KeyCodeA, KeyCodeLeft}, right)
-
-
-proc render*(player: Player, camera: Camera, world: World) =
-  let safeDirections = world.getSafeDirections(player.posOffset)
+proc render*(player: Player, camera: Camera, safeDirs: set[Direction]) =
   with playerShader:
     let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.3, 0)) * rotateY(player.rotation))
     playerShader.setUniform("mvp", camera.orthoView * modelMatrix)
@@ -161,7 +158,7 @@ proc render*(player: Player, camera: Camera, world: World) =
   if player.moveProgress >= MoveTime:
     with alphaClipShader:
       for x in Direction:
-        if x in safeDirections:
+        if x in safeDirs:
           let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.3, 0) + x.toVec) * rotateY(90.toRadians))
           alphaClipShader.setUniform("mvp", camera.orthoView * modelMatrix)
           alphaClipShader.setUniform("tex", dirTex[x])
@@ -171,10 +168,10 @@ proc render*(player: Player, camera: Camera, world: World) =
       scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)
       pos = vec3(player.pos.x, 1, player.pos.z)
     renderShadow(camera, pos, scale)
-  if player.presentPickup.isSome:
-    world.renderDropCursor(camera, player.presentPickup.get, getMousePos(), player.pickupRotation)
 
-proc pos*(player: Player): Vec3 = player.pos
+func pos*(player: Player): Vec3 = player.pos
+func mapPos*(player: Player): Vec3 = player.posOffset
+func toPos*(player: Player): Vec3 = player.toPos
 
 addResourceProc:
   playerModel = loadModel("player.dae")

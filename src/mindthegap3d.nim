@@ -13,7 +13,6 @@ const camDefaultSize = 8f
 var
   camera: Camera
   world: World
-  player = Player.init(vec3(5, 0, 5))
   depthBuffer, signBuffer: FrameBuffer
   depthShader, waterShader: Shader
   waterQuad: Model
@@ -79,7 +78,6 @@ proc cameraMovement =
   else:
     discard
 
-addMoveEvents(player, world)
 proc update(dt: float32) =
   if paramCount() >= 1:
     let newWorld = editorSocket.getWorld()
@@ -88,7 +86,7 @@ proc update(dt: float32) =
       world = newWorld.get
       world.load()
       if world.playerSpawn in 0..<world.tiles.len:
-        player = Player.init(world.getPos(int world.playerSpawn))
+        world.player = Player.init(world.getPos(int world.playerSpawn))
 
 
   let scrSize = screenSize()
@@ -109,8 +107,6 @@ proc update(dt: float32) =
     if selected >= 0:
       world.hoverSign(selected)
 
-
-  player.update(world, camera, dt)
   world.update(camera, dt)
 
   let scroll = getMouseScroll()
@@ -126,7 +122,6 @@ proc draw =
   glCullFace(GlBack)
   with depthBuffer:
     depthBuffer.clear()
-    player.render(camera, world)
     world.render(camera)
 
   with signBuffer:
@@ -146,7 +141,6 @@ proc draw =
     waterShader.setUniform("mvp", camera.orthoView * waterMatrix)
     render(waterQuad)
   world.render(camera)
-  player.render(camera, world)
 
 
 initTruss("Something", ivec2(1280, 720), invokeResourceProcs, update, draw)

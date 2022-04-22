@@ -1,6 +1,6 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players
 import std/[sequtils, options, decls]
 
 {.experimental: "overloadableEnums".}
@@ -26,6 +26,7 @@ type
     signs*: seq[Sign]
     playerSpawn*: int64
     state*: WorldState
+    player*: Player
 
 const
   FloorDrawn = {wall, floor, pickup, shooter}
@@ -93,15 +94,18 @@ proc posValid(world: World, pos: Vec3): bool =
   if pos in world and world.tiles[world.getPointIndex(pos)].kind == empty:
     result = true
 
-proc placeBlock*(world: var World, pos: Vec3, kind: PickupType, dir: Direction): bool =
-  block placeBlock:
-    for x in kind.positions(dir, pos):
-      if not world.posValid(x):
-        break placeBlock
-    result = true
-    for x in kind.positions(dir, pos):
-      let index = world.getPointIndex(vec3(x))
-      world.tiles[index] = Tile(kind: box)
+proc placeBlock(world: var World, cam: Camera) =
+  var player {.byaddr.} = world.player
+  let
+    pos = cam.raycast(getMousePos())
+    dir = player.pickupRotation
+  for x in player.getPickup.positions(dir, pos):
+    if not world.posValid(x):
+      return
+  for x in player.getPickup.positions(dir, pos):
+    let index = world.getPointIndex(vec3(x))
+    world.tiles[index] = Tile(kind: box)
+  player.clearPickup()
 
 proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
   if tile in FloorDrawn:
@@ -152,7 +156,7 @@ proc isWalkable(tile: Tile): bool =
 
 proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
 
-proc steppedOff*(world: var World, pos: Vec3) =
+proc steppedOff(world: var World, pos: Vec3) =
   if pos in world:
     var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
     case tile.kind
@@ -163,7 +167,7 @@ proc steppedOff*(world: var World, pos: Vec3) =
     if world.isFinished:
       echo "Donezo"
 
-proc getSafeDirections*(world: World, index: Natural): set[Direction] =
+proc getSafeDirections(world: World, index: Natural): set[Direction] =
   if index > world.width and world.tiles[index - world.width].canWalk():
     result.incl down
   if index + world.width < world.tiles.len and world.tiles[index + world.width].canWalk():
@@ -173,42 +177,22 @@ proc getSafeDirections*(world: World, index: Natural): set[Direction] =
   if index mod world.width < world.width - 1 and world.tiles[index + 1].canWalk():
     result.incl right
 
-proc getSafeDirections*(world: World, pos: Vec3): set[Direction] =
+proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
   if pos in world:
     world.getSafeDirections(world.getPointIndex(pos))
   else:
     {}
 
-proc getPickups*(world: var World, pos: Vec3): Option[PickupType] =
-  if pos in world:
+proc playerSafeDirections(world: World): set[Direction] = world.getSafeDirections(world.player.mapPos)
+
+proc givePickupIfCan(world: var World) =
+  ## If the player can get the pickup give it to them else do nothing
+  let pos = world.player.toPos
+  if not world.player.hasPickup and pos in world:
     let index = world.getPointIndex(pos)
     if world.tiles[index].kind == pickup and world.tiles[index].active:
       world.tiles[index].active = false
-      result = some(world.tiles[index].pickupKind)
-
-proc renderBox(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
-  var pos = pos
-  pos.y =
-    if tile.steppedOn:
-      mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
-    else:
-      mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
-  glUseProgram(shader.Gluint)
-  let modelMatrix = mat4() * translate(pos)
-  shader.setUniform("m", modelMatrix)
-  shader.setUniform("mvp", cam.orthoView * modelMatrix)
-  shader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
-  render(boxModel)
-  glUseProgram(levelShader.Gluint)
-
-proc renderDepth*(world: World, cam: Camera, shader: Shader) =
-  for (tile, pos) in world.tileKindCoords:
-    if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-      case tile.kind:
-      of box:
-        renderBox(tile, cam, pos, shader)
-      else:
-        renderBlock(tile.kind.RenderedTile, cam, shader, pos)
+      world.player.givePickup world.tiles[index].pickupKind
 
 proc hoverSign*(world: var World, index: int) =
   world.signs[index].hovered = true
@@ -224,42 +208,6 @@ proc getSign*(world: World, pos: Vec3): Sign =
       result = sign
       break
 
-
-proc renderSignBuff*(world: World, cam: Camera) =
-  for i, x in world.signs:
-    let mat = mat4() * translate(x.pos)
-    signBuffShader.setUniform("mvp", cam.orthoView * mat)
-    signBuffShader.setUniform("signColour", i.getSignColor(world.signs.len))
-    render(signModel)
-
-proc renderSigns(world: World, cam: Camera) =
-  for sign in world.signs:
-    renderShadow(cam, sign.pos, vec3(0.5), 0.9)
-    sign.render(cam)
-    levelShader.makeActive()
-    let mat = mat4() * translate(sign.pos)
-    levelShader.setUniform("mvp", cam.orthoView * mat)
-    levelShader.setUniform("m", mat)
-    render(signModel)
-
-proc render*(world: World, cam: Camera) =
-  with levelShader:
-    for (tile, pos) in world.tileKindCoords:
-      if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-        case tile.kind
-        of box:
-          renderBox(tile, cam, pos, boxShader)
-        else:
-          renderBlock(tile.kind, cam, levelShader, pos)
-        if tile.kind == pickup:
-          glUseProgram(alphaClipShader.Gluint)
-          alphaClipShader.setUniform("tex", getPickupTexture(tile.pickupKind))
-          alphaClipShader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
-          render(pickupQuadModel)
-          glUseProgram(levelShader.Gluint)
-
-  renderSigns(world, cam)
-
 proc unload*(world: var World) =
   for sign in world.signs.mitems:
     sign.free()
@@ -267,18 +215,6 @@ proc unload*(world: var World) =
 proc load*(world: var World) =
   for sign in world.signs.mitems:
     sign.load()
-
-proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
-  if world.state == playing:
-    let start = ivec3(cam.raycast(pos))
-    with cursorShader:
-      for pos in pickup.positions(dir, vec3 start):
-        let isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
-        if not isValid:
-          glDisable(GlDepthTest)
-        cursorShader.setUniform("valid", isValid.ord)
-        renderBlock(box, cam, cursorShader, pos)
-        glEnable(GlDepthTest)
 
 proc updateShooter(shtr: var Tile, dt: float32) =
   assert shtr.kind == shooter
@@ -317,8 +253,95 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
         x.updateSHooter(dt)
       else:
         discard
+    var didMove = false
+    let playerStartPos = world.player.mapPos
+    world.player.update(world.playerSafeDirections(), cam, dt, didMove)
+    if didMove:
+      world.steppedOff(playerStartPos)
+      world.givePickupIfCan()
+    if world.player.doPlace():
+      world.placeBlock(cam)
   of previewing:
     discard
+
+
+# RENDER LOGIC BELOW
+
+
+proc renderBox(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
+  var pos = pos
+  pos.y =
+    if tile.steppedOn:
+      mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
+    else:
+      mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
+  glUseProgram(shader.Gluint)
+  let modelMatrix = mat4() * translate(pos)
+  shader.setUniform("m", modelMatrix)
+  shader.setUniform("mvp", cam.orthoView * modelMatrix)
+  shader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
+  render(boxModel)
+  glUseProgram(levelShader.Gluint)
+
+proc renderDepth*(world: World, cam: Camera, shader: Shader) =
+  for (tile, pos) in world.tileKindCoords:
+    if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
+      case tile.kind:
+      of box:
+        renderBox(tile, cam, pos, shader)
+      else:
+        renderBlock(tile.kind.RenderedTile, cam, shader, pos)
+
+proc renderSignBuff*(world: World, cam: Camera) =
+  for i, x in world.signs:
+    let mat = mat4() * translate(x.pos)
+    signBuffShader.setUniform("mvp", cam.orthoView * mat)
+    signBuffShader.setUniform("signColour", i.getSignColor(world.signs.len))
+    render(signModel)
+
+proc renderSigns(world: World, cam: Camera) =
+  for sign in world.signs:
+    renderShadow(cam, sign.pos, vec3(0.5), 0.9)
+    sign.render(cam)
+    levelShader.makeActive()
+    let mat = mat4() * translate(sign.pos)
+    levelShader.setUniform("mvp", cam.orthoView * mat)
+    levelShader.setUniform("m", mat)
+    render(signModel)
+
+proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
+  if world.state == playing:
+    let start = ivec3(cam.raycast(pos))
+    with cursorShader:
+      for pos in pickup.positions(dir, vec3 start):
+        let isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
+        if not isValid:
+          glDisable(GlDepthTest)
+        cursorShader.setUniform("valid", isValid.ord)
+        renderBlock(box, cam, cursorShader, pos)
+        glEnable(GlDepthTest)
+
+proc render*(world: World, cam: Camera) =
+  with levelShader:
+    for (tile, pos) in world.tileKindCoords:
+      if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
+        case tile.kind
+        of box:
+          renderBox(tile, cam, pos, boxShader)
+        else:
+          renderBlock(tile.kind, cam, levelShader, pos)
+        if tile.kind == pickup:
+          glUseProgram(alphaClipShader.Gluint)
+          alphaClipShader.setUniform("tex", getPickupTexture(tile.pickupKind))
+          alphaClipShader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
+          render(pickupQuadModel)
+          glUseProgram(levelShader.Gluint)
+  renderSigns(world, cam)
+  world.player.render(cam, world.playerSafeDirections)
+  if world.player.hasPickup:
+      world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
+
+
 
 iterator tiles*(world: World): (int, int, Tile) =
   for i, tile in world.tiles:
