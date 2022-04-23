@@ -5,24 +5,22 @@ import vmath
 import pixie
 
 
-var font = readFont("assets/fonts/NovusGraecorumRegular-Mj0w.ttf")
+var font = readFont("assets/fonts/SigmarOne-Regular.ttf")
 proc makeMoveImage(character: string, border = 20f, size = 256): Image =
-  let color = rgba(0, 0, 255, 255)
+  let color = rgba(32, 127, 255, 255)
   result = newImage(size, size)
   let ctx = newContext(result)
   ctx.strokeStyle = color
   ctx.lineWidth = border.float32
   let rSize = size.float32 - border * 2
   ctx.strokeRect(border, border, rSize, rSize)
-  font.size = size / 2
-  let
-    bounds = computeBounds(font.typeSet(character))
-    offset = vec2(size.float - border * 2 - bounds.x, size.float - border * 2 - bounds.y)
+  font.size = size.float - border * 4
   font.paint = color
-  result.fillText(font.typeSet(character), translate(offset))
-  font.paint = rgba(255, 165, 0, 255)
+  result.fillText(font, character, transform = translate(vec2(border)), bounds = vec2(size.float - border * 2), hAlign = CenterAlign, vAlign = MiddleAlign)
 
-  result.strokeText(font.typeset(character), translate(offset), strokeWidth = 20)
+  font.paint = rgba(255, 127, 0, 255)
+  result.strokeText(font, character, strokeWidth = 10, transform = translate(vec2(border)), bounds = vec2(size.float - border * 2), hAlign = CenterAlign, vAlign = MiddleAlign)
+
 
 const
   MoveTime = 0.3f
@@ -49,7 +47,7 @@ proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
   result.fromPos = pos
   result.toPos = pos
-  result.moveProgress = MoveTime + 0.01 # epsilon offset
+  result.moveProgress = MoveTime
   result.rotation = up.targetRotation
 
 proc toVec*(d: Direction): Vec3 =
@@ -170,7 +168,9 @@ proc render*(player: Player, camera: Camera, safeDirs: set[Direction]) =
     renderShadow(camera, pos, scale)
 
 func pos*(player: Player): Vec3 = player.pos
-func mapPos*(player: Player): Vec3 = player.posOffset
+func mapPos*(player: Player): Vec3 =
+  let pos = player.posOffset()
+  vec3(pos.x.floor, pos.y.floor, pos.z.floor)
 func toPos*(player: Player): Vec3 = player.toPos
 
 addResourceProc:

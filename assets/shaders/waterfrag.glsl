@@ -36,9 +36,9 @@ void main() {
     newVs.y += -time * 0.2;
     foamSample += texture(waterTex, newVs).r * 0.3;
     foamSample = abs(0.75 - rectDist) > 0.2 ? 1: foamSample;
-    frag_colour = mix(vec4(1, 1, 1, 1), vec4(0, 0, 1, 1), 1 - foamSample);
+    frag_colour = mix(vec4(1), vec4(0, 0.3, 0.7, 1), 1 - foamSample);
   }else if(rectDist >= 1){
-    frag_colour = vec4(0, 0, 0.7, 1) + texture(waterTex, worldPos.xz + vec2(0, sineVal * 5) + vec2(time / 2, time / 4)).r * 0.3;
+    frag_colour = vec4(0, 0, 1, 1) + texture(waterTex, worldPos.xz + vec2(0, sineVal * 5) + vec2(time / 2, time / 4)).r * 0.3;
   }else{
     frag_colour = mix(vec4(0, 0, 1, 1), vec4(0, 0.6, 1, 1), foam);
     frag_colour += vec4(clamp(float(foam > 0.7) * round(foam / 0.3) * 0.3, 0.0, 1.0));

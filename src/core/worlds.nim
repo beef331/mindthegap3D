@@ -267,7 +267,6 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 
 # RENDER LOGIC BELOW
 
-
 proc renderBox(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
   var pos = pos
   pos.y =
