@@ -44,12 +44,27 @@ addResourceProc do:
   readImage("assets/water.png").copyTo(waterTex)
   depthBuffer.clearColor = color(0, 0, 0, 1)
 
+
 var
   lastScreenSize: IVec2
-  editorSocket: Socket
-
-if paramCount() >= 1:
   editorSocket = createGameSocket()
+  editorFut: Future[World]
+
+proc makeEditorFuture(): Future[World] =
+  result = editorSocket.getWorld
+  result.addCallback proc(fut: Future[World]) {.gcsafe.} =
+    if fut.finished():
+      if not fut.failed():
+        world.unload()
+        world = fut.read()
+        world.load()
+        if world.playerSpawn in 0..<world.tiles.len:
+          world.player = Player.init(world.getPos(int world.playerSpawn))
+      editorFut = makeEditorFuture()
+
+
+editorFut = makeEditorFuture()
+
 
 proc cameraMovement =
   var
@@ -79,14 +94,7 @@ proc cameraMovement =
     discard
 
 proc update(dt: float32) =
-  if paramCount() >= 1:
-    let newWorld = editorSocket.getWorld()
-    if newWorld.isSome:
-      world.unload()
-      world = newWorld.get
-      world.load()
-      if world.playerSpawn in 0..<world.tiles.len:
-        world.player = Player.init(world.getPos(int world.playerSpawn))
+
 
 
   let scrSize = screenSize()
@@ -116,6 +124,7 @@ proc update(dt: float32) =
 
   if KeyCodeQ.isDown:
     quitTruss()
+  poll(0) # Poll async dispatch
 
 proc draw =
   glEnable(GlDepthTest)
