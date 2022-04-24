@@ -5,13 +5,7 @@ import std/[sequtils, options, decls]
 
 {.experimental: "overloadableEnums".}
 
-const
-  StartHeight = 10f
-  FallTime = 1f
-  SinkHeight = -0.6
-
 type
-  RenderedTile = TileKind.wall..TileKind.high
   Block* = object
     flags: set[BlockFlag]
     index: int64
@@ -28,23 +22,12 @@ type
     state*: WorldState
     player*: Player
 
-const
-  FloorDrawn = {wall, floor, pickup, shooter}
-  Walkable = {TileKind.floor, pickup, box}
-  AlwaysWalkable = {TileKind.floor, pickup}
-  AlwaysCompleted = {TileKind.floor, wall, shooter, pickup}
-
 var
-  wallModel, floorModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel: Model
+  pickupQuadModel, signModel: Model
   levelShader, cursorShader, alphaClipShader, flagShader, boxShader, signBuffShader: Shader
 
 addResourceProc:
-  floorModel = loadModel("floor.dae")
-  wallModel = loadModel("wall.dae")
-  pedestalModel = loadModel("pickup_platform.dae")
   pickupQuadModel = loadModel("pickup_quad.dae")
-  flagModel = loadModel("flag.dae")
-  boxModel = loadModel("box.dae")
   signModel = loadModel("sign.dae")
 
   levelShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
@@ -108,30 +91,6 @@ proc placeBlock(world: var World, cam: Camera) =
     world.tiles[index] = Tile(kind: box)
   player.clearPickup()
 
-proc renderBlock(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
-  if tile in FloorDrawn:
-    let modelMatrix = mat4() * translate(pos)
-    shader.setUniform("mvp", cam.orthoView * modelMatrix)
-    shader.setUniform("m", modelMatrix)
-    render(floorModel)
-  case tile:
-  of wall, shooter:
-    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0)) * rotateY dir.asRot
-    shader.setUniform("mvp", cam.orthoView * modelMatrix)
-    shader.setUniform("m", modelMatrix)
-    render(wallModel)
-  of pickup:
-    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0))
-    shader.setUniform("m", modelMatrix)
-    shader.setUniform("mvp", cam.orthoView * modelMatrix)
-    render(pedestalModel)
-  of box:
-    let modelMatrix = mat4() * translate(pos)
-    shader.setUniform("mvp", cam.orthoView * modelMatrix)
-    shader.setUniform("m", modelMatrix)
-    render(boxModel)
-  of TileKind.floor: discard
-
 proc resize*(world: var World, newSize: IVec2) =
   var newWorld = World(width: newSize.x, height: newSize.y, tiles: newSeq[Tile](newSize.x * newSize.y))
   for x in 0..<newWorld.width:
@@ -150,12 +109,6 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0:
     world.tiles[ind] = tile
-
-proc isWalkable(tile: Tile): bool =
-  (tile.kind in AlwaysWalkable) or
-  (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
-
-proc canWalk(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
 
 proc steppedOff(world: var World, pos: Vec3) =
   if pos in world:
@@ -217,30 +170,6 @@ proc load*(world: var World) =
   for sign in world.signs.mitems:
     sign.load()
 
-proc updateShooter(shtr: var Tile, dt: float32) =
-  assert shtr.kind == shooter
-  case shtr.projectileKind
-  of dynamicProjectile:
-    ## Check if time to shoot another projectile
-  of hitScan:
-    shtr.timeToShot -= dt
-    if shtr.timeToShot <= 0:
-      shtr.toggledOn = not shtr.toggledOn
-      shtr.timeToShot = shtr.shotDelay
-      if shtr.toggledOn:
-        echo "Shoot"
-    ## Toggle ray
-
-proc updateBox(boxTile: var Tile, dt: float32) =
-  assert boxTile.kind == box
-  if boxTile.progress < FallTime:
-    boxTile.progress += dt
-  elif not boxTile.steppedOn:
-    boxTile.progress = FallTime
-  else:
-    boxTile.progress += dt
-  boxTile.progress = clamp(boxTile.progress, 0, FallTime)
-
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
   case world.state
   of playing:
@@ -268,20 +197,6 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 
 # RENDER LOGIC BELOW
 
-proc renderBox(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
-  var pos = pos
-  pos.y =
-    if tile.steppedOn:
-      mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
-    else:
-      mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
-  glUseProgram(shader.Gluint)
-  let modelMatrix = mat4() * translate(pos)
-  shader.setUniform("m", modelMatrix)
-  shader.setUniform("mvp", cam.orthoView * modelMatrix)
-  shader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
-  render(boxModel)
-  glUseProgram(levelShader.Gluint)
 
 proc renderDepth*(world: World, cam: Camera, shader: Shader) =
   for (tile, pos) in world.tileKindCoords:
@@ -328,14 +243,11 @@ proc render*(world: World, cam: Camera) =
         case tile.kind
         of box:
           renderBox(tile, cam, pos, boxShader)
+        of pickup:
+          renderPickup(tile, cam, pos, alphaClipShader, levelShader)
         else:
           renderBlock(tile.kind, cam, levelShader, pos)
-        if tile.kind == pickup:
-          glUseProgram(alphaClipShader.Gluint)
-          alphaClipShader.setUniform("tex", getPickupTexture(tile.pickupKind))
-          alphaClipShader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
-          render(pickupQuadModel)
-          glUseProgram(levelShader.Gluint)
+
   renderSigns(world, cam)
   world.player.render(cam, world.playerSafeDirections)
   if world.player.hasPickup:
