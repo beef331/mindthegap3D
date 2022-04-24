@@ -80,7 +80,8 @@ proc isFinished*(world: World): bool =
       discard
   result = true
 
-proc contains*(world: World, vec: Vec3): bool = vec.x.int in 0..<world.width and vec.z.int in 0..<world.height
+proc contains*(world: World, vec: Vec3): bool =
+  floor(vec.x).int in 0..<world.width and floor(vec.z).int in 0..<world.height
 
 proc getPointIndex*(world: World, point: Vec3): int =
   if point in world:

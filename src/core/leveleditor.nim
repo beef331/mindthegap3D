@@ -99,13 +99,16 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
         textbox.text = ""
     text = textBox.text
     if text.len > 0:
-      let newSize = clamp(parseint(text), 1, MaxLevelSize)
-      textBox.text = $newSize
-      window.world.resize(ivec2(newSize, int window.world.height))
-      window.editor.show
-      window.selected = -1
-      window.scaleEditor()
-      window.onChange(window)
+      try:
+        let newSize = clamp(parseint(text), 1, MaxLevelSize)
+        textBox.text = $newSize
+        window.world.resize(ivec2(newSize, int window.world.height))
+        window.editor.show
+        window.selected = -1
+        window.scaleEditor()
+        window.onChange(window)
+      except:
+        textBox.text = $window.world.width
 
 
 
@@ -121,13 +124,16 @@ proc worldInspector(window: EditorWindow, container: LayoutContainer) =
         textbox.text = ""
     text = textBox.text
     if text.len > 0:
-      let newSize = clamp(parseint(text), 1, MaxLevelSize)
-      textBox.text = $newSize
-      window.world.resize(ivec2(int window.world.width, newSize))
-      window.editor.show
-      window.selected = -1
-      window.scaleEditor()
-      window.onChange(window)
+      try:
+        let newSize = clamp(parseint(text), 1, MaxLevelSize)
+        textBox.text = $newSize
+        window.world.resize(ivec2(int window.world.width, newSize))
+        window.editor.show
+        window.selected = -1
+        window.scaleEditor()
+        window.onChange(window)
+      except:
+        textBox.text = $window.world.width
 
   container.add newLabel("Width")
   container.add widthField
