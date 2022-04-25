@@ -141,7 +141,7 @@ proc playerSafeDirections(world: World): set[Direction] = world.getSafeDirection
 
 proc givePickupIfCan(world: var World) =
   ## If the player can get the pickup give it to them else do nothing
-  let pos = world.player.toPos
+  let pos = world.player.movingToPos
   if not world.player.hasPickup and pos in world:
     let index = world.getPointIndex(pos)
     if world.tiles[index].kind == pickup and world.tiles[index].active:

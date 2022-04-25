@@ -171,7 +171,7 @@ func pos*(player: Player): Vec3 = player.pos
 func mapPos*(player: Player): Vec3 =
   let pos = player.posOffset()
   vec3(pos.x.floor, pos.y.floor, pos.z.floor)
-func toPos*(player: Player): Vec3 = player.toPos
+func movingToPos*(player: Player): Vec3 = player.toPos + vec3(0.5, 0, 0.5)
 
 addResourceProc:
   playerModel = loadModel("player.dae")
