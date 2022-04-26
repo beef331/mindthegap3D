@@ -51,22 +51,21 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
 iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
   assert startIndex in 0..<world.tiles.len
   var index = startIndex
-  yield world.tiles[startIndex]
   case dir
   of Direction.up:
-    while index < world.tiles.len:
+    while index < world.tiles.len - world.width.int:
       index += world.width.int
       yield world.tiles[index]
   of down:
-    while index > 0:
+    while index > world.width.int:
       index -= world.width.int
       yield world.tiles[index]
   of left:
-    while index mod world.width > 0:
+    while (index mod world.width) >= 1:
       index -= 1
       yield world.tiles[index]
   of right:
-    while index mod world.width < world.width:
+    while (index mod world.width) < world.width - 1:
       index += 1
       yield world.tiles[index]
 
@@ -74,22 +73,21 @@ iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
 iterator tilesInDir(world: var World, startIndex: int, dir: Direction): var Tile =
   assert startIndex in 0..<world.tiles.len
   var index = startIndex
-  yield world.tiles[startIndex]
   case dir
   of Direction.up:
-    while index < world.tiles.len:
+    while index < world.tiles.len - world.width.int:
       index += world.width.int
       yield world.tiles[index]
   of down:
-    while index > 0:
+    while index > world.width.int:
       index -= world.width.int
       yield world.tiles[index]
   of left:
-    while index mod world.width > 0:
+    while (index mod world.width) >= 1:
       index -= 1
       yield world.tiles[index]
   of right:
-    while index mod world.width < world.width:
+    while (index mod world.width) < world.width - 1:
       index += 1
       yield world.tiles[index]
 
@@ -120,9 +118,8 @@ proc getPointIndex*(world: World, point: Vec3): int =
 
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
 
-proc posValid(world: World, pos: Vec3): bool =
-  if pos in world and world.tiles[world.getPointIndex(pos)].kind == empty:
-    result = true
+proc canPlaceAt(world: World, pos: Vec3): bool =
+  pos in world and world.tiles[world.getPointIndex(pos)].kind in {empty, floor}
 
 proc placeBlock(world: var World, cam: Camera) =
   var player {.byaddr.} = world.player
@@ -130,11 +127,17 @@ proc placeBlock(world: var World, cam: Camera) =
     pos = cam.raycast(getMousePos())
     dir = player.pickupRotation
   for x in player.getPickup.positions(dir, pos):
-    if not world.posValid(x):
+    if not world.canPlaceAt(x):
       return
   for x in player.getPickup.positions(dir, pos):
-    let index = world.getPointIndex(vec3(x))
-    world.tiles[index] = Tile(kind: box)
+    let
+      index = world.getPointIndex(vec3(x))
+      flags =
+        if world.tiles[index].kind == floor:
+          {pushable}
+        else:
+          {}
+    world.tiles[index] = Tile(kind: box, flags: flags)
   player.clearPickup()
 
 proc resize*(world: var World, newSize: IVec2) =
@@ -171,8 +174,8 @@ proc canPush(world: World, index: int, dir: Direction): bool =
   for tile in world.tilesInDir(index, dir):
     case tile.kind
     of box:
-      result = pushable in tile.boxFlag
-    of TileKind.floor:
+      result = pushable in tile.flags
+    of TileKind.floor, empty:
       return true
     else:
       result = false
@@ -181,19 +184,18 @@ proc canPush(world: World, index: int, dir: Direction): bool =
 
 proc canWalk(world: World, index: int, dir: Direction): bool =
   let tile = world.tiles[index]
-  result =
-    case tile.kind
-    of AlwaysWalkable:
+  case tile.kind
+  of AlwaysWalkable:
+    tile.iswalkable()
+  of box:
+    if pushable in tile.flags:
+      world.canPush(index, dir) and tile.isWalkable()
+    else:
       tile.isWalkable()
-    of box:
-      if pushable in tile.boxFlag:
-        world.canPush(index, dir)
-      else:
-        tile.isWalkable()
-    else: false
+  else: false
 
 proc getSafeDirections(world: World, index: Natural): set[Direction] =
-  if index > world.width and world.canWalk(index - world.width.int, down):
+  if index >= world.width and world.canWalk(index - world.width.int, down):
     result.incl down
   if index + world.width < world.tiles.len and world.canWalk(index + world.width.int, up):
     result.incl up
@@ -204,14 +206,20 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
 
 proc pushBlockIfCan(world: var World, direction: Direction) =
   let
-    start = world.getPointIndex(world.player.mapPos)
+    start = world.getPointIndex(world.player.movingToPos)
     startTile = world.tiles[start]
-  if startTile.kind == box and pushable in startTile.boxFlag:
+  if startTile.kind == box and pushable in startTile.flags:
     world.tiles[start] = Tile(kind: floor)
     for tile in world.tilesInDir(start, direction):
-      if tile.kind == floor:
+      case tile.kind
+      of TileKind.floor:
         tile = startTile # Move first to last
         break
+      of empty:
+        tile = startTile
+        tile.flags = {}
+        break
+      else: discard
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
   if pos in world:
@@ -269,9 +277,9 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     let playerStartPos = world.player.mapPos
     world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
     if moveDir.isSome:
+      world.pushBlockIfCan(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
-      world.pushBlockIfCan(moveDir.get)
     if world.player.doPlace():
       world.placeBlock(cam)
   of previewing:
@@ -286,7 +294,7 @@ proc renderDepth*(world: World, cam: Camera, shader: Shader) =
       of box:
         renderBox(tile, cam, pos, shader)
       else:
-        renderBlock(tile.kind.RenderedTile, cam, shader, pos)
+        renderBlock(tile, cam, shader, pos)
 
 proc renderSignBuff*(world: World, cam: Camera) =
   for i, x in world.signs:
@@ -310,11 +318,12 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
     let start = ivec3(cam.raycast(pos))
     with cursorShader:
       for pos in pickup.positions(dir, vec3 start):
-        let isValid = pos in world and world.tiles[world.getPointIndex(pos)].kind == empty
+        let isValid = world.canPlaceAt(pos)
         if not isValid:
           glDisable(GlDepthTest)
         cursorShader.setUniform("valid", isValid.ord)
-        renderBlock(box, cam, cursorShader, pos)
+        let pos = pos + vec3(0, 1, 0)
+        renderBlock(Tile(kind: box), cam, cursorShader, pos)
         glEnable(GlDepthTest)
 
 proc render*(world: World, cam: Camera) =
@@ -327,7 +336,7 @@ proc render*(world: World, cam: Camera) =
         of pickup:
           renderPickup(tile, cam, pos, alphaClipShader, levelShader)
         else:
-          renderBlock(tile.kind, cam, levelShader, pos)
+          renderBlock(tile, cam, levelShader, pos)
 
   renderSigns(world, cam)
   world.player.render(cam, world.playerSafeDirections)

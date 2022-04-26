@@ -1,8 +1,7 @@
 import truss3D/[shaders, models, textures, inputs]
 import std/[options, decls]
 import resources, cameras, directions, pickups, shadows
-import vmath
-import pixie
+import vmath, pixie, opengl
 
 
 var font = readFont("assets/fonts/SigmarOne-Regular.ttf")
@@ -156,12 +155,14 @@ proc render*(player: Player, camera: Camera, safeDirs: set[Direction]) =
 
   if player.moveProgress >= MoveTime:
     with alphaClipShader:
+      glDisable(GlDepthTest)
       for x in Direction:
         if x in safeDirs:
           let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.3, 0) + x.toVec) * rotateY(90.toRadians))
           alphaClipShader.setUniform("mvp", camera.orthoView * modelMatrix)
           alphaClipShader.setUniform("tex", dirTex[x])
           render(dirModel)
+      glEnable(GlDepthTest)
   else:
     let
       scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)

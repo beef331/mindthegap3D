@@ -27,6 +27,7 @@ type
     pickup
     box
     shooter
+  RenderedTile* = TileKind.wall..TileKind.high
   BlockFlag* = enum
     dropped, pushable
   ProjectileKind* = enum
@@ -36,7 +37,7 @@ type
     timeToMove: float32
     direction: Vec3
   Tile* = object
-    boxFlag*: set[BlockFlag]
+    flags*: set[BlockFlag]
     direction*: Direction
     case kind*: TileKind
     of pickup:
@@ -52,7 +53,6 @@ type
       projectileKind*: ProjectileKind
       pool*: seq[Projectile]
     else: discard
-  RenderedTile* = TileKind.wall..TileKind.high
 
 
 const # Gamelogic constants
@@ -90,14 +90,13 @@ proc updateBox*(boxTile: var Tile, dt: float32) =
     boxTile.progress += dt
   boxTile.progress = clamp(boxTile.progress, 0, FallTime)
 
-
-proc renderBlock*(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
-  if tile in FloorDrawn:
+proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
+  if tile.kind in FloorDrawn or pushable in tile.flags:
     let modelMatrix = mat4() * translate(pos)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
     render(floorModel)
-  case tile:
+  case tile.kind
   of wall, shooter:
     let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0)) * rotateY dir.asRot
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
@@ -113,17 +112,24 @@ proc renderBlock*(tile: RenderedTile, cam: Camera, shader: Shader, pos: Vec3, di
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
     render(boxModel)
-  of TileKind.floor: discard
+  else: discard
 
 
 proc renderBox*(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
   var pos = pos
+  let fallTarget =
+    if pushable in tile.flags:
+      1f
+    else:
+      0
   pos.y =
     if tile.steppedOn:
       mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
     else:
-      mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
+      mix(StartHeight, fallTarget, easingsOutBounce(tile.progress / FallTime))
   shader.makeActive()
+  if pushable in tile.flags:
+    renderBlock(Tile(kind: floor), cam, shader, vec3(pos.x, 0, pos.z))
   let modelMatrix = mat4() * translate(pos)
   shader.setUniform("m", modelMatrix)
   shader.setUniform("mvp", cam.orthoView * modelMatrix)
@@ -131,7 +137,7 @@ proc renderBox*(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
   render(boxModel)
 
 proc renderPickup*(tile: Tile, cam: Camera, pos: Vec3, shader, defaultShader: Shader) =
-  renderBlock(pickup.RenderedTile, cam, defaultShader, pos)
+  renderBlock(tile, cam, defaultShader, pos)
   shader.makeActive()
   shader.setUniform("tex", getPickupTexture(tile.pickupKind))
   shader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
