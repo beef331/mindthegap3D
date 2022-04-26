@@ -110,17 +110,17 @@ proc movementUpdate(player: var Player, dt: float32) =
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 
-proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, didMove: var bool) =
+proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
   movementUpdate(player, dt)
-  didMove = false
 
   template move(keycodes: set[TKeycode], dir: Direction) =
     var player{.byaddr.} = player
-    if not didMove:
+    if moveDir.isNone:
       for key in keycodes:
         if key.isPressed:
           if dir in safeDirs:
-            didMove = player.move(dir)
+            if player.move(dir):
+              moveDir = some(dir)
 
   move({KeyCodeW, KeyCodeUp}, Direction.up)
   move({KeyCodeD, KeyCodeRight}, left)
@@ -131,13 +131,14 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
     let hit = vec3 ivec3 camera.raycast(getMousePos())
     for dir in Direction:
       if dir in safeDirs and distSq(hit, player.pos + dir.toVec) < 0.1:
-        didMove = player.move(dir)
+        if player.move(dir):
+          moveDir = some(dir)
 
 proc doPlace*(player: var Player): bool =
   leftMb.isDown and player.hasPickup
 
-proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, didMove: var bool) =
-  player.move(safeDirs, camera, dt, didMove)
+proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
+  player.move(safeDirs, camera, dt, moveDir)
 
   if KeycodeR.isPressed:
     player.presentPickup = none(PickupType)

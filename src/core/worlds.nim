@@ -1,7 +1,7 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players
-import std/[sequtils, options, decls]
+import std/[sequtils, options, decls, options]
 
 {.experimental: "overloadableEnums".}
 
@@ -47,6 +47,52 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
       x = i mod world.width
       z = i div world.width
     yield (tile, vec3(x.float, 0, z.float))
+
+iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
+  assert startIndex in 0..<world.tiles.len
+  var index = startIndex
+  yield world.tiles[startIndex]
+  case dir
+  of Direction.up:
+    while index < world.tiles.len:
+      index += world.width.int
+      yield world.tiles[index]
+  of down:
+    while index > 0:
+      index -= world.width.int
+      yield world.tiles[index]
+  of left:
+    while index mod world.width > 0:
+      index -= 1
+      yield world.tiles[index]
+  of right:
+    while index mod world.width < world.width:
+      index += 1
+      yield world.tiles[index]
+
+
+iterator tilesInDir(world: var World, startIndex: int, dir: Direction): var Tile =
+  assert startIndex in 0..<world.tiles.len
+  var index = startIndex
+  yield world.tiles[startIndex]
+  case dir
+  of Direction.up:
+    while index < world.tiles.len:
+      index += world.width.int
+      yield world.tiles[index]
+  of down:
+    while index > 0:
+      index -= world.width.int
+      yield world.tiles[index]
+  of left:
+    while index mod world.width > 0:
+      index -= 1
+      yield world.tiles[index]
+  of right:
+    while index mod world.width < world.width:
+      index += 1
+      yield world.tiles[index]
+
 
 proc init*(_: typedesc[World], width, height: int): World =
   World(width: width, height: height, tiles: newSeq[Tile](width * height))
@@ -121,15 +167,51 @@ proc steppedOff(world: var World, pos: Vec3) =
     if world.isFinished:
       echo "Donezo"
 
+proc canPush(world: World, index: int, dir: Direction): bool =
+  for tile in world.tilesInDir(index, dir):
+    case tile.kind
+    of box:
+      result = pushable in tile.boxFlag
+    of TileKind.floor:
+      return true
+    else:
+      result = false
+    if not result:
+      return
+
+proc canWalk(world: World, index: int, dir: Direction): bool =
+  let tile = world.tiles[index]
+  result =
+    case tile.kind
+    of AlwaysWalkable:
+      tile.isWalkable()
+    of box:
+      if pushable in tile.boxFlag:
+        world.canPush(index, dir)
+      else:
+        tile.isWalkable()
+    else: false
+
 proc getSafeDirections(world: World, index: Natural): set[Direction] =
-  if index > world.width and world.tiles[index - world.width].canWalk():
+  if index > world.width and world.canWalk(index - world.width.int, down):
     result.incl down
-  if index + world.width < world.tiles.len and world.tiles[index + world.width].canWalk():
+  if index + world.width < world.tiles.len and world.canWalk(index + world.width.int, up):
     result.incl up
-  if index mod world.width > 0 and world.tiles[index - 1].canWalk():
+  if index mod world.width > 0 and world.canWalk(index - 1, left):
     result.incl left
-  if index mod world.width < world.width - 1 and world.tiles[index + 1].canWalk():
+  if index mod world.width < world.width - 1 and world.canWalk(index + 1, right):
     result.incl right
+
+proc pushBlockIfCan(world: var World, direction: Direction) =
+  let
+    start = world.getPointIndex(world.player.mapPos)
+    startTile = world.tiles[start]
+  if startTile.kind == box and pushable in startTile.boxFlag:
+    world.tiles[start] = Tile(kind: floor)
+    for tile in world.tilesInDir(start, direction):
+      if tile.kind == floor:
+        tile = startTile # Move first to last
+        break
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
   if pos in world:
@@ -180,23 +262,22 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       of box:
         x.updateBox(dt)
       of shooter:
-        x.updateSHooter(dt)
+        x.updateShooter(dt)
       else:
         discard
-    var didMove = false
+    var moveDir = none(Direction)
     let playerStartPos = world.player.mapPos
-    world.player.update(world.playerSafeDirections(), cam, dt, didMove)
-    if didMove:
+    world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
+    if moveDir.isSome:
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
+      world.pushBlockIfCan(moveDir.get)
     if world.player.doPlace():
       world.placeBlock(cam)
   of previewing:
     discard
 
-
 # RENDER LOGIC BELOW
-
 
 proc renderDepth*(world: World, cam: Camera, shader: Shader) =
   for (tile, pos) in world.tileKindCoords:
@@ -252,8 +333,6 @@ proc render*(world: World, cam: Camera) =
   world.player.render(cam, world.playerSafeDirections)
   if world.player.hasPickup:
       world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
-
-
 
 iterator tiles*(world: World): (int, int, Tile) =
   for i, tile in world.tiles:

@@ -55,7 +55,6 @@ type
   RenderedTile* = TileKind.wall..TileKind.high
 
 
-
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup, shooter}
   Walkable* = {TileKind.floor, pickup, box}
@@ -66,8 +65,6 @@ const # Gamelogic constants
 proc isWalkable*(tile: Tile): bool =
   (tile.kind in AlwaysWalkable) or
   (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
-
-proc canWalk*(tile: Tile): bool = tile.kind in Walkable and tile.isWalkable
 
 proc updateShooter*(shtr: var Tile, dt: float32) =
   assert shtr.kind == shooter
@@ -126,7 +123,7 @@ proc renderBox*(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
       mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
     else:
       mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
-  glUseProgram(shader.Gluint)
+  shader.makeActive()
   let modelMatrix = mat4() * translate(pos)
   shader.setUniform("m", modelMatrix)
   shader.setUniform("mvp", cam.orthoView * modelMatrix)
