@@ -6,17 +6,11 @@ import std/[sequtils, options, decls, options]
 {.experimental: "overloadableEnums".}
 
 type
-  Block* = object
-    flags: set[BlockFlag]
-    index: int64
-    worldPos: Vec3
   WorldState* = enum
     playing, previewing
   World* = object
     width*, height*: int64
     tiles*: seq[Tile]
-    blocks: seq[Block]
-    cursor: Vec3
     signs*: seq[Sign]
     playerSpawn*: int64
     state*: WorldState
@@ -53,17 +47,22 @@ iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
   var index = startIndex
   case dir
   of Direction.up:
-    while index < world.tiles.len - world.width.int:
+    index += world.width.int
+    while index < world.tiles.len:
+      yield world.tiles[index]
       index += world.width.int
-      yield world.tiles[index]
+
   of down:
+    index -= world.width.int
     while index > world.width.int:
-      index -= world.width.int
       yield world.tiles[index]
+      index -= world.width.int
+
   of left:
-    while (index mod world.width) >= 1:
+    while (index mod world.width) > 0:
       index -= 1
       yield world.tiles[index]
+
   of right:
     while (index mod world.width) < world.width - 1:
       index += 1
@@ -75,17 +74,22 @@ iterator tilesInDir(world: var World, startIndex: int, dir: Direction): var Tile
   var index = startIndex
   case dir
   of Direction.up:
-    while index < world.tiles.len - world.width.int:
+    index += world.width.int
+    while index < world.tiles.len:
+      yield world.tiles[index]
       index += world.width.int
-      yield world.tiles[index]
+
   of down:
+    index -= world.width.int
     while index > world.width.int:
-      index -= world.width.int
       yield world.tiles[index]
+      index -= world.width.int
+
   of left:
-    while (index mod world.width) >= 1:
+    while (index mod world.width) > 0:
       index -= 1
       yield world.tiles[index]
+
   of right:
     while (index mod world.width) < world.width - 1:
       index += 1
@@ -119,7 +123,11 @@ proc getPointIndex*(world: World, point: Vec3): int =
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
 
 proc canPlaceAt(world: World, pos: Vec3): bool =
-  pos in world and world.tiles[world.getPointIndex(pos)].kind in {empty, floor}
+  if pos in world:
+    let tile = world.tiles[world.getPointIndex(pos)]
+    tile.kind in {empty} + Walkable and not tile.hasStacked()
+  else:
+    false
 
 proc placeBlock(world: var World, cam: Camera) =
   var player {.byaddr.} = world.player
@@ -130,14 +138,11 @@ proc placeBlock(world: var World, cam: Camera) =
     if not world.canPlaceAt(x):
       return
   for x in player.getPickup.positions(dir, pos):
-    let
-      index = world.getPointIndex(vec3(x))
-      flags =
-        if world.tiles[index].kind == floor:
-          {pushable}
-        else:
-          {}
-    world.tiles[index] = Tile(kind: box, flags: flags)
+    let index = world.getPointIndex(vec3(x))
+    if world.tiles[index].kind != empty:
+      world.tiles[index].stackBox()
+    else:
+      world.tiles[index] = Tile(kind: box)
   player.clearPickup()
 
 proc resize*(world: var World, newSize: IVec2) =
@@ -171,28 +176,21 @@ proc steppedOff(world: var World, pos: Vec3) =
       echo "Donezo"
 
 proc canPush(world: World, index: int, dir: Direction): bool =
+  result = false
   for tile in world.tilesInDir(index, dir):
     case tile.kind
-    of box:
-      result = pushable in tile.flags
-    of TileKind.floor, empty:
+    of Walkable:
+      if not tile.hasStacked():
+        return true
+    of empty:
       return true
-    else:
-      result = false
-    if not result:
-      return
+    else: discard
 
 proc canWalk(world: World, index: int, dir: Direction): bool =
   let tile = world.tiles[index]
-  case tile.kind
-  of AlwaysWalkable:
-    tile.iswalkable()
-  of box:
-    if pushable in tile.flags:
-      world.canPush(index, dir) and tile.isWalkable()
-    else:
-      tile.isWalkable()
-  else: false
+  result = tile.isWalkable()
+  if result and tile.hasStacked():
+    result = world.canPush(index, dir)
 
 proc getSafeDirections(world: World, index: Natural): set[Direction] =
   if index >= world.width and world.canWalk(index - world.width.int, down):
@@ -208,18 +206,19 @@ proc pushBlockIfCan(world: var World, direction: Direction) =
   let
     start = world.getPointIndex(world.player.movingToPos)
     startTile = world.tiles[start]
-  if startTile.kind == box and pushable in startTile.flags:
-    world.tiles[start] = Tile(kind: floor)
+  if startTile.hasStacked():
+    var lastStacked = startTile.stacked
     for tile in world.tilesInDir(start, direction):
-      case tile.kind
-      of TileKind.floor:
-        tile = startTile # Move first to last
+      if tile.isWalkable() and not tile.hasStacked():
+        world.tiles[start].swapStacked(tile)
         break
-      of empty:
-        tile = startTile
-        tile.flags = {}
+      elif tile.kind == empty:
+        tile = Tile(kind: box)
+        world.tiles[start].clearStack()
         break
-      else: discard
+      elif tile.hasStacked():
+        swap(tile.stacked, lastStacked)
+
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
   if pos in world:
@@ -269,8 +268,6 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       case x.kind
       of box:
         x.updateBox(dt)
-      of shooter:
-        x.updateShooter(dt)
       else:
         discard
     var moveDir = none(Direction)
@@ -330,6 +327,7 @@ proc render*(world: World, cam: Camera) =
   with levelShader:
     for (tile, pos) in world.tileKindCoords:
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
+        renderStack(tile, cam, levelShader, pos)
         case tile.kind
         of box:
           renderBox(tile, cam, pos, boxShader)

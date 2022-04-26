@@ -3,7 +3,7 @@ import std/[sugar, strutils, os, decls, streams]
 import worlds, pickups, directions, tiles, editorbridge, signs
 
 const
-  Paintable = {Tilekind.floor, wall, pickup, shooter}
+  Paintable = {Tilekind.floor, wall, pickup}
   TileSize = 64
   MaxLevelSize = 30
   levelEnding = "levelended"

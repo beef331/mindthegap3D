@@ -26,7 +26,7 @@ proc sendWorld*(world: World) =
     let
       data = world.toFlatty
       dataSize = data.len
-    socket.sendTo("127.0.0.1", gamePort, dataSize.unsafeAddr, sizeof(int))
+    socket.sendTo("127.0.0.1", gamePort, dataSize.unsafeAddr, sizeof(datasize))
     socket.sendTo("127.0.0.1", gamePort, data)
     socket.sendTo("127.0.0.1", gamePort, footerMessage)
   except:
@@ -35,16 +35,17 @@ proc sendWorld*(world: World) =
     socket.close()
 
 proc getWorld*(socket: AsyncSocket): Future[World] {.async.} =
-  var size = 0
-  let read = await socket.recvInto(size.addr, sizeof(int))
-  if read == sizeof(int):
-    let
-      buf = newString(size)
-      bufRead = await socket.recvInto(buf[0].unsafeaddr, size)
-    var footer = newString(footerMessage.len)
-    discard await socket.recvInto(footer[0].addr, footerMessage.len)
-    if bufRead == size and footer == footerMessage:
-      result = fromFlatty(buf, World)
-    else:
-      raise newException(ValueError, "Invalid World Data")
+  var size: int
+  discard await(socket.recvInto(size.addr, sizeof(size)))
+  let
+    buf = newString(size)
+    bufRead = await socket.recvInto(buf[0].unsafeaddr, size)
+
+  var footer = newString(footerMessage.len)
+  discard await socket.recvInto(footer[0].addr, footerMessage.len)
+
+  if bufRead == size and footer == footerMessage:
+    result = fromFlatty(buf, World)
+  else:
+    raise newException(ValueError, "Invalid World Data")
 

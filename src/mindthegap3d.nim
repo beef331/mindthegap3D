@@ -55,12 +55,14 @@ proc makeEditorFuture(): Future[World] =
   result.addCallback proc(fut: Future[World]) {.gcsafe.} =
     if fut.finished():
       if not fut.failed():
-        world.unload()
-        world = fut.read()
-        world.load()
-        if world.playerSpawn notin 0..<world.tiles.len:
-          world.playerSpawn = 0
-        world.player = Player.init(world.getPos(int world.playerSpawn))
+        let newWorld = fut.read()
+        if newWorld.width > 0 and newWorld.height > 0:
+          world.unload()
+          world = fut.read()
+          world.load()
+          if world.playerSpawn notin 0..<world.tiles.len:
+            world.playerSpawn = 0
+          world.player = Player.init(world.getPos(int world.playerSpawn))
       editorFut = makeEditorFuture()
 
 

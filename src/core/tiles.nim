@@ -1,6 +1,7 @@
 import directions, pickups, cameras, resources
 import vmath, easings, opengl
 import truss3D/[shaders, models]
+import std/[options]
 
 const
   StartHeight* = 10f
@@ -26,18 +27,33 @@ type
     floor
     pickup
     box
-    shooter
   RenderedTile* = TileKind.wall..TileKind.high
-  BlockFlag* = enum
-    dropped, pushable
+
+  StackedObjectKind* = enum
+    turret, box
+
+  StackedObject = object
+    case kind*: StackedObjectKind
+    of turret:
+      direction*: Direction
+      toggledOn*: bool
+      timeToShot*: float32
+      shotDelay*: float32 # Shooters and boxes are the same, but come here to make editing easier
+      projectileKind*: ProjectileKind
+      #pool*: seq[Projectile] # Flatty doesnt like this for whatever reason
+    of box:
+      discard
+
   ProjectileKind* = enum
     hitScan, dynamicProjectile
+
   Projectile = object
     pos: Vec3
     timeToMove: float32
     direction: Vec3
+
   Tile* = object
-    flags*: set[BlockFlag]
+    stacked*: Option[StackedObject]
     direction*: Direction
     case kind*: TileKind
     of pickup:
@@ -46,39 +62,27 @@ type
     of box:
       progress*: float32
       steppedOn*: bool
-    of shooter:
-      toggledOn*: bool
-      timeToShot*: float32
-      shotDelay*: float32 # Shooters and boxes are the same, but come here to make editing easier
-      projectileKind*: ProjectileKind
-      pool*: seq[Projectile]
     else: discard
 
 
 const # Gamelogic constants
-  FloorDrawn* = {wall, floor, pickup, shooter}
+  FloorDrawn* = {wall, floor, pickup}
   Walkable* = {TileKind.floor, pickup, box}
   AlwaysWalkable* = {TileKind.floor, pickup}
-  AlwaysCompleted* = {TileKind.floor, wall, shooter, pickup}
+  AlwaysCompleted* = {TileKind.floor, wall, pickup}
 
 
 proc isWalkable*(tile: Tile): bool =
   (tile.kind in AlwaysWalkable) or
   (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
 
-proc updateShooter*(shtr: var Tile, dt: float32) =
-  assert shtr.kind == shooter
-  case shtr.projectileKind
-  of dynamicProjectile:
-    ## Check if time to shoot another projectile
-  of hitScan:
-    shtr.timeToShot -= dt
-    if shtr.timeToShot <= 0:
-      shtr.toggledOn = not shtr.toggledOn
-      shtr.timeToShot = shtr.shotDelay
-      if shtr.toggledOn:
-        echo "Shoot"
-    ## Toggle ray
+proc hasStacked*(tile: Tile): bool = tile.stacked.isSome()
+
+proc stackBox*(tile: var Tile) = tile.stacked = some(StackedObject(kind: box))
+
+proc swapStacked*(frm, to: var Tile) = swap(frm.stacked, to.stacked)
+
+proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
 
 proc updateBox*(boxTile: var Tile, dt: float32) =
   assert boxTile.kind == box
@@ -90,15 +94,25 @@ proc updateBox*(boxTile: var Tile, dt: float32) =
     boxTile.progress += dt
   boxTile.progress = clamp(boxTile.progress, 0, FallTime)
 
-proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3, dir: Direction = up) =
-  if tile.kind in FloorDrawn or pushable in tile.flags:
+proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3)
+
+proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
+  if tile.hasStacked():
+    case tile.stacked.get.kind
+    of box:
+      renderBlock(Tile(kind: box), cam, shader, pos + vec3(0, 1, 0))
+    of turret:
+      ##renderBlock(Tile(kind: shooter), cam)
+
+proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
+  if tile.kind in FloorDrawn:
     let modelMatrix = mat4() * translate(pos)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
     render(floorModel)
   case tile.kind
-  of wall, shooter:
-    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0)) * rotateY dir.asRot
+  of wall:
+    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0)) * rotateY tile.direction.asRot
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
     render(wallModel)
@@ -117,19 +131,13 @@ proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3, dir: Direc
 
 proc renderBox*(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
   var pos = pos
-  let fallTarget =
-    if pushable in tile.flags:
-      1f
-    else:
-      0
   pos.y =
     if tile.steppedOn:
       mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
     else:
-      mix(StartHeight, fallTarget, easingsOutBounce(tile.progress / FallTime))
+      mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
   shader.makeActive()
-  if pushable in tile.flags:
-    renderBlock(Tile(kind: floor), cam, shader, vec3(pos.x, 0, pos.z))
+
   let modelMatrix = mat4() * translate(pos)
   shader.setUniform("m", modelMatrix)
   shader.setUniform("mvp", cam.orthoView * modelMatrix)
