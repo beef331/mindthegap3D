@@ -1,7 +1,7 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players
-import std/[sequtils, options, decls, options]
+import std/[sequtils, options, decls, options, strformat]
 export toFlatty, fromFlatty
 {.experimental: "overloadableEnums".}
 
@@ -58,7 +58,7 @@ iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
 
   of down:
     index -= world.width.int
-    while index > world.width.int:
+    while index >= 0:
       yield world.tiles[index]
       index -= world.width.int
 
@@ -73,30 +73,30 @@ iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
       yield world.tiles[index]
 
 
-iterator tilesInDir(world: var World, index: var int, dir: Direction): var Tile =
-  assert index in 0..<world.tiles.len
+iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
+  ## Yields present and next index
+  assert start in 0..<world.tiles.len
+  var index = start
   case dir
   of Direction.up:
-    index += world.width.int
-    while index < world.tiles.len:
-      yield world.tiles[index]
+    while index + world.width.int < world.tiles.len:
+      yield (index, index + world.width.int)
       index += world.width.int
 
   of down:
-    index -= world.width.int
-    while index > world.width.int:
-      yield world.tiles[index]
+    while index - world.width.int >= 0:
+      yield (index, index - world.width.int)
       index -= world.width.int
 
   of left:
-    while (index mod world.width) > 0:
-      index -= 1
-      yield world.tiles[index]
+    while ((index - 1) mod world.width) >= 0:
+      yield (index, index - 1)
+      dec index
 
   of right:
-    while (index mod world.width) < world.width - 1:
+    while ((index + 1) mod world.width) < world.width:
+      yield (index, index + 1)
       index += 1
-      yield world.tiles[index]
 
 
 proc init*(_: typedesc[World], width, height: int): World =
@@ -193,10 +193,11 @@ proc canPush(world: World, index: int, dir: Direction): bool =
     case tile.kind
     of Walkable:
       if not tile.hasStacked():
-        return true
+        return tile.isWalkable()
     of empty:
       return true
     else: discard
+
 
 proc canWalk(world: World, index: int, dir: Direction): bool =
   let tile = world.tiles[index]
@@ -214,28 +215,21 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
   if index mod world.width < world.width - 1 and world.canWalk(index + 1, right):
     result.incl right
 
-proc pushBlockIfCan(world: var World, direction: Direction) =
-  let
-    start = world.getPointIndex(world.player.movingToPos())
-    startTile = world.tiles[start]
-  if startTile.hasStacked() and world.canPush(start, direction):
-    var
-      lastStacked = startTile.stacked
-      lastIndex = start
-      index = start
-    for tile in world.tilesInDir(index, direction):
-      if tile.isWalkable() and not tile.hasStacked():
-        world.tiles[lastIndex].swapStacked(tile, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(index) + vec3(0, 1, 0))
+proc pushBlock(world: var World, direction: Direction) =
+  let start = world.getPointIndex(world.player.movingToPos())
+  if world.tiles[start].hasStacked():
+    for (lastIndex, nextIndex) in world.tilesInDir(start, direction):
+      template nextTile: auto = world.tiles[nextIndex]
+      template tile: auto = world.tiles[lastIndex]
+      let hadStack = nextTile.hasStacked
+      if nextTile.kind == empty:
+        nextTile = Tile(kind: box)
         break
-      elif tile.kind == empty:
-        tile = Tile(kind: box)
-        world.tiles[index].clearStack()
+      else:
+        nextTile.giveStackedObject(tile.stacked, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
+      if not hadStack:
         break
-      elif tile.hasStacked():
-        world.tiles[lastIndex].swapStacked(tile, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(index) + vec3(0, 1, 0))
-        break
-      lastIndex = index
-
+    world.tiles[start].clearStack()
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
   if pos in world:
@@ -287,7 +281,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     let playerStartPos = world.player.mapPos
     world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
     if moveDir.isSome:
-      world.pushBlockIfCan(moveDir.get)
+      world.pushBlock(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
     if world.player.doPlace():

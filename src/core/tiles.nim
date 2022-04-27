@@ -34,13 +34,11 @@ type
   StackedObjectKind* = enum
     turret, box
 
-  StackedObject = object
+  StackedObject* = object
     startPos: Vec3
     toPos: Vec3
     moveTime: float32
-    kind*: StackedObjectKind
-    #[
-    case
+    case  kind*: StackedObjectKind
     of turret:
       direction*: Direction
       toggledOn*: bool
@@ -50,7 +48,6 @@ type
       #pool*: seq[Projectile] # Flatty doesnt like this for whatever reason
     of box:
       discard
-    ]#
 
   ProjectileKind* = enum
     hitScan, dynamicProjectile
@@ -94,12 +91,12 @@ proc isWalkable*(tile: Tile): bool =
 proc stackBox*(tile: var Tile, pos: Vec3) = tile.stacked =
   some(StackedObject(kind: box, startPos: pos + vec3(0, 10, 0), toPos: pos))
 
-proc swapStacked*(frm, to: var Tile, fromPos, toPos: Vec3) =
-  swap(frm.stacked, to.stacked)
-  if to.hasStacked():
-    to.stacked.get.moveTime = 0
-    to.stacked.get.startPos = fromPos
-    to.stacked.get.toPos = toPos
+proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromPos, toPos: Vec3) =
+  tile.stacked = stackedObj
+  if tile.hasStacked():
+    tile.stacked.get.moveTime = 0
+    tile.stacked.get.startPos = fromPos
+    tile.stacked.get.toPos = toPos
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
 
