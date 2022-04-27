@@ -3,8 +3,8 @@ import std/[options, asyncnet, asyncdispatch, net, json]
 import worlds
 export options, net, asyncdispatch
 const
-  editorPort = Port(34213)
-  gamePort = Port(25422)
+  editorPort = Port(32131)
+  gamePort = Port(5123)
   footerMessage = "levelended"
 
 proc toFlatty[T](s: var string; x: set[T]) =
@@ -17,7 +17,7 @@ proc fromFlatty[T](s: string; i: var int, x: var set[T]) =
   inc i, sizeof(x)
 
 proc createGameSocket*(): AsyncSocket =
-  result = newAsyncSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+  result = newAsyncSocket(AF_INET, SOCK_DGRAM, IPPROTO_UDP, buffered = false)
   result.bindAddr(gamePort)
 
 proc sendWorld*(world: World) =
@@ -36,7 +36,9 @@ proc sendWorld*(world: World) =
 
 proc getWorld*(socket: AsyncSocket): Future[World] {.async.} =
   var size: int
+
   discard await(socket.recvInto(size.addr, sizeof(size)))
+
   let
     buf = newString(size)
     bufRead = await socket.recvInto(buf[0].unsafeaddr, size)

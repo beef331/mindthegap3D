@@ -2,7 +2,7 @@ import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players
 import std/[sequtils, options, decls, options]
-export toFlatty
+export toFlatty, fromFlatty
 {.experimental: "overloadableEnums".}
 
 type
