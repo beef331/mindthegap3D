@@ -2,7 +2,7 @@ import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players
 import std/[sequtils, options, decls, options]
-
+export toFlatty
 {.experimental: "overloadableEnums".}
 
 type
@@ -73,9 +73,8 @@ iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
       yield world.tiles[index]
 
 
-iterator tilesInDir(world: var World, startIndex: int, dir: Direction): var Tile =
-  assert startIndex in 0..<world.tiles.len
-  var index = startIndex
+iterator tilesInDir(world: var World, index: var int, dir: Direction): var Tile =
+  assert index in 0..<world.tiles.len
   case dir
   of Direction.up:
     index += world.width.int
@@ -153,7 +152,7 @@ proc placeBlock(world: var World, cam: Camera) =
   for x in player.getPickup.positions(dir, pos):
     let index = world.getPointIndex(vec3(x))
     if world.tiles[index].kind != empty:
-      world.tiles[index].stackBox()
+      world.tiles[index].stackBox(world.getPos(index) + vec3(0, 1, 0))
     else:
       world.tiles[index] = Tile(kind: box)
   player.clearPickup()
@@ -217,20 +216,25 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
 
 proc pushBlockIfCan(world: var World, direction: Direction) =
   let
-    start = world.getPointIndex(world.player.movingToPos)
+    start = world.getPointIndex(world.player.movingToPos())
     startTile = world.tiles[start]
-  if startTile.hasStacked():
-    var lastStacked = startTile.stacked
-    for tile in world.tilesInDir(start, direction):
+  if startTile.hasStacked() and world.canPush(start, direction):
+    var
+      lastStacked = startTile.stacked
+      lastIndex = start
+      index = start
+    for tile in world.tilesInDir(index, direction):
       if tile.isWalkable() and not tile.hasStacked():
-        world.tiles[start].swapStacked(tile)
+        world.tiles[lastIndex].swapStacked(tile, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(index) + vec3(0, 1, 0))
         break
       elif tile.kind == empty:
         tile = Tile(kind: box)
-        world.tiles[start].clearStack()
+        world.tiles[index].clearStack()
         break
       elif tile.hasStacked():
-        swap(tile.stacked, lastStacked)
+        world.tiles[lastIndex].swapStacked(tile, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(index) + vec3(0, 1, 0))
+        break
+      lastIndex = index
 
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
@@ -278,11 +282,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     for sign in world.signs.mitems:
       sign.update(dt)
     for x in world.tiles.mitems:
-      case x.kind
-      of box:
-        x.updateBox(dt)
-      else:
-        discard
+      x.update(dt)
     var moveDir = none(Direction)
     let playerStartPos = world.player.mapPos
     world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
@@ -290,7 +290,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.pushBlockIfCan(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
-    elif world.player.doPlace():
+    if world.player.doPlace():
       world.placeBlock(cam)
   of previewing:
     discard

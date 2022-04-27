@@ -7,7 +7,9 @@ const
   StartHeight* = 10f
   FallTime* = 1f
   SinkHeight* = -0.6
-
+  MoveTime = 0.3f
+  RotationSpeed = Tau * 3
+  Height = 2
 var
   floorModel, wallModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel: Model
 
@@ -33,7 +35,12 @@ type
     turret, box
 
   StackedObject = object
-    case kind*: StackedObjectKind
+    startPos: Vec3
+    toPos: Vec3
+    moveTime: float32
+    kind*: StackedObjectKind
+    #[
+    case
     of turret:
       direction*: Direction
       toggledOn*: bool
@@ -43,6 +50,7 @@ type
       #pool*: seq[Projectile] # Flatty doesnt like this for whatever reason
     of box:
       discard
+    ]#
 
   ProjectileKind* = enum
     hitScan, dynamicProjectile
@@ -72,15 +80,26 @@ const # Gamelogic constants
   AlwaysCompleted* = {TileKind.floor, wall, pickup}
 
 
-proc isWalkable*(tile: Tile): bool =
-  (tile.kind in AlwaysWalkable) or
-  (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
-
 proc hasStacked*(tile: Tile): bool = tile.stacked.isSome()
 
-proc stackBox*(tile: var Tile) = tile.stacked = some(StackedObject(kind: box))
 
-proc swapStacked*(frm, to: var Tile) = swap(frm.stacked, to.stacked)
+proc isWalkable*(tile: Tile): bool =
+  if tile.hasStacked():
+    (tile.stacked.get.moveTime >= MoveTime)
+  else:
+    (tile.kind in AlwaysWalkable) or
+    (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
+
+
+proc stackBox*(tile: var Tile, pos: Vec3) = tile.stacked =
+  some(StackedObject(kind: box, startPos: pos + vec3(0, 10, 0), toPos: pos))
+
+proc swapStacked*(frm, to: var Tile, fromPos, toPos: Vec3) =
+  swap(frm.stacked, to.stacked)
+  if to.hasStacked():
+    to.stacked.get.moveTime = 0
+    to.stacked.get.startPos = fromPos
+    to.stacked.get.toPos = toPos
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
 
@@ -94,13 +113,26 @@ proc updateBox*(boxTile: var Tile, dt: float32) =
     boxTile.progress += dt
   boxTile.progress = clamp(boxTile.progress, 0, FallTime)
 
+proc update*(tile: var Tile, dt: float32) =
+  case tile.kind
+  of box:
+    tile.updateBox(dt)
+  else: discard
+
+  if tile.hasStacked():
+    tile.stacked.get.moveTime += dt
+
+
 proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3)
 
 proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.hasStacked():
+    let
+      stacked = tile.stacked.get
+      pos = lerp(stacked.startPos, stacked.toPos, clamp(stacked.moveTime / MoveTime, 0f..1f))
     case tile.stacked.get.kind
     of box:
-      renderBlock(Tile(kind: box), cam, shader, pos + vec3(0, 1, 0))
+      renderBlock(Tile(kind: box), cam, shader, pos)
     of turret:
       ##renderBlock(Tile(kind: shooter), cam)
 

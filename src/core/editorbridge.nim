@@ -1,5 +1,5 @@
 import flatty
-import std/[options, asyncnet, asyncdispatch, net]
+import std/[options, asyncnet, asyncdispatch, net, json]
 import worlds
 export options, net, asyncdispatch
 const
