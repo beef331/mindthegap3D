@@ -15,6 +15,10 @@ type
     playerSpawn*: int64
     state*: WorldState
     player*: Player
+  PlaceState = enum
+    cannotPlace
+    placeEmpty
+    placeStacked
 
 var
   pickupQuadModel, signModel: Model
@@ -122,12 +126,21 @@ proc getPointIndex*(world: World, point: Vec3): int =
 
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
 
-proc canPlaceAt(world: World, pos: Vec3): bool =
+proc placeStateAt(world: World, pos: Vec3): PlaceState =
   if pos in world:
     let tile = world.tiles[world.getPointIndex(pos)]
-    tile.kind in {empty} + Walkable and not tile.hasStacked()
+    case tile.kind:
+    of empty:
+      placeEmpty
+    of Walkable:
+      if not tile.hasStacked():
+        placeStacked
+      else:
+        cannotPlace
+    else:
+      cannotPlace
   else:
-    false
+    cannotPlace
 
 proc placeBlock(world: var World, cam: Camera) =
   var player {.byaddr.} = world.player
@@ -135,7 +148,7 @@ proc placeBlock(world: var World, cam: Camera) =
     pos = cam.raycast(getMousePos())
     dir = player.pickupRotation
   for x in player.getPickup.positions(dir, pos):
-    if not world.canPlaceAt(x):
+    if world.placeStateAt(x) == cannotPlace:
       return
   for x in player.getPickup.positions(dir, pos):
     let index = world.getPointIndex(vec3(x))
@@ -277,7 +290,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.pushBlockIfCan(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
-    if world.player.doPlace():
+    elif world.player.doPlace():
       world.placeBlock(cam)
   of previewing:
     discard
@@ -315,11 +328,23 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
     let start = ivec3(cam.raycast(pos))
     with cursorShader:
       for pos in pickup.positions(dir, vec3 start):
-        let isValid = world.canPlaceAt(pos)
-        if not isValid:
+        let placeState = world.placeStateAt(pos)
+        var
+          yPos = 0f
+          canPlace = true
+
+        case placeState
+        of cannotPlace:
           glDisable(GlDepthTest)
-        cursorShader.setUniform("valid", isValid.ord)
-        let pos = pos + vec3(0, 1, 0)
+          yPos = 0
+          canPlace = false
+        of placeEmpty:
+          yPos = 0
+        of placeStacked:
+          yPos = 1
+
+        cursorShader.setUniform("valid", canPlace.ord)
+        let pos = pos + vec3(0, yPos, 0)
         renderBlock(Tile(kind: box), cam, cursorShader, pos)
         glEnable(GlDepthTest)
 

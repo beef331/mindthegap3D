@@ -38,7 +38,7 @@ type
       direction*: Direction
       toggledOn*: bool
       timeToShot*: float32
-      shotDelay*: float32 # Shooters and boxes are the same, but come here to make editing easier
+      shotDelay*: float32
       projectileKind*: ProjectileKind
       #pool*: seq[Projectile] # Flatty doesnt like this for whatever reason
     of box:
