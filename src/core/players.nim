@@ -126,7 +126,7 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
   move({KeyCodeS, KeyCodeDown}, down)
   move({KeyCodeA, KeyCodeLeft}, right)
 
-  if leftMb.isDown:
+  if rightMb.isPressed():
     let hit = vec3 ivec3 camera.raycast(getMousePos())
     for dir in Direction:
       if dir in safeDirs and distSq(hit, player.pos + dir.toVec) < 0.1:

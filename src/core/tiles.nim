@@ -11,7 +11,7 @@ const
   RotationSpeed = Tau * 3
   Height = 2
 var
-  floorModel, wallModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel: Model
+  floorModel, wallModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel, crossbowmodel: Model
 
 addResourceProc:
   floorModel = loadModel("floor.dae")
@@ -21,6 +21,7 @@ addResourceProc:
   flagModel = loadModel("flag.dae")
   boxModel = loadModel("box.dae")
   signModel = loadModel("sign.dae")
+  crossbowmodel = loadModel("crossbow.dae")
 
 type
   TileKind* = enum
@@ -87,7 +88,6 @@ proc isWalkable*(tile: Tile): bool =
     (tile.kind in AlwaysWalkable) or
     (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
 
-
 proc stackBox*(tile: var Tile, pos: Vec3) = tile.stacked =
   some(StackedObject(kind: box, startPos: pos + vec3(0, 10, 0), toPos: pos))
 
@@ -99,6 +99,7 @@ proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromP
     tile.stacked.get.toPos = toPos
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
+
 
 proc updateBox*(boxTile: var Tile, dt: float32) =
   assert boxTile.kind == box
@@ -126,7 +127,7 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.hasStacked():
     let
       stacked = tile.stacked.get
-      pos = lerp(stacked.startPos, stacked.toPos, clamp(stacked.moveTime / MoveTime, 0f..1f))
+      pos = lerp(stacked.startPos, stacked.toPos, clamp(easingsOutBounce(stacked.moveTime / MoveTime), 0f, 1f))
     case tile.stacked.get.kind
     of box:
       renderBlock(Tile(kind: box), cam, shader, pos)

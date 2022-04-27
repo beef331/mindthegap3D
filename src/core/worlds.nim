@@ -126,18 +126,16 @@ proc getPointIndex*(world: World, point: Vec3): int =
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
-  if pos in world:
+  if pos in world and world.getPointIndex(pos) != world.getPointIndex(world.player.mapPos):
     let tile = world.tiles[world.getPointIndex(pos)]
     case tile.kind:
     of empty:
       placeEmpty
-    of Walkable:
-      if not tile.hasStacked():
+    else:
+      if tile.isWalkable() and not tile.hasStacked():
         placeStacked
       else:
         cannotPlace
-    else:
-      cannotPlace
   else:
     cannotPlace
 
@@ -280,12 +278,13 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     var moveDir = none(Direction)
     let playerStartPos = world.player.mapPos
     world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
+    if world.player.doPlace():
+      world.placeBlock(cam)
     if moveDir.isSome:
       world.pushBlock(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
-    if world.player.doPlace():
-      world.placeBlock(cam)
+
   of previewing:
     discard
 
