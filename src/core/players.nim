@@ -1,6 +1,6 @@
 import truss3D/[shaders, models, textures, inputs]
 import std/[options, decls]
-import resources, cameras, directions, pickups, shadows
+import resources, cameras, directions, pickups, shadows, consts
 import vmath, pixie, opengl
 
 
@@ -21,10 +21,7 @@ proc makeMoveImage(character: string, border = 20f, size = 256): Image =
   result.strokeText(font, character, strokeWidth = 10, transform = translate(vec2(border)), bounds = vec2(size.float - border * 2), hAlign = CenterAlign, vAlign = MiddleAlign)
 
 
-const
-  MoveTime = 0.3f
-  RotationSpeed = Tau * 3
-  Height = 2
+
 
 type
   Player* = object

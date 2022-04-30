@@ -1,12 +1,20 @@
 import vmath
-import directions, tiles
+import directions, resources, consts, cameras
+import truss3D/[models, shaders]
 
 const projectileCount = 1024 # Cmon we're not making a bullet hell
 
+var arrowmodel: Model
+
+addResourceProc:
+  arrowmodel = loadModel("arrow.dae")
+
 type
   Projectile = object
-    pos*: Vec3
+    fromPos: Vec3
+    toPos: Vec3
     direction: Direction
+    moveTime: float32
   ProjectileRange = 0 .. projectileCount - 1
   Projectiles* = object
     active*, inactive*: set[ProjectileRange]
@@ -20,6 +28,8 @@ iterator items(projs: Projectiles): Projectile =
   for x in projs.active:
     yield projs.projectiles[x]
 
+proc pos(projectile: Projectile): Vec3 = mix(projectile.fromPos, projectile.toPos, clamp(projectile.moveTime / MoveTime, 0f..1f))
+
 proc getNextId*(projs: var Projectiles): int =
   for x in projs.inactive:
     return x
@@ -30,15 +40,27 @@ proc init*(_: typedesc[Projectiles]): Projectiles =
 
 proc spawnProjectile*(projs: var Projectiles, pos: Vec3, direction: Direction) =
   let id = projs.getNextId()
-  projs.projectiles[id] = Projectile(pos: pos, direction: direction)
+  projs.projectiles[id] = Projectile(fromPos: pos, toPos: pos + direction.asVec3, direction: direction)
+  projs.active.incl id
+  projs.inactive.excl id
 
 proc destroyProjectile*(projs: var Projectiles, id: int) =
   projs.active.excl id
   projs.inactive.incl id
 
-proc update*(projs: var Projectiles, dt: float32) =
+proc update*(projs: var Projectiles, dt: float32, playerMoved: bool) =
   for proj in projs.mitems:
-    proj.pos += proj.direction.asVec3 * dt
+    proj.moveTime += dt
+    if proj.moveTime >= MoveTime and playerMoved:
+      proj.moveTime = 0
+      proj.fromPos = proj.toPos
+      proj.toPos += proj.direction.asVec3
 
-
+proc render*(projs: Projectiles, cam: Camera, shader: Shader) =
+  with shader:
+    for proj in projs:
+      let m = mat4() * translate(proj.pos) * rotateY(proj.direction.asRot)
+      shader.setUniform("m", m)
+      shader.setUniform("mvp", cam.orthoView * m)
+      render(arrowmodel)
 

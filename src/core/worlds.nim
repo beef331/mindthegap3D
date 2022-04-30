@@ -1,6 +1,6 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
 import std/[sequtils, options, decls, options, strformat]
 export toFlatty, fromFlatty
 
@@ -286,6 +286,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.givePickupIfCan()
     for x in world.tiles.mitems:
       x.update(world.projectiles, dt, moveDir.isSome)
+    world.projectiles.update(dt, moveDir.isSome())
 
   of previewing:
     discard
@@ -360,6 +361,7 @@ proc render*(world: World, cam: Camera) =
   world.player.render(cam, world.playerSafeDirections)
   if world.player.hasPickup:
       world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
+  world.projectiles.render(cam, levelShader)
 
 iterator tiles*(world: World): (int, int, Tile) =
   for i, tile in world.tiles:

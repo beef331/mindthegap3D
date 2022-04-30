@@ -1,16 +1,9 @@
-import directions, pickups, cameras, resources
-import vmath, easings, opengl, projectiles
+import directions, pickups, cameras, resources, projectiles, consts
+import vmath, easings, opengl
 import truss3D/[shaders, models]
-import std/[options]
+import std/[options, decls]
 
-const
-  StartHeight* = 10f
-  FallTime* = 1f
-  SinkHeight* = -0.6
-  MoveTime = 0.3f
-  RotationSpeed = Tau * 3
-  Height = 2
-  MovesBetweenShots = 4
+
 var
   floorModel, wallModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel, crossbowmodel: Model
 
@@ -94,10 +87,6 @@ proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromP
     tile.stacked.get.moveTime = 0
     tile.stacked.get.startPos = fromPos
     tile.stacked.get.toPos = toPos
-    case tile.stacked.get.kind
-    of turret:
-      tile.stacked.get.movesToNextShot = MovesBetweenShots
-    else: discard
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
 
@@ -119,12 +108,14 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
 
   if tile.hasStacked():
     tile.stacked.get.moveTime += dt
+    let stacked {.byaddr.} = tile.stacked.get
     case tile.stacked.get.kind
     of turret:
       if playerMoved:
-        dec tile.stacked.get.movesToNextShot
-        if tile.stacked.get.movesToNextShot == 0:
-          tile.stacked.get.movesToNextShot = MovesBetweenShots
+        dec stacked.movesToNextShot
+        if stacked.movesToNextShot == 0:
+          stacked.movesToNextShot = MovesBetweenShots
+          projectiles.spawnProjectile(stacked.toPos + vec3(0, 0.5, 0), stacked.direction)
     else: discard
 
 
