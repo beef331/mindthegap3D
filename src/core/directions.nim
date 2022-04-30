@@ -1,4 +1,6 @@
 import std/math
+import vmath
+
 type
   Direction* = enum
     up, left, down, right
@@ -14,3 +16,10 @@ proc asRot*(dir: Direction): float32 =
   of right: Tau / 4
   of down: Tau / 2
   of left: Tau * (0.75)
+
+proc asVec3*(dir: Direction): Vec3 =
+  case dir:
+  of up: vec3(0, 0, 1)
+  of right: vec3(1, 0, 0)
+  of down: vec3(0, 0, -1)
+  of left: vec3(-1, 0, 0)

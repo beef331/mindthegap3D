@@ -1,5 +1,5 @@
 import directions, pickups, cameras, resources
-import vmath, easings, opengl
+import vmath, easings, opengl, projectiles
 import truss3D/[shaders, models]
 import std/[options]
 
@@ -10,6 +10,7 @@ const
   MoveTime = 0.3f
   RotationSpeed = Tau * 3
   Height = 2
+  MovesBetweenShots = 4
 var
   floorModel, wallModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel, crossbowmodel: Model
 
@@ -39,23 +40,18 @@ type
     startPos: Vec3
     toPos: Vec3
     moveTime: float32
-    case  kind*: StackedObjectKind
+    case kind*: StackedObjectKind
     of turret:
       direction*: Direction
       toggledOn*: bool
-      timeToShot*: float32
-      shotDelay*: float32
+      movesToNextShot: int
       projectileKind*: ProjectileKind
-      #pool*: seq[Projectile] # Flatty doesnt like this for whatever reason
     of box:
       discard
 
   ProjectileKind* = enum
     hitScan, dynamicProjectile
 
-  Projectile = object
-    pos: Vec3
-    timeToMove: float32
 
   Tile* = object
     stacked*: Option[StackedObject]
@@ -98,6 +94,10 @@ proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromP
     tile.stacked.get.moveTime = 0
     tile.stacked.get.startPos = fromPos
     tile.stacked.get.toPos = toPos
+    case tile.stacked.get.kind
+    of turret:
+      tile.stacked.get.movesToNextShot = MovesBetweenShots
+    else: discard
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
 
@@ -111,7 +111,7 @@ proc updateBox*(boxTile: var Tile, dt: float32) =
     boxTile.progress += dt
   boxTile.progress = clamp(boxTile.progress, 0, FallTime)
 
-proc update*(tile: var Tile, dt: float32) =
+proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =
   case tile.kind
   of box:
     tile.updateBox(dt)
@@ -119,6 +119,14 @@ proc update*(tile: var Tile, dt: float32) =
 
   if tile.hasStacked():
     tile.stacked.get.moveTime += dt
+    case tile.stacked.get.kind
+    of turret:
+      if playerMoved:
+        dec tile.stacked.get.movesToNextShot
+        if tile.stacked.get.movesToNextShot == 0:
+          tile.stacked.get.movesToNextShot = MovesBetweenShots
+    else: discard
+
 
 proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3)
 

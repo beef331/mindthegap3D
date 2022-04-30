@@ -1,6 +1,6 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles
 import std/[sequtils, options, decls, options, strformat]
 export toFlatty, fromFlatty
 
@@ -14,6 +14,7 @@ type
     playerSpawn*: int64
     state*: WorldState
     player*: Player
+    projectiles*: Projectiles
   PlaceState = enum
     cannotPlace
     placeEmpty
@@ -99,7 +100,7 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
 
 
 proc init*(_: typedesc[World], width, height: int): World =
-  World(width: width, height: height, tiles: newSeq[Tile](width * height))
+  World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init())
 
 proc isFinished*(world: World): bool =
   for x in world.tiles:
@@ -273,8 +274,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
   of playing:
     for sign in world.signs.mitems:
       sign.update(dt)
-    for x in world.tiles.mitems:
-      x.update(dt)
+
     var moveDir = none(Direction)
     let playerStartPos = world.player.mapPos
     world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
@@ -284,6 +284,8 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.pushBlock(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
+    for x in world.tiles.mitems:
+      x.update(world.projectiles, dt, moveDir.isSome)
 
   of previewing:
     discard

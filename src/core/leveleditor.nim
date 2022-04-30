@@ -379,6 +379,16 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
       var
         tile {.byaddr.} = window.world.tiles[window.selected]
 
+      if tile.hasStacked:
+        case tile.stacked.get.kind
+        of box:
+          stackedSelector.value = "box"
+        of turret:
+          stackedSelector.value = "turret"
+      else:
+        stackedSelector.value = "none"
+
+
       case tile.kind
       of pickup:
         directionSelector.enabled = false
