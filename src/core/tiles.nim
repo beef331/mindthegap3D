@@ -56,7 +56,6 @@ type
   Projectile = object
     pos: Vec3
     timeToMove: float32
-    direction: Vec3
 
   Tile* = object
     stacked*: Option[StackedObject]
@@ -80,13 +79,15 @@ const # Gamelogic constants
 
 proc hasStacked*(tile: Tile): bool = tile.stacked.isSome()
 
-
 proc isWalkable*(tile: Tile): bool =
   if tile.hasStacked():
     (tile.stacked.get.moveTime >= MoveTime)
   else:
     (tile.kind in AlwaysWalkable) or
     (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
+
+proc canStackOn*(tile: Tile): bool =
+  not tile.hasStacked() and tile.isWalkable
 
 proc stackBox*(tile: var Tile, pos: Vec3) = tile.stacked =
   some(StackedObject(kind: box, startPos: pos + vec3(0, 10, 0), toPos: pos))
@@ -99,7 +100,6 @@ proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromP
     tile.stacked.get.toPos = toPos
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
-
 
 proc updateBox*(boxTile: var Tile, dt: float32) =
   assert boxTile.kind == box
@@ -120,7 +120,6 @@ proc update*(tile: var Tile, dt: float32) =
   if tile.hasStacked():
     tile.stacked.get.moveTime += dt
 
-
 proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3)
 
 proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
@@ -132,6 +131,10 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
     of box:
       renderBlock(Tile(kind: box), cam, shader, pos)
     of turret:
+      let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
+      shader.setUniform("mvp", cam.orthoView * modelMatrix)
+      shader.setUniform("m", modelMatrix)
+      render(crossbowmodel)
       ##renderBlock(Tile(kind: shooter), cam)
 
 proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
@@ -181,3 +184,4 @@ proc renderPickup*(tile: Tile, cam: Camera, pos: Vec3, shader, defaultShader: Sh
   shader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
   render(pickupQuadModel)
   defaultShader.makeActive()
+

@@ -310,6 +310,9 @@ proc makeEditor(window: EditorWindow, container: LayoutContainer) =
 
 proc makeInspector(window: EditorWindow, container: LayoutContainer) =
   let canv = newLayoutContainer(LayoutVertical)
+  type
+    Stackable = enum
+      none, box, turret
   window.inspector = canv
   let
     directionSelector = newComboBox(Direction):
@@ -319,9 +322,23 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
       let win = EditorWindow(comboBox.parentWindow)
       win.world.tiles[win.selected].pickupKind = parseEnum[PickupType](comboBox.value)
       win.onChange(win)
+    stackedSelector = newComboBox(Stackable):
+      let
+        win = EditorWindow(comboBox.parentWindow)
+        pos = win.world.getPos(win.sel) + vec3(0, 1, 0)
+      case parseEnum[Stackable](comboBox.value)
+      of turret:
+        win.world.tiles[win.selected].giveStackedObject(some(StackedObject(kind: turret)), pos, pos)
+      of box:
+        win.world.tiles[win.selected].giveStackedObject(some(StackedObject(kind: box)), pos, pos)
+      else:
+        win.world.tiles[win.selected].clearStack()
+
+      win.onChange(win)
     pickupLabel = newLabel("Pickup:")
     pickupCont = newLayoutContainer(Layout_Horizontal)
     dir = newLayoutContainer(LayoutHorizontal)
+    stackedLayout = newLayoutContainer(Layout_Horizontal)
     signField = newTextArea("")
 
   dir.add newLabel("Direction:")
@@ -332,6 +349,11 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
 
   directionSelector.enabled = false
   pickupSelector.enabled = false
+
+  stackedLayout.add newLabel("Stacked:")
+  stackedLayout.add stackedSelector
+
+
   signField.hide()
 
   signField.onTextChange = proc(textEvent: TextChangeEvent) =
@@ -377,6 +399,7 @@ proc makeInspector(window: EditorWindow, container: LayoutContainer) =
 
   canv.add dir
   canv.add pickupCont
+  canv.add stackedLayout
   canv.add signField
   container.add canv
 

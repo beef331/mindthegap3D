@@ -3,7 +3,6 @@ import pixie, opengl, vmath, easings
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players
 import std/[sequtils, options, decls, options, strformat]
 export toFlatty, fromFlatty
-{.experimental: "overloadableEnums".}
 
 type
   WorldState* = enum
@@ -221,7 +220,8 @@ proc pushBlock(world: var World, direction: Direction) =
       template tile: auto = world.tiles[lastIndex]
       let hadStack = nextTile.hasStacked
       if nextTile.kind == empty:
-        nextTile = Tile(kind: box)
+        if tile.stacked.get.kind == box:
+          nextTile = Tile(kind: box)
         break
       else:
         nextTile.giveStackedObject(tile.stacked, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
