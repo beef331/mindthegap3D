@@ -233,22 +233,18 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
 
 proc pushBlock(world: var World, direction: Direction) =
   let start = world.getPointIndex(world.player.movingToPos())
-  var buffer: Option[StackedObject]
+  var buffer = world.tiles[start].stacked
   if world.tiles[start].hasStacked():
     for (lastIndex, nextIndex) in world.tilesInDir(start, direction):
       template nextTile: auto = world.tiles[nextIndex]
-      template tile: auto = world.tiles[lastIndex]
       let hadStack = nextTile.hasStacked
       if nextTile.kind == empty:
-        if tile.stacked.get.kind == box or (buffer.isSome and buffer.get.kind == box):
+        if (buffer.isSome and buffer.get.kind == box):
           nextTile = Tile(kind: box)
         break
       else:
         let temp = nextTile.stacked
-        if buffer.isSome:
-          nextTile.giveStackedObject(buffer, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
-        else:
-          nextTile.giveStackedObject(tile.stacked, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
+        nextTile.giveStackedObject(buffer, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
         buffer = temp
       if not hadStack:
         break
