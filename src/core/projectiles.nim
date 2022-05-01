@@ -10,7 +10,7 @@ addResourceProc:
   arrowmodel = loadModel("arrow.dae")
 
 type
-  Projectile = object
+  Projectile* = object
     fromPos: Vec3
     toPos: Vec3
     direction: Direction
@@ -24,7 +24,7 @@ iterator mitems(projs: var Projectiles): var Projectile =
   for x in projs.active:
     yield projs.projectiles[x]
 
-iterator items(projs: Projectiles): Projectile =
+iterator items*(projs: Projectiles): Projectile =
   for x in projs.active:
     yield projs.projectiles[x]
 
@@ -43,6 +43,10 @@ proc spawnProjectile*(projs: var Projectiles, pos: Vec3, direction: Direction) =
   projs.projectiles[id] = Projectile(fromPos: pos, toPos: pos + direction.asVec3, direction: direction)
   projs.active.incl id
   projs.inactive.excl id
+
+proc spawnProjectiles*(projs: var Projectiles, toSpawn: seq[Projectile]) =
+  for proj in toSpawn:
+    projs.spawnProjectile(proj.fromPos, proj.direction)
 
 proc destroyProjectile*(projs: var Projectiles, id: int) =
   projs.active.excl id

@@ -1,7 +1,7 @@
 import truss3D, truss3D/[models, textures]
-import pixie, opengl, vmath, easings
+import pixie, opengl, vmath, easings, flatty
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
-import std/[sequtils, options, decls, options, strformat]
+import std/[sequtils, options, decls, options, strformat, sugar]
 export toFlatty, fromFlatty
 
 type
@@ -15,6 +15,12 @@ type
     state*: WorldState
     player*: Player
     projectiles*: Projectiles
+    history: seq[History]
+  History = object
+    player: Player
+    tiles: seq[Tile]
+    projectiles: seq[Projectile]
+
   PlaceState = enum
     cannotPlace
     placeEmpty
@@ -97,7 +103,6 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
     while ((index + 1) mod world.width) < world.width:
       yield (index, index + 1)
       index += 1
-
 
 proc init*(_: typedesc[World], width, height: int): World =
   World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init())
@@ -197,6 +202,19 @@ proc canPush(world: World, index: int, dir: Direction): bool =
     else: discard
 
 
+proc saveHistoryStep(world: var World) =
+  let projectiles = collect(for x in world.projectiles.items: x)
+  world.history.add History(tiles: world.tiles, projectiles: projectiles, player: world.player)
+
+proc popHistoryStep(world: var World) =
+  if world.history.len > 0:
+    let history = world.history.pop
+    world.tiles = history.tiles
+    world.projectiles = Projectiles.init
+    world.projectiles.spawnProjectiles(history.projectiles)
+    world.player = history.player
+    world.player.skipMoveAnim()
+
 proc canWalk(world: World, index: int, dir: Direction): bool =
   let tile = world.tiles[index]
   result = tile.isWalkable()
@@ -215,17 +233,23 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
 
 proc pushBlock(world: var World, direction: Direction) =
   let start = world.getPointIndex(world.player.movingToPos())
+  var buffer: Option[StackedObject]
   if world.tiles[start].hasStacked():
     for (lastIndex, nextIndex) in world.tilesInDir(start, direction):
       template nextTile: auto = world.tiles[nextIndex]
       template tile: auto = world.tiles[lastIndex]
       let hadStack = nextTile.hasStacked
       if nextTile.kind == empty:
-        if tile.stacked.get.kind == box:
+        if tile.stacked.get.kind == box or (buffer.isSome and buffer.get.kind == box):
           nextTile = Tile(kind: box)
         break
       else:
-        nextTile.giveStackedObject(tile.stacked, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
+        let temp = nextTile.stacked
+        if buffer.isSome:
+          nextTile.giveStackedObject(buffer, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
+        else:
+          nextTile.giveStackedObject(tile.stacked, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
+        buffer = temp
       if not hadStack:
         break
     world.tiles[start].clearStack()
@@ -284,6 +308,9 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.pushBlock(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
+      world.saveHistoryStep()
+    if KeycodeP.isDown:
+      world.popHistoryStep()
     for x in world.tiles.mitems:
       x.update(world.projectiles, dt, moveDir.isSome)
     world.projectiles.update(dt, moveDir.isSome())

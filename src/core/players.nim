@@ -20,9 +20,6 @@ proc makeMoveImage(character: string, border = 20f, size = 256): Image =
   font.paint = rgba(255, 127, 0, 255)
   result.strokeText(font, character, strokeWidth = 10, transform = translate(vec2(border)), bounds = vec2(size.float - border * 2), hAlign = CenterAlign, vAlign = MiddleAlign)
 
-
-
-
 type
   Player* = object
     fromPos: Vec3
@@ -105,6 +102,10 @@ proc movementUpdate(player: var Player, dt: float32) =
     player.moveProgress += dt
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
+
+proc skipMoveAnim*(player: var Player) =
+  ## For moving the player without causing an animation
+  player.moveProgress = MoveTime
 
 proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
   movementUpdate(player, dt)

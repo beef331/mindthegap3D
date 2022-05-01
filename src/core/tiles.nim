@@ -113,7 +113,7 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
     of turret:
       if playerMoved:
         dec stacked.movesToNextShot
-        if stacked.movesToNextShot == 0:
+        if stacked.movesToNextShot <= 0:
           stacked.movesToNextShot = MovesBetweenShots
           projectiles.spawnProjectile(stacked.toPos + vec3(0, 0.5, 0), stacked.direction)
     else: discard
