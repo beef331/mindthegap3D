@@ -30,7 +30,7 @@ iterator items*(projs: Projectiles): Projectile =
 
 proc pos(projectile: Projectile): Vec3 = mix(projectile.fromPos, projectile.toPos, clamp(projectile.moveTime / MoveTime, 0f..1f))
 
-proc getNextId*(projs: var Projectiles): int =
+proc getNextId(projs: var Projectiles): int =
   for x in projs.inactive:
     return x
 

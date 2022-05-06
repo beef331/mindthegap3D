@@ -73,26 +73,28 @@ proc cameraMovement =
   var
     cameraDragPos {.global.}: Vec3
     cameraStartPos {.global.}: Vec3
-    mouseCamDrag {.global.}: IVec2
     mouseStartPos {.global.}: IVec2
+    mouseOffset {.global.} : IVec2
 
   case middleMb.state()
   of pressed:
     cameraDragPos = camera.raycast(getMousePos())
     cameraStartPos = camera.pos
     mouseStartPos = getMousePos()
-    mouseCamDrag = iVec2 0
+    mouseOffset = ivec2(0)
     setMouseMode(MouseRelative)
   of held:
-    mouseCamDrag += getMouseDelta()
     let
-      hitPos = camera.raycast(getMouseDelta() + mouseStartPos)
+      frameOffset = getMouseDelta()
+      hitPos = camera.raycast(frameOffset + mouseStartPos)
       offset = hitPos - cameraDragPos
     camera.pos = cameraStartPos + offset
-    moveMouse(mouseStartPos - mouseCamDrag)
+    mouseOffset -= frameOffset
+    grabWindow()
   of released:
     setMouseMode(MouseAbsolute)
-    moveMouse(mouseStartPos - mouseCamDrag)
+    releaseWindow()
+    moveMouse(mouseStartPos + mouseOffset)
   else:
     discard
 
