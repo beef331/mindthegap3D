@@ -114,10 +114,8 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
     var player{.byaddr.} = player
     if moveDir.isNone:
       for key in keycodes:
-        if key.isPressed:
-          if dir in safeDirs:
-            if player.move(dir):
-              moveDir = some(dir)
+        if key.isPressed and dir in safeDirs and player.move(dir):
+          moveDir = some(dir)
 
   move({KeyCodeW, KeyCodeUp}, Direction.up)
   move({KeyCodeD, KeyCodeRight}, left)
