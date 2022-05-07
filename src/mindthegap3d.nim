@@ -59,10 +59,10 @@ proc makeEditorFuture(): Future[World] =
         if newWorld.width > 0 and newWorld.height > 0:
           world.unload()
           world = fut.read()
-          world.load()
           if world.playerSpawn notin 0..<world.tiles.len:
             world.playerSpawn = 0
           world.player = Player.init(world.getPos(int world.playerSpawn))
+          world.load()
       editorFut = makeEditorFuture()
 
 

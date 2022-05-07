@@ -16,7 +16,11 @@ type
     player*: Player
     projectiles*: Projectiles
     history: seq[History]
+
+  HistoryKind = enum
+    nothing, start, checkpoint
   History = object
+    kind: HistoryKind
     player: Player
     tiles: seq[Tile]
     projectiles: seq[Projectile]
@@ -204,9 +208,13 @@ proc canPush(world: World, index: int, dir: Direction): bool =
     else: discard
 
 
-proc saveHistoryStep(world: var World) =
+proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
   let projectiles = collect(for x in world.projectiles.items: x)
-  world.history.add History(tiles: world.tiles, projectiles: projectiles, player: world.player)
+  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: world.player)
+
+proc saveHistoryStep(world: var World, player: Player, kind = HistoryKind.nothing) =
+  let projectiles = collect(for x in world.projectiles.items: x)
+  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: player)
 
 proc popHistoryStep(world: var World) =
   if world.history.len > 0:
@@ -216,6 +224,13 @@ proc popHistoryStep(world: var World) =
     world.projectiles.spawnProjectiles(history.projectiles)
     world.player = history.player
     world.player.skipMoveAnim()
+    if history.kind == start:
+      world.history.add history
+
+proc rewindTo*(world: var World, targetStates: set[HistoryKind]) =
+  world.popHistoryStep()
+  while world.history[^1].kind notin targetStates:
+    world.popHistoryStep()
 
 proc canWalk(world: World, index: int, dir: Direction): bool =
   let tile = world.tiles[index]
@@ -290,6 +305,7 @@ proc unload*(world: var World) =
 proc load*(world: var World) =
   for sign in world.signs.mitems:
     sign.load()
+  world.saveHistoryStep(start)
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
   case world.state
@@ -298,15 +314,18 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       sign.update(dt)
 
     var moveDir = none(Direction)
-    let playerStartPos = world.player.mapPos
+    let
+      playerStartPos = world.player.mapPos
+      startPlayer = world.player
     world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
+    if world.player.doPlace or moveDir.isSome:
+      world.saveHistoryStep(startPlayer)
     if world.player.doPlace():
       world.placeBlock(cam)
     if moveDir.isSome:
       world.pushBlock(moveDir.get)
       world.steppedOff(playerStartPos)
       world.givePickupIfCan()
-      world.saveHistoryStep()
     if KeycodeP.isDown:
       world.popHistoryStep()
 
@@ -316,10 +335,15 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 
 
     for id, proj in world.projectiles.idProj:
-      if proj.outOfBounds(0..<world.width.int, 0..<world.height.int):
+      let pos = ivec3(proj.pos + vec3(0.5))
+      if pos.xz == world.player.mapPos().ivec3.xz:
+        world.rewindTo({start, checkpoint})
+        break
+
+      if pos.x notin 0..<world.width.int or pos.z notin 0..<world.height.int:
         projRemoveBuffer.add id
       else:
-        let tile = world.tiles[world.getPointIndex(proj.pos)]
+        let tile = world.tiles[world.getPointIndex(pos.vec3)]
         if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
           projRemoveBuffer.add id
 

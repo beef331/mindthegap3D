@@ -56,9 +56,6 @@ proc destroyProjectile*(projs: var Projectiles, id: int) =
   projs.active.excl id
   projs.inactive.incl id
 
-proc outOfBounds*(proj: Projectile, xBounds, zBounds: Slice[int]): bool =
-  proj.pos.x.int notin xBounds or proj.pos.z.int notin zBounds
-
 template destroyProjectiles*(projs: var Projectiles, i: iterable[int]) =
   for x in i:
     projs.destroyProjectile(x)
