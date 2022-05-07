@@ -311,15 +311,17 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.popHistoryStep()
 
     var projRemoveBuffer: seq[int]
-    for i, x in enumerate world.tiles.mitems:
-      if x.kind in projectilesAlwaysCollide or (x.kind != empty and x.hasStacked()):
-        for id, proj in world.projectiles.idProj:
-          if proj.collides world.getPos(i):
-            projRemoveBuffer.add id
+    for x in world.tiles.mitems:
       x.update(world.projectiles, dt, moveDir.isSome)
+
+
     for id, proj in world.projectiles.idProj:
       if proj.outOfBounds(0..<world.width.int, 0..<world.height.int):
         projRemoveBuffer.add id
+      else:
+        let tile = world.tiles[world.getPointIndex(proj.pos)]
+        if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
+          projRemoveBuffer.add id
 
     world.projectiles.destroyProjectiles(projRemoveBuffer.items)
     world.projectiles.update(dt, moveDir.isSome())

@@ -32,7 +32,7 @@ iterator idProj*(projs: Projectiles): (int, Projectile) =
   for x in projs.active:
     yield (x, projs.projectiles[x])
 
-proc pos(projectile: Projectile): Vec3 = mix(projectile.fromPos, projectile.toPos, clamp(projectile.moveTime / MoveTime, 0f..1f))
+proc pos*(projectile: Projectile): Vec3 = mix(projectile.fromPos, projectile.toPos, clamp(projectile.moveTime / MoveTime, 0f..1f))
 
 proc getNextId(projs: var Projectiles): int =
   for x in projs.inactive:
@@ -55,9 +55,6 @@ proc spawnProjectiles*(projs: var Projectiles, toSpawn: seq[Projectile]) =
 proc destroyProjectile*(projs: var Projectiles, id: int) =
   projs.active.excl id
   projs.inactive.incl id
-
-proc collides*(projectile: Projectile, pos: Vec3): bool =
-  ivec3(int pos.x, 0, int pos.z) == ivec3(int projectile.pos.x, 0, int projectile.pos.z)
 
 proc outOfBounds*(proj: Projectile, xBounds, zBounds: Slice[int]): bool =
   proj.pos.x.int notin xBounds or proj.pos.z.int notin zBounds
