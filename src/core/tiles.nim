@@ -100,6 +100,8 @@ proc updateBox*(boxTile: var Tile, dt: float32) =
     boxTile.progress += dt
   boxTile.progress = clamp(boxTile.progress, 0, FallTime)
 
+
+
 proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =
   case tile.kind
   of box:

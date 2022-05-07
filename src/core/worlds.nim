@@ -1,7 +1,7 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings, flatty
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
-import std/[sequtils, options, decls, options, strformat, sugar]
+import std/[sequtils, options, decls, options, strformat, sugar, enumerate]
 export toFlatty, fromFlatty
 
 type
@@ -25,6 +25,8 @@ type
     cannotPlace
     placeEmpty
     placeStacked
+
+const projectilesAlwaysCollide = {wall}
 
 var
   pickupQuadModel, signModel: Model
@@ -307,8 +309,19 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.saveHistoryStep()
     if KeycodeP.isDown:
       world.popHistoryStep()
-    for x in world.tiles.mitems:
+
+    var projRemoveBuffer: seq[int]
+    for i, x in enumerate world.tiles.mitems:
+      if x.kind in projectilesAlwaysCollide or (x.kind != empty and x.hasStacked()):
+        for id, proj in world.projectiles.idProj:
+          if proj.collides world.getPos(i):
+            projRemoveBuffer.add id
       x.update(world.projectiles, dt, moveDir.isSome)
+    for id, proj in world.projectiles.idProj:
+      if proj.outOfBounds(0..<world.width.int, 0..<world.height.int):
+        projRemoveBuffer.add id
+
+    world.projectiles.destroyProjectiles(projRemoveBuffer.items)
     world.projectiles.update(dt, moveDir.isSome())
 
   of previewing:

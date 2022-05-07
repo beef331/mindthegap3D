@@ -28,6 +28,10 @@ iterator items*(projs: Projectiles): Projectile =
   for x in projs.active:
     yield projs.projectiles[x]
 
+iterator idProj*(projs: Projectiles): (int, Projectile) =
+  for x in projs.active:
+    yield (x, projs.projectiles[x])
+
 proc pos(projectile: Projectile): Vec3 = mix(projectile.fromPos, projectile.toPos, clamp(projectile.moveTime / MoveTime, 0f..1f))
 
 proc getNextId(projs: var Projectiles): int =
@@ -40,7 +44,7 @@ proc init*(_: typedesc[Projectiles]): Projectiles =
 
 proc spawnProjectile*(projs: var Projectiles, pos: Vec3, direction: Direction) =
   let id = projs.getNextId()
-  projs.projectiles[id] = Projectile(fromPos: pos, toPos: pos + direction.asVec3, direction: direction)
+  projs.projectiles[id] = Projectile(fromPos: pos + direction.asVec3, toPos: pos + direction.asVec3, direction: direction)
   projs.active.incl id
   projs.inactive.excl id
 
@@ -51,6 +55,16 @@ proc spawnProjectiles*(projs: var Projectiles, toSpawn: seq[Projectile]) =
 proc destroyProjectile*(projs: var Projectiles, id: int) =
   projs.active.excl id
   projs.inactive.incl id
+
+proc collides*(projectile: Projectile, pos: Vec3): bool =
+  ivec3(int pos.x, 0, int pos.z) == ivec3(int projectile.pos.x, 0, int projectile.pos.z)
+
+proc outOfBounds*(proj: Projectile, xBounds, zBounds: Slice[int]): bool =
+  proj.pos.x.int notin xBounds or proj.pos.z.int notin zBounds
+
+template destroyProjectiles*(projs: var Projectiles, i: iterable[int]) =
+  for x in i:
+    projs.destroyProjectile(x)
 
 proc update*(projs: var Projectiles, dt: float32, playerMoved: bool) =
   for proj in projs.mitems:
