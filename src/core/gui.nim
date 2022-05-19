@@ -44,7 +44,7 @@ out vec2 fuv;
 
 
 void main() {
-  gl_Position = modelMatrix* vec4(vertex_position, 1.0);
+  gl_Position = modelMatrix * vec4(vertex_position, 1.0);
   fuv = uv;
 }
 """
@@ -53,11 +53,18 @@ void main() {
 out vec4 frag_color;
 
 uniform sampler2D tex;
+uniform int hasTex;
 uniform vec4 color;
 in vec2 fuv;
 
 void main() {
   frag_color = color;
+  if(hasTex > 0){
+    frag_color *= texture(tex, fuv);
+  }
+  if(frag_color.a < 0.01){
+    discard;
+  }
 }
 """
 
@@ -71,6 +78,7 @@ proc initUI*() =
   var meshData: MeshData[Vec2]
   meshData.appendVerts([vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items)
   meshData.append([0u32, 1, 2, 0, 2, 3].items)
+  meshData.appendUv([vec2(0, 1), vec2(0, 0), vec2(1, 0), vec2(1, 1)].items)
   uiQuad = meshData.uploadData()
 
 proc calculatePos(ui: UiElement, offset = ivec2(0)): IVec2 =
@@ -114,6 +122,19 @@ method draw*(ui: UiElement, offset = ivec2(0)) {.base.} = discard
 
 proc new*(_: typedesc[Button], pos, size: IVec2, text: string, color: Vec4 = vec4(1), anchor = {left, top}): Button =
   result = Button(pos: pos, size: size, color: color, anchor: anchor)
+  if text.len > 0:
+    result.textureId = genTexture()
+    let
+      font = readFont("assets/fonts/MarradaRegular-Yj0O.ttf")
+      image = newImage(size.x, size.y)
+    font.size = 30
+    font.paint = rgb(255, 255, 255)
+    image.fillText(font, text, bounds = size.vec2, hAlign = CenterAlign, vAlign = MiddleAlign)
+    image.copyTo(result.textureId)
+
+proc new*(_: typedesc[Button], pos, size: IVec2, image: Image, anchor = {left, top}): Button =
+  result = Button(pos: pos, size: size, color: color, anchor: anchor, textureId: genTexture())
+  image.copyTo(result.textureId)
 
 method update*(button: Button, dt: float32, offset = ivec2(0)) =
   if button.isOver(offset = offset):
@@ -128,13 +149,17 @@ method draw*(button: Button, offset = ivec2(0)) =
         button.color * 0.5
       else:
         button.color
+    uishader.setUniform("tex", button.textureId)
+    uishader.setUniform("hasTex", button.textureId.int)
     render(uiQuad)
+    uishader.setUniform("hasTex", 0)
+
 
 proc new*[T](_: typedesc[ScrollBar[T]], pos, size: IVec2, minMax: Slice[T], color, backgroundColor: Vec4, direction = InteractDirection.horizontal, anchor = {left, top}): ScrollBar[T] =
   result = ScrollBar[T](pos: pos, size: size, minMax: minMax, direction: direction, color: color, backgroundColor: backgroundColor, anchor: anchor)
 
 template emitScrollbarMethods*(t: typedesc) =
-  method update*(scrollbar: ScrollBar[float32], dt: float32, offset = ivec2(0)) =
+  method update*(scrollbar: ScrollBar[t], dt: float32, offset = ivec2(0)) =
     if scrollBar.isOver(offset = offset):
       if leftMb.isPressed():
         let pos = scrollBar.calculatePos(offset)
@@ -147,7 +172,7 @@ template emitScrollbarMethods*(t: typedesc) =
           assert false, "Unimplemented"
 
 
-  method draw*(scrollBar: ScrollBar[float32], offset = ivec2(0)) =
+  method draw*(scrollBar: ScrollBar[t], offset = ivec2(0)) =
     with uiShader:
       let isOver = scrollBar.isOver(offset = offset)
       uiShader.setUniform("modelMatrix", scrollBar.calculateAnchorMatrix(offset = offset))
@@ -182,36 +207,39 @@ proc calculateStart(layoutGroup: LayoutGroup, offset = ivec2(0)): IVec2 =
         totalWidth += item.size.x + layoutGroup.margin
       result = ivec2((layoutGroup.size.x - totalWidth) div 2, 0) + layoutGroup.calculatePos(offset)
     of vertical:
-      var totalHeight = 0
-      for i, item in layoutGroup.children:
-        totalHeight += item.size.y
-        if i < layoutGroup.children.high:
-          totalHeight += layoutGroup.margin
-      result = layoutGroup.calculatePos(offset)
+      result =  layoutGroup.calculatePos(offset) # Assume top left?
   else:
     result = layoutGroup.calculatePos(offset)
 
-method update*(layoutGroup: LayoutGroup, dt: float32, offset = ivec2(0)) =
+
+iterator offsetElement(layoutGroup: LayoutGroup, offset: IVec2): (IVec2, UiElement) =
+  ## Iterates over `layoutGroup`s children yielding offset and element
   var pos = layoutGroup.calculateStart(offset)
-  for x in layoutGroup.children:
-    update(x, dt, pos)
+  for item in layoutGroup.children:
     case layoutGroup.layoutDirection
     of horizontal:
-      pos.x += x.size.x + layoutGroup.margin
+      yield (pos, item)
+      pos.x += item.size.x + layoutGroup.margin
+
     of vertical:
-      pos.y += x.size.y + layoutGroup.margin
+      let renderPos = ivec2(pos.x + (layoutGroup.size.x - item.size.x) div 2, pos.y)
+      yield (renderPos, item)
+      pos.y += item.size.y + layoutGroup.margin
+
+
+
+method update*(layoutGroup: LayoutGroup, dt: float32, offset = ivec2(0)) =
+  for pos, item in layoutGroup.offsetElement(offset):
+    update(item, dt, pos)
+
 
 method draw*(layoutGroup: LayoutGroup, offset = ivec2(0)) =
-  var pos = layoutGroup.calculateStart(offset)
-  for x in layoutGroup.children:
-    draw(x, pos)
-    case layoutGroup.layoutDirection
-    of horizontal:
-      pos.x += x.size.x + layoutGroup.margin
-    of vertical:
-      pos.y += x.size.y + layoutGroup.margin
+  for pos, item in layoutGroup.offsetElement(offset):
+    draw(item, pos)
+
 
 proc add*(layoutGroup: LayoutGroup, ui: UiElement) =
+  ui.anchor = {top, left} # Layout groups require top left anchored elements
   layoutGroup.children.add ui
 
 proc remove*(layoutGroup: LayoutGroup, ui: UiElement) =
@@ -233,29 +261,29 @@ when isMainModule:
   proc init =
     initUi()
 
-    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "hello", anchor = {left,top})
+    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "Hmmm", color = vec4(0.5), anchor = {left,top})
     btns[^1].onClick = proc() = echo "Hello world"
 
-    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "hello", anchor = {left,bottom})
+    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "Is this text?!", color = vec4(0.5), anchor = {left,bottom})
     btns[^1].onClick = proc() = echo "Hello world"
 
-    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "hello", anchor = {right, bottom})
+    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "So much memory being wasted", color = vec4(0.5), anchor = {right, bottom})
     btns[^1].onClick = proc() = echo "Hello world"
 
-    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "hello", anchor = {right, top})
+    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "All the textures", color = vec4(0.5), anchor = {right, top})
     btns[^1].onClick = proc() = echo "Hello world"
 
-    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "hello", anchor = {})
+    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "This doesnt even fit", color = vec4(0.5), anchor = {})
     btns[^1].onClick = proc() = echo "Hello world"
 
-    horzLayout.add Button.new(ivec2(10, 10), ivec2(100, 50), "hello")
-    horzLayout.add Button.new(ivec2(10, 10), ivec2(100, 50), "hello")
-    horzLayout.add Button.new(ivec2(10, 10), ivec2(100, 50), "hello")
+    horzLayout.add Button.new(ivec2(10, 10), ivec2(100, 50), "Red", color = vec4(1, 0, 0, 1))
+    horzLayout.add Button.new(ivec2(10, 10), ivec2(100, 50), "Green", color = vec4(0, 1, 0 , 1))
+    horzLayout.add Button.new(ivec2(10, 10), ivec2(100, 50), "Blue", color = vec4(0, 0, 1, 1))
 
 
-    vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(500, 50), 0f..4f, vec4(0, 0, 0.6, 1), vec4(0.1, 0.1, 0, 1))
-    vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(500, 50), 0f..4f, vec4(0.6, 0, 0, 1), vec4(0.1, 0.1, 0.3, 1))
-    vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(500, 50), 0f..4f, vec4(0.6, 0, 0.6, 1), vec4(0.1, 0.1, 0.1, 1))
+    vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(100, 20), 0f..4f, vec4(0, 0, 0.6, 1), vec4(0.1, 0.1, 0, 1))
+    vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(400, 20), 0f..4f, vec4(0.6, 0, 0, 1), vec4(0.1, 0.1, 0.3, 1))
+    vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(300, 20), 0f..4f, vec4(0.6, 0, 0.6, 1), vec4(0.1, 0.1, 0.1, 1))
 
 
   proc update(dt: float32) =
