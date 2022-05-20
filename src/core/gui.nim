@@ -1,6 +1,6 @@
 import vmath, pixie, truss3D
 import truss3D/[textures, shaders, inputs, models]
-import std/[options, sequtils, sugar]
+import std/[options, sequtils, sugar, enumerate]
 
 
 type
@@ -32,10 +32,11 @@ type
 
   DropDown*[T] = ref object of UiElement
     values: seq[T]
-    dropDownButtons: LayoutGroup
+    buttons: seq[UiElement]
     opened: bool
     selected: int
     button: Button
+    margin: int
 
 const
   vertShader = ShaderFile"""
@@ -263,7 +264,7 @@ proc clear*(layoutGroup: LayoutGroup) =
 
 proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[(string, T)], anchor = {top, left}): DropDown[T] =
   result = DropDown[T](pos: pos, size: size, anchor: anchor)
-  result.dropDownButtons = LayoutGroup.new(pos, size, margin = 0, layoutDirection = vertical, anchor = anchor)
+
   let res = result[].addr
   for i, iterVal in values:
     let
@@ -273,13 +274,13 @@ proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[(stri
           vec4(0.5, 0.5, 0.5, 1)
         else:
           vec4(1)
-    result.dropDownButtons.add Button.new(ivec2(0), size, name, color = color)
+    result.buttons.add Button.new(ivec2(0), size, name, color = color)
     capture(name, value, i):
-      Button(res[].dropDownButtons.children[^1]).onClick = proc() =
+      Button(res[].buttons[^1]).onClick = proc() =
         res[].opened = false
         res[].button.textureid.renderTextTo(size, name)
         res[].selected = i
-        for ind, child in res[].dropDownButtons.children:
+        for ind, child in res[].buttons:
           if ind == i:
             child.color = vec4(1) # TODO: Dont hard code these
           else:
@@ -301,21 +302,48 @@ type MyEnum = enum
   SomeOthererValue
   SomeOthrerererValue
 
+iterator offsetElement(dropDown: DropDown, offset: IVec2): (IVec2, UiElement) =
+  ## Iterates over `dropDown`s children yielding offset and element and proper order
+  var yPos = dropDown.calculatePos(offset).y
+  yPos += dropDown.buttons[dropDown.selected].size.y + dropDown.margin
+  for i, item in dropDown.buttons:
+    if i != dropDown.selected:
+      yPos += item.size.y + dropdown.margin
+
+  let dir =
+    if yPos > screenSize().y:
+      -1
+    else:
+      1
+
+  var pos = dropDown.calculatePos(offset)
+  yield (pos, dropDown.buttons[dropDown.selected])
+  pos.y += (dropDown.buttons[dropDown.selected].size.y + dropDown.margin) * dir
+  for i, item in dropDown.buttons:
+    if i != dropDown.selected:
+      let renderPos = ivec2(pos.x + (dropDown.size.x - item.size.x) div 2, pos.y)
+      yield (renderPos, item)
+      pos.y += (item.size.y + dropDown.margin) * dir
+
 method update*(dropDown: DropDown[MyEnum], dt: float32, offset = ivec2(0)) =
   if dropDown.opened:
-    dropdown.dropDownButtons.update(dt, offset)
+    for (pos, item) in dropDown.offsetElement(offset):
+      item.update(dt, pos)
     if leftMb.isDown():
       dropDown.opened = false
   else:
+    dropdown.button.anchor = dropdown.anchor
     dropDown.button.update(dt, offset)
 
 
 
 method draw*(dropDown: DropDown[MyEnum], offset = ivec2(0)) =
-  if dropdown.opened:
-    dropdown.dropDownButtons.draw(offset)
+  if dropDown.opened:
+    for (pos, item) in dropDown.offsetElement(offset):
+      item.draw(pos)
   else:
-    dropdown.button.draw(offset)
+    dropDown.button.draw(offset)
+
 
 
 when isMainModule:
@@ -337,10 +365,10 @@ when isMainModule:
     btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "So much memory being wasted", color = vec4(0.5), anchor = {right, bottom})
     btns[^1].onClick = proc() = echo "Hello world"
 
-    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "All the textures", color = vec4(0.5), anchor = {right, top})
-    btns[^1].onClick = proc() = echo "Hello world"
-
-    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "This doesnt even fit", color = vec4(0.5), anchor = {})
+    btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "Move dropbox down", color = vec4(0.5), anchor = {right, top})
+    btns[^1].onClick = proc() =
+      swap(myDropDown.anchor, btns[2].anchor)
+    btns.add  Button.new(ivec2(0), ivec2(200, 100), "This doesnt even fit", color = vec4(0.5), anchor = {})
     btns[^1].onClick = proc() = echo "Hello world"
 
     horzLayout.add Button.new(ivec2(10, 10), ivec2(100, 50), "Red", color = vec4(1, 0, 0, 1))
@@ -351,7 +379,7 @@ when isMainModule:
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(100, 20), 0f..4f, vec4(0, 0, 0.6, 1), vec4(0.1, 0.1, 0, 1))
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(400, 20), 0f..4f, vec4(0.6, 0, 0, 1), vec4(0.1, 0.1, 0.3, 1))
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(300, 20), 0f..4f, vec4(0.6, 0, 0.6, 1), vec4(0.1, 0.1, 0.1, 1))
-    myDropDown = Dropdown[MyEnum].new(ivec2(0, 100), ivec2(200, 30), MyEnum.toSeq, anchor = {})
+    myDropDown = Dropdown[MyEnum].new(ivec2(10, 10), ivec2(200, 45), MyEnum.toSeq, anchor = {right})
 
   proc update(dt: float32) =
     for btn in btns:
