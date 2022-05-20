@@ -1,6 +1,6 @@
 import vmath, pixie, truss3D
 import truss3D/[textures, shaders, inputs, models]
-import std/[options]
+import std/[options, sequtils, sugar]
 
 
 type
@@ -29,6 +29,13 @@ type
     children: seq[UiElement]
     margin: int
     centre: bool
+
+  DropDown*[T] = ref object of UiElement
+    values: seq[T]
+    dropDownButtons: LayoutGroup
+    opened: bool
+    selected: int
+    button: Button
 
 const
   vertShader = ShaderFile"""
@@ -120,17 +127,21 @@ method update*(ui: UiElement, dt: float32, offset = ivec2(0)) {.base.} = discard
 method draw*(ui: UiElement, offset = ivec2(0)) {.base.} = discard
 
 
+proc renderTextTo(tex: Texture, size: IVec2, message: string) =
+  let
+    font = readFont("assets/fonts/MarradaRegular-Yj0O.ttf")
+    image = newImage(size.x, size.y)
+  font.size = 30
+  font.paint = rgb(255, 255, 255)
+  image.fillText(font, message, bounds = size.vec2, hAlign = CenterAlign, vAlign = MiddleAlign)
+  image.copyTo(tex)
+
+
 proc new*(_: typedesc[Button], pos, size: IVec2, text: string, color: Vec4 = vec4(1), anchor = {left, top}): Button =
   result = Button(pos: pos, size: size, color: color, anchor: anchor)
   if text.len > 0:
     result.textureId = genTexture()
-    let
-      font = readFont("assets/fonts/MarradaRegular-Yj0O.ttf")
-      image = newImage(size.x, size.y)
-    font.size = 30
-    font.paint = rgb(255, 255, 255)
-    image.fillText(font, text, bounds = size.vec2, hAlign = CenterAlign, vAlign = MiddleAlign)
-    image.copyTo(result.textureId)
+    result.textureId.renderTextTo(size, text)
 
 proc new*(_: typedesc[Button], pos, size: IVec2, image: Image, anchor = {left, top}): Button =
   result = Button(pos: pos, size: size, color: color, anchor: anchor, textureId: genTexture())
@@ -237,7 +248,6 @@ method draw*(layoutGroup: LayoutGroup, offset = ivec2(0)) =
   for pos, item in layoutGroup.offsetElement(offset):
     draw(item, pos)
 
-
 proc add*(layoutGroup: LayoutGroup, ui: UiElement) =
   ui.anchor = {top, left} # Layout groups require top left anchored elements
   layoutGroup.children.add ui
@@ -251,13 +261,70 @@ proc clear*(layoutGroup: LayoutGroup) =
   layoutGroup.children.setLen(0)
 
 
+proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[(string, T)], anchor = {top, left}): DropDown[T] =
+  result = DropDown[T](pos: pos, size: size, anchor: anchor)
+  result.dropDownButtons = LayoutGroup.new(pos, size, margin = 0, layoutDirection = vertical, anchor = anchor)
+  let res = result[].addr
+  for i, iterVal in values:
+    let
+      (name, value) = iterVal
+      color =
+        if i > 0:
+          vec4(0.5, 0.5, 0.5, 1)
+        else:
+          vec4(1)
+    result.dropDownButtons.add Button.new(ivec2(0), size, name, color = color)
+    capture(name, value, i):
+      Button(res[].dropDownButtons.children[^1]).onClick = proc() =
+        res[].opened = false
+        res[].button.textureid.renderTextTo(size, name)
+        res[].selected = i
+        for ind, child in res[].dropDownButtons.children:
+          if ind == i:
+            child.color = vec4(1) # TODO: Dont hard code these
+          else:
+            child.color = vec4(0.5, 0.5, 0.5, 1)
+
+  result.button = Button.new(pos, size, values[0][0], anchor = anchor)
+  result.button.onClick = proc() =
+    res[].opened = not res[].opened
+
+proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[T], anchor = {top, left}): DropDown[T] =
+  var vals = newSeqOfCap[(string, T)](values.len)
+  for x in values:
+    vals.add ($x, x)
+  DropDown[T].new(pos, size, vals, anchor)
+
+type MyEnum = enum
+  SomeValue
+  SomeOtherValue
+  SomeOthererValue
+  SomeOthrerererValue
+
+method update*(dropDown: DropDown[MyEnum], dt: float32, offset = ivec2(0)) =
+  if dropDown.opened:
+    dropdown.dropDownButtons.update(dt, offset)
+    if leftMb.isDown():
+      dropDown.opened = false
+  else:
+    dropDown.button.update(dt, offset)
+
+
+
+method draw*(dropDown: DropDown[MyEnum], offset = ivec2(0)) =
+  if dropdown.opened:
+    dropdown.dropDownButtons.draw(offset)
+  else:
+    dropdown.button.draw(offset)
+
+
 when isMainModule:
   import truss3D
   var
     btns: seq[Button]
     horzLayout = LayoutGroup.new(ivec2(0, 10), ivec2(500, 100), {bottom}, margin = 10)
     vertLayout = LayoutGroup.new(ivec2(0, 10), ivec2(500, 300), {top}, margin = 10, layoutDirection = vertical)
-
+    myDropDown: Dropdown[MyEnum]
   proc init =
     initUi()
 
@@ -284,13 +351,14 @@ when isMainModule:
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(100, 20), 0f..4f, vec4(0, 0, 0.6, 1), vec4(0.1, 0.1, 0, 1))
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(400, 20), 0f..4f, vec4(0.6, 0, 0, 1), vec4(0.1, 0.1, 0.3, 1))
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(300, 20), 0f..4f, vec4(0.6, 0, 0.6, 1), vec4(0.1, 0.1, 0.1, 1))
-
+    myDropDown = Dropdown[MyEnum].new(ivec2(0, 100), ivec2(200, 30), MyEnum.toSeq, anchor = {})
 
   proc update(dt: float32) =
     for btn in btns:
       btn.update(dt)
     horzLayout.update(dt)
     vertLayout.update(dt)
+    myDropDown.update(dt)
 
 
   proc draw() =
@@ -298,5 +366,7 @@ when isMainModule:
       btn.draw()
     horzLayout.draw()
     vertLayout.draw()
+    myDropDown.draw()
+
   initTruss("Test", ivec2(1280, 720), init, update, draw)
 
