@@ -185,9 +185,11 @@ template emitScrollbarMethods*(t: typedesc) =
         let pos = scrollBar.calculatePos(offset)
         case scrollbar.direction
         of horizontal:
-          scrollbar.percentage = (getMousePos().x - pos.x) / scrollBar.size.x
-          scrollBar.val = lerp(scrollBar.minMax.a, scrollBar.minMax.b, scrollbar.percentage)
-          echo scrollbar.val
+          let oldPercentage = scrollbar.percentage
+          scrollbar.percentage = newPercentage
+          scrollbar.val = lerp(scrollbar.minMax.a, scrollbar.minMax.b, scrollbar.percentage)
+          if oldPercentage != scrollbar.percentage and scrollbar.onValueChange != nil:
+            scrollbar.onValueChange(scrollbar.val)
         of vertical:
           assert false, "Unimplemented"
 
