@@ -1,6 +1,6 @@
 import vmath, pixie, truss3D
 import truss3D/[textures, shaders, inputs, models]
-import std/[options, sequtils, sugar, enumerate]
+import std/[options, sequtils, sugar]
 
 
 type
@@ -186,7 +186,7 @@ template emitScrollbarMethods*(t: typedesc) =
         case scrollbar.direction
         of horizontal:
           let oldPercentage = scrollbar.percentage
-          scrollbar.percentage = newPercentage
+          scrollbar.percentage = (getMousePos().x - pos.x) / scrollBar.size.x
           scrollbar.val = lerp(scrollbar.minMax.a, scrollbar.minMax.b, scrollbar.percentage)
           if oldPercentage != scrollbar.percentage and scrollbar.onValueChange != nil:
             scrollbar.onValueChange(scrollbar.val)
