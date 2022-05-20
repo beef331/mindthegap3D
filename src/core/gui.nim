@@ -6,24 +6,31 @@ import std/[options, sequtils, sugar, enumerate]
 type
   InteractDirection* = enum
     horizontal, vertical
+
   AnchorDirection* = enum
     left, right, top, bottom
+
   UiElement = ref object of RootObj
     pos: IVec2
     size: IVec2
     color: Vec4
     anchor: set[AnchorDirection]
+
   Button* = ref object of UiElement
     textureId: Texture
     onClick: proc(){.closure.}
+
   Scrollable* = concept s, type S
     lerp(s, s, 0f) is S
+
   ScrollBar*[T: Scrollable] = ref object of UiElement
     direction: InteractDirection
     val: T
     minMax: Slice[T]
     percentage: float32
     backgroundColor: Vec4
+    onValueChange*: proc(a: T){.closure.}
+
   LayoutGroup* = ref object of UiElement
     layoutDirection: InteractDirection
     children: seq[UiElement]
@@ -37,6 +44,7 @@ type
     selected: int
     button: Button
     margin: int
+    onValueChange*: proc(a: T){.closure.}
 
 const
   vertShader = ShaderFile"""
@@ -205,8 +213,6 @@ template emitScrollbarMethods*(t: typedesc) =
           scrollBar.color
       render(uiQuad)
 
-emitScrollbarMethods(float32)
-
 proc new(_: typedesc[LayoutGroup], pos, size: IVec2, anchor = {top, left}, margin = 10, layoutDirection = InteractDirection.horizontal, centre = true): LayoutGroup =
   LayoutGroup(pos: pos, size: size, anchor: anchor, margin: margin, layoutDirection: layoutDirection, centre: centre)
 
@@ -265,7 +271,7 @@ proc clear*(layoutGroup: LayoutGroup) =
 proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[(string, T)], anchor = {top, left}): DropDown[T] =
   result = DropDown[T](pos: pos, size: size, anchor: anchor)
 
-  let res = result[].addr
+  let res = result # Hack to get around `result` outliving the closure
   for i, iterVal in values:
     let
       (name, value) = iterVal
@@ -275,11 +281,14 @@ proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[(stri
         else:
           vec4(1)
     result.buttons.add Button.new(ivec2(0), size, name, color = color)
+    result.values.add value
     capture(name, value, i):
-      Button(res[].buttons[^1]).onClick = proc() =
-        res[].opened = false
-        res[].button.textureid.renderTextTo(size, name)
-        res[].selected = i
+      Button(res.buttons[^1]).onClick = proc() =
+        res.opened = false
+        res.button.textureid.renderTextTo(size, name)
+        if res.selected != i and res.onvalueChange != nil:
+          res.onValueChange(res.values[i])
+        res.selected = i
         for ind, child in res[].buttons:
           if ind == i:
             child.color = vec4(1) # TODO: Dont hard code these
@@ -288,7 +297,7 @@ proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[(stri
 
   result.button = Button.new(pos, size, values[0][0], anchor = anchor)
   result.button.onClick = proc() =
-    res[].opened = not res[].opened
+    res.opened = not res.opened
 
 proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[T], anchor = {top, left}): DropDown[T] =
   var vals = newSeqOfCap[(string, T)](values.len)
@@ -296,22 +305,16 @@ proc new*[T](_: typedesc[DropDown[T]], pos, size: IVec2, values: openarray[T], a
     vals.add ($x, x)
   DropDown[T].new(pos, size, vals, anchor)
 
-type MyEnum = enum
-  SomeValue
-  SomeOtherValue
-  SomeOthererValue
-  SomeOthrerererValue
-
 iterator offsetElement(dropDown: DropDown, offset: IVec2): (IVec2, UiElement) =
-  ## Iterates over `dropDown`s children yielding offset and element and proper order
+  ## Iterates over `dropDown`s children yielding offset and element in proper order
   var yPos = dropDown.calculatePos(offset).y
-  yPos += dropDown.buttons[dropDown.selected].size.y + dropDown.margin
+  yPos += dropDown.buttons[dropDown.selected].size.y + dropDown.margin # our selected is always first
   for i, item in dropDown.buttons:
     if i != dropDown.selected:
       yPos += item.size.y + dropdown.margin
 
   let dir =
-    if yPos > screenSize().y:
+    if yPos > screenSize().y: # We're off the screen invert direction it's probably right
       -1
     else:
       1
@@ -325,34 +328,43 @@ iterator offsetElement(dropDown: DropDown, offset: IVec2): (IVec2, UiElement) =
       yield (renderPos, item)
       pos.y += (item.size.y + dropDown.margin) * dir
 
-method update*(dropDown: DropDown[MyEnum], dt: float32, offset = ivec2(0)) =
-  if dropDown.opened:
-    for (pos, item) in dropDown.offsetElement(offset):
-      item.update(dt, pos)
-    if leftMb.isDown():
-      dropDown.opened = false
-  else:
-    dropdown.button.anchor = dropdown.anchor
-    dropDown.button.update(dt, offset)
+template emitDropDownMethods*(t: typedesc) =
+  method update*(dropDown: DropDown[t], dt: float32, offset = ivec2(0)) =
+    if dropDown.opened:
+      for (pos, item) in dropDown.offsetElement(offset):
+        item.update(dt, pos)
+      if leftMb.isDown():
+        dropDown.opened = false
+    else:
+      dropdown.button.anchor = dropdown.anchor
+      dropDown.button.update(dt, offset)
 
-
-
-method draw*(dropDown: DropDown[MyEnum], offset = ivec2(0)) =
-  if dropDown.opened:
-    for (pos, item) in dropDown.offsetElement(offset):
-      item.draw(pos)
-  else:
-    dropDown.button.draw(offset)
-
+  method draw*(dropDown: DropDown[t], offset = ivec2(0)) =
+    if dropDown.opened:
+      for (pos, item) in dropDown.offsetElement(offset):
+        item.draw(pos)
+    else:
+      dropDown.button.draw(offset)
 
 
 when isMainModule:
   import truss3D
+  emitScrollbarMethods(float32)
+
+  type MyEnum = enum
+    SomeValue
+    SomeOtherValue
+    SomeOthererValue
+    SomeOthrerererValue
+
+  emitDropDownMethods(MyEnum)
+
   var
     btns: seq[Button]
     horzLayout = LayoutGroup.new(ivec2(0, 10), ivec2(500, 100), {bottom}, margin = 10)
     vertLayout = LayoutGroup.new(ivec2(0, 10), ivec2(500, 300), {top}, margin = 10, layoutDirection = vertical)
     myDropDown: Dropdown[MyEnum]
+    myVal: MyEnum
   proc init =
     initUi()
 
@@ -380,6 +392,7 @@ when isMainModule:
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(400, 20), 0f..4f, vec4(0.6, 0, 0, 1), vec4(0.1, 0.1, 0.3, 1))
     vertLayout.add ScrollBar[float32].new(ivec2(0, 0), iVec2(300, 20), 0f..4f, vec4(0.6, 0, 0.6, 1), vec4(0.1, 0.1, 0.1, 1))
     myDropDown = Dropdown[MyEnum].new(ivec2(10, 10), ivec2(200, 45), MyEnum.toSeq, anchor = {right})
+    myDropDown.onValueChange = proc(a: MyEnum) = myVal = a
 
   proc update(dt: float32) =
     for btn in btns:
