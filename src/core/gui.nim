@@ -10,11 +10,15 @@ type
   AnchorDirection* = enum
     left, right, top, bottom
 
-  UiElement = ref object of RootObj
-    pos: IVec2
-    size: IVec2
-    color: Vec4
-    anchor: set[AnchorDirection]
+  UiElement* = ref object of RootObj
+    pos*: IVec2
+    size*: IVec2
+    color*: Vec4
+    anchor*: set[AnchorDirection]
+    visibleCond*: proc(): bool {.closure.}
+
+  Label* = ref object of UiElement
+    texture: Texture
 
   Button* = ref object of UiElement
     textureId: Texture
@@ -88,6 +92,7 @@ void main() {
 var
   uiShader: Shader
   uiQuad: Model
+  overGui*: bool
 
 proc init*() =
   uiShader = loadShader(vertShader, fragShader)
@@ -96,6 +101,9 @@ proc init*() =
   meshData.append([0u32, 1, 2, 0, 2, 3].items)
   meshData.appendUv([vec2(0, 1), vec2(0, 0), vec2(1, 0), vec2(1, 1)].items)
   uiQuad = meshData.uploadData()
+
+proc shouldRender(ui: UiElement): bool =
+ ui.visibleCond.isNil or ui.visibleCond()
 
 proc calculatePos(ui: UiElement, offset = ivec2(0)): IVec2 =
   let scrSize = screenSize()
@@ -145,6 +153,22 @@ proc renderTextTo(tex: Texture, size: IVec2, message: string) =
   image.fillText(font, message, bounds = size.vec2, hAlign = CenterAlign, vAlign = MiddleAlign)
   image.copyTo(tex)
 
+proc new*(_: typedesc[Label], pos, size: IVec2, text: string, color = vec4(1), anchor = {left, top}): Label =
+  result = Label(pos: pos, size: size, color: color, anchor: anchor)
+  result.texture = genTexture()
+  result.texture.renderTextTo(size, text)
+
+method update*(label: Label, dt: float32, offset = ivec2(0)) = discard
+method draw*(label: Label, offset = ivec2(0)) =
+  if label.shouldRender:
+    with uishader:
+      uiShader.setUniform("modelMatrix", label.calculateAnchorMatrix(offset = offset))
+      uishader.setUniform("color", label.color)
+      uishader.setUniform("tex", label.texture)
+      uishader.setUniform("hasTex", 1)
+      render(uiQuad)
+      uishader.setUniform("hasTex", 0)
+
 
 proc new*(_: typedesc[Button], pos, size: IVec2, text: string, color: Vec4 = vec4(1), anchor = {left, top}): Button =
   result = Button(pos: pos, size: size, color: color, anchor: anchor)
@@ -157,22 +181,24 @@ proc new*(_: typedesc[Button], pos, size: IVec2, image: Image, anchor = {left, t
   image.copyTo(result.textureId)
 
 method update*(button: Button, dt: float32, offset = ivec2(0)) =
-  if button.isOver(offset = offset):
+  if button.isOver(offset = offset) and button.shouldRender:
+    overGui = true
     if leftMb.isDown and button.onClick != nil:
       button.onClick()
 
 method draw*(button: Button, offset = ivec2(0)) =
-  with uiShader:
-    uiShader.setUniform("modelMatrix", button.calculateAnchorMatrix(offset = offset))
-    uiShader.setUniform("color"):
-      if button.isOver(offset = offset):
-        button.color * 0.5
-      else:
-        button.color
-    uishader.setUniform("tex", button.textureId)
-    uishader.setUniform("hasTex", button.textureId.int)
-    render(uiQuad)
-    uishader.setUniform("hasTex", 0)
+  if button.shouldRender:
+    with uiShader:
+      uiShader.setUniform("modelMatrix", button.calculateAnchorMatrix(offset = offset))
+      uiShader.setUniform("color"):
+        if button.isOver(offset = offset):
+          button.color * 0.5
+        else:
+          button.color
+      uishader.setUniform("tex", button.textureId)
+      uishader.setUniform("hasTex", button.textureId.int)
+      render(uiQuad)
+      uishader.setUniform("hasTex", 0)
 
 
 proc new*[T](_: typedesc[ScrollBar[T]], pos, size: IVec2, minMax: Slice[T], color, backgroundColor: Vec4, direction = InteractDirection.horizontal, anchor = {left, top}): ScrollBar[T] =
@@ -180,7 +206,8 @@ proc new*[T](_: typedesc[ScrollBar[T]], pos, size: IVec2, minMax: Slice[T], colo
 
 template emitScrollbarMethods*(t: typedesc) =
   method update*(scrollbar: ScrollBar[t], dt: float32, offset = ivec2(0)) =
-    if scrollBar.isOver(offset = offset):
+    if scrollBar.isOver(offset = offset) and scrollBar.shouldRender:
+      overGui = true
       if leftMb.isPressed():
         let pos = scrollBar.calculatePos(offset)
         case scrollbar.direction
@@ -195,25 +222,26 @@ template emitScrollbarMethods*(t: typedesc) =
 
 
   method draw*(scrollBar: ScrollBar[t], offset = ivec2(0)) =
-    with uiShader:
-      let isOver = scrollBar.isOver(offset = offset)
-      uiShader.setUniform("modelMatrix", scrollBar.calculateAnchorMatrix(offset = offset))
-      uiShader.setUniform("color"):
-        if isOver:
-          scrollBar.backgroundColor / 2
-        else:
-          scrollBar.backgroundColor
-      render(uiQuad)
+    if scrollBar.shouldRender:
+      with uiShader:
+        let isOver = scrollBar.isOver(offset = offset)
+        uiShader.setUniform("modelMatrix", scrollBar.calculateAnchorMatrix(offset = offset))
+        uiShader.setUniform("color"):
+          if isOver:
+            scrollBar.backgroundColor / 2
+          else:
+            scrollBar.backgroundColor
+        render(uiQuad)
 
-      let sliderScale = scrollBar.size.vec2 * vec2(clamp(scrollbar.percentage, 0, 1), 1)
+        let sliderScale = scrollBar.size.vec2 * vec2(clamp(scrollbar.percentage, 0, 1), 1)
 
-      uiShader.setUniform("modelMatrix", scrollBar.calculateAnchorMatrix(some(sliderScale), offset))
-      uiShader.setUniform("color"):
-        if isOver:
-          scrollBar.color * 2
-        else:
-          scrollBar.color
-      render(uiQuad)
+        uiShader.setUniform("modelMatrix", scrollBar.calculateAnchorMatrix(some(sliderScale), offset))
+        uiShader.setUniform("color"):
+          if isOver:
+            scrollBar.color * 2
+          else:
+            scrollBar.color
+        render(uiQuad)
 
 proc new*(_: typedesc[LayoutGroup], pos, size: IVec2, anchor = {top, left}, margin = 10, layoutDirection = InteractDirection.horizontal, centre = true): LayoutGroup =
   LayoutGroup(pos: pos, size: size, anchor: anchor, margin: margin, layoutDirection: layoutDirection, centre: centre)
@@ -249,13 +277,15 @@ iterator offsetElement(layoutGroup: LayoutGroup, offset: IVec2): (IVec2, UiEleme
 
 
 method update*(layoutGroup: LayoutGroup, dt: float32, offset = ivec2(0)) =
-  for pos, item in layoutGroup.offsetElement(offset):
-    update(item, dt, pos)
+  if layoutGroup.shouldRender:
+    for pos, item in layoutGroup.offsetElement(offset):
+      update(item, dt, pos)
 
 
 method draw*(layoutGroup: LayoutGroup, offset = ivec2(0)) =
-  for pos, item in layoutGroup.offsetElement(offset):
-    draw(item, pos)
+  if layoutGroup.shouldRender:
+    for pos, item in layoutGroup.offsetElement(offset):
+      draw(item, pos)
 
 proc add*(layoutGroup: LayoutGroup, ui: UiElement) =
   ui.anchor = {top, left} # Layout groups require top left anchored elements
@@ -332,21 +362,23 @@ iterator offsetElement(dropDown: DropDown, offset: IVec2): (IVec2, UiElement) =
 
 template emitDropDownMethods*(t: typedesc) =
   method update*(dropDown: DropDown[t], dt: float32, offset = ivec2(0)) =
-    if dropDown.opened:
-      for (pos, item) in dropDown.offsetElement(offset):
-        item.update(dt, pos)
-      if leftMb.isDown():
-        dropDown.opened = false
-    else:
-      dropdown.button.anchor = dropdown.anchor
-      dropDown.button.update(dt, offset)
+    if shouldRender(dropDown):
+      if dropDown.opened:
+        for (pos, item) in dropDown.offsetElement(offset):
+          item.update(dt, pos)
+        if leftMb.isDown():
+          dropDown.opened = false
+      else:
+        dropdown.button.anchor = dropdown.anchor
+        dropDown.button.update(dt, offset)
 
   method draw*(dropDown: DropDown[t], offset = ivec2(0)) =
-    if dropDown.opened:
-      for (pos, item) in dropDown.offsetElement(offset):
-        item.draw(pos)
-    else:
-      dropDown.button.draw(offset)
+    if shouldRender(dropDown):
+      if dropDown.opened:
+        for (pos, item) in dropDown.offsetElement(offset):
+          item.draw(pos)
+      else:
+        dropDown.button.draw(offset)
 
 
 when isMainModule:

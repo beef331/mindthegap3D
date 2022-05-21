@@ -3,8 +3,8 @@ import vmath
 import chroma
 import pixie
 import truss3D/[shaders, textures]
-import core/[worlds, resources, cameras, players, directions, editorbridge]
-import std/os
+import core/[worlds, resources, cameras, players, directions, gui, tiles]
+import std/[os, sugar]
 
 shaderPath = "assets/shaders"
 modelPath = "assets/models"
@@ -43,10 +43,14 @@ addResourceProc do:
   waterTex = genTexture()
   readImage("assets/water.png").copyTo(waterTex)
   depthBuffer.clearColor = color(0, 0, 0, 1)
+  gui.init()
+  world = World.init(10, 10)
+  #world.placeTile(Tile(kind: floor), ivec2(0, 0))
 
 
 var
   lastScreenSize: IVec2
+#[
   editorSocket = createGameSocket()
   editorFut: Future[World]
 
@@ -67,7 +71,7 @@ proc makeEditorFuture(): Future[World] =
 
 
 editorFut = makeEditorFuture()
-
+]#
 
 proc cameraMovement =
   var
@@ -100,8 +104,6 @@ proc cameraMovement =
 
 proc update(dt: float32) =
 
-
-
   let scrSize = screenSize()
   if lastScreenSize != scrSize:
     lastScreenSize = scrSize
@@ -129,14 +131,15 @@ proc update(dt: float32) =
 
   if KeyCodeQ.isDown:
     quitTruss()
-  poll(0) # Poll async dispatch
+  overGui = false
+##  poll(0) # Poll async dispatch
 
 proc draw =
   glEnable(GlDepthTest)
   glCullFace(GlBack)
   with depthBuffer:
     depthBuffer.clear()
-    world.render(camera)
+    world.renderDepth(camera)
 
   with signBuffer:
     signBuffer.clear()

@@ -1,12 +1,12 @@
 import truss3D, truss3D/[models, textures]
 import pixie, opengl, vmath, easings, flatty
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, gui
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate]
 export toFlatty, fromFlatty
 
 type
   WorldState* = enum
-    playing, previewing
+    playing, previewing, editing
   World* = object
     width*, height*: int64
     tiles*: seq[Tile]
@@ -16,6 +16,12 @@ type
     player*: Player
     projectiles*: Projectiles
     history: seq[History]
+
+    # Editor fields
+    inspecting: int
+    paintKind: TileKind
+    editorGui: seq[UIElement]
+    inspector: LayoutGroup
 
   HistoryKind = enum
     nothing, start, checkpoint
@@ -84,7 +90,6 @@ iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
       index += 1
       yield world.tiles[index]
 
-
 iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
   ## Yields present and next index
   assert start in 0..<world.tiles.len
@@ -110,8 +115,43 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
       yield (index, index + 1)
       index += 1
 
+emitDropDownMethods(PickupType)
+
+proc setupEditorGui(world: var World) =
+  world.editorGui.setLen(0)
+  let placeLayout = LayoutGroup.new(ivec2(0), ivec2(400, 50), centre = false)
+  for placeable in succ(empty) .. TileKind.high:
+    let
+      button = Button.new(ivec2(10, 10), ivec2(50, 50), $placeable)
+      world = world.addr
+    capture(placeable):
+      button.onClick = proc() =
+        world.paintKind = placeable
+
+    placeLayout.add button
+  world.editorGui.add placeLayout
+
+  let wrld = world.addr
+  world.inspector = LayoutGroup.new(ivec2(10, 10), ivec2(200, 500), layoutDirection = vertical, centre = false, anchor = {top, right})
+  let pickupLayout = LayoutGroup.new(ivec2(0, 0), ivec2(200, 50), centre = false, margin = 0)
+  pickupLayout.add Label.new(ivec2(0), ivec2(75, 25), "Pickup: ")
+  let myDropDown = Dropdown[PickupType].new(ivec2(0), ivec2(75, 25), PickupType.toSeq)
+  myDropdown.onValueChange = proc(p: PickupType) =
+    if wrld.inspecting in 0..wrld.tiles.high and wrld.tiles[wrld.inspecting].kind == pickup:
+      wrld.tiles[wrld.inspecting].pickupKind = p
+  pickupLayout.add myDropDown
+  pickupLayout.visibleCond = proc(): bool =
+    wrld.tiles[wrld.inspecting].kind == pickup
+  world.inspector.add pickupLayout
+  world.inspector.visibleCond = proc(): bool =
+    wrld.inspecting in 0..wrld.tiles.high
+
+
+proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
+
 proc init*(_: typedesc[World], width, height: int): World =
-  World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init())
+  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1)
+  result.setupEditorGui()
 
 proc isFinished*(world: World): bool =
   for x in world.tiles:
@@ -179,8 +219,6 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   let
     newWidth = max(world.width, pos.x)
     newHeight = max(world.height, pos.y)
-  if newWidth notin 0..<world.width or newHeight notin 0..<world.height:
-    world.resize(ivec2(int newWidth, int newHeight))
   let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0:
     world.tiles[ind] = tile
@@ -206,7 +244,6 @@ proc canPush(world: World, index: int, dir: Direction): bool =
     of empty:
       return true
     else: discard
-
 
 proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
   let projectiles = collect(for x in world.projectiles.items: x)
@@ -349,20 +386,55 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 
     world.projectiles.destroyProjectiles(projRemoveBuffer.items)
     world.projectiles.update(dt, moveDir.isSome())
+    if KeyCodeF11.isDown:
+      world.state = editing
 
   of previewing:
     discard
+  of editing:
+    for element in world.editorGui:
+      element.update(dt)
+    world.inspector.update(dt)
+
+    if not overGui:
+      let
+        pos = world.cursorPos(cam)
+        ind = world.getPointIndex(pos)
+
+      if pos in world:
+        if leftMb.isPressed:
+          if KeycodeLCtrl.isPressed:
+            let selectedPos = world.cursorPos(cam)
+            if selectedPos in world:
+              world.inspecting = world.getPointIndex(selectedPos)
+          else:
+            world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
+            case world.paintKind:
+            of box:
+              world.tiles[ind].progress = FallTime
+            of pickup:
+              world.tiles[ind].active = true
+            else:
+              discard
+        if rightMb.isPressed:
+          world.placeTile(Tile(kind: empty), pos.xz.ivec2)
+
+
+
+    if KeyCodeF11.isDown:
+      world.state = playing
+
 
 # RENDER LOGIC BELOW
 
-proc renderDepth*(world: World, cam: Camera, shader: Shader) =
+proc renderDepth*(world: World, cam: Camera) =
   for (tile, pos) in world.tileKindCoords:
     if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
       case tile.kind:
       of box:
-        renderBox(tile, cam, pos, shader)
+        renderBox(tile, cam, pos, levelShader)
       else:
-        renderBlock(tile, cam, shader, pos)
+        renderBlock(tile, cam, levelShader, pos)
 
 proc renderSignBuff*(world: World, cam: Camera) =
   for i, x in world.signs:
@@ -424,6 +496,12 @@ proc render*(world: World, cam: Camera) =
   if world.player.hasPickup:
       world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
   world.projectiles.render(cam, levelShader)
+  if world.state == editing:
+    cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
+    renderBlock(Tile(kind: world.paintKind), cam, cursorShader, world.cursorPos(cam))
+    for element in world.editorGui:
+      element.draw()
+    world.inspector.draw()
 
 iterator tiles*(world: World): (int, int, Tile) =
   for i, tile in world.tiles:
