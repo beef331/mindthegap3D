@@ -18,7 +18,7 @@ type
 
   Button* = ref object of UiElement
     textureId: Texture
-    onClick: proc(){.closure.}
+    onClick*: proc(){.closure.}
 
   Scrollable* = concept s, type S
     lerp(s, s, 0f) is S
@@ -89,7 +89,7 @@ var
   uiShader: Shader
   uiQuad: Model
 
-proc initUI*() =
+proc init*() =
   uiShader = loadShader(vertShader, fragShader)
   var meshData: MeshData[Vec2]
   meshData.appendVerts([vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items)
@@ -215,7 +215,7 @@ template emitScrollbarMethods*(t: typedesc) =
           scrollBar.color
       render(uiQuad)
 
-proc new(_: typedesc[LayoutGroup], pos, size: IVec2, anchor = {top, left}, margin = 10, layoutDirection = InteractDirection.horizontal, centre = true): LayoutGroup =
+proc new*(_: typedesc[LayoutGroup], pos, size: IVec2, anchor = {top, left}, margin = 10, layoutDirection = InteractDirection.horizontal, centre = true): LayoutGroup =
   LayoutGroup(pos: pos, size: size, anchor: anchor, margin: margin, layoutDirection: layoutDirection, centre: centre)
 
 proc calculateStart(layoutGroup: LayoutGroup, offset = ivec2(0)): IVec2 =
@@ -368,7 +368,7 @@ when isMainModule:
     myDropDown: Dropdown[MyEnum]
     myVal: MyEnum
   proc init =
-    initUi()
+    gui.init()
 
     btns.add  Button.new(ivec2(10, 10), ivec2(200, 100), "Hmmm", color = vec4(0.5), anchor = {left,top})
     btns[^1].onClick = proc() = echo "Hello world"
