@@ -1,6 +1,6 @@
-import truss3D, truss3D/[models, textures]
+import truss3D, truss3D/[models, textures, gui]
 import pixie, opengl, vmath, easings, flatty
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, gui
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate]
 export toFlatty, fromFlatty
 
@@ -198,8 +198,6 @@ proc setupEditorGui(world: var World) =
   let widthLayout = LayoutGroup.new(ivec2(20, 0), ivec2(400, 40), centre = false)
   widthLayout.add widthLabel
   widthLayout.add widthSlider
-
-
 
   let
     heightLabel = Label.new(ivec2(0), ivec2(60, 50), "Height: ")
@@ -563,7 +561,6 @@ proc render*(world: World, cam: Camera) =
       render(flagModel)
     else:
       renderBlock(Tile(kind: world.paintKind), cam, cursorShader, world.cursorPos(cam))
-
     for element in world.editorGui:
       element.draw()
 

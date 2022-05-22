@@ -2,8 +2,8 @@ import truss3D
 import vmath
 import chroma
 import pixie
-import truss3D/[shaders, textures]
-import core/[worlds, resources, cameras, players, directions, gui, tiles]
+import truss3D/[shaders, textures, gui]
+import core/[worlds, resources, cameras, players, directions, tiles]
 import std/[os, sugar]
 
 shaderPath = "assets/shaders"
