@@ -21,7 +21,6 @@ type
     inspecting: int
     paintKind: TileKind
     editorGui: seq[UIElement]
-    inspector: LayoutGroup
 
   HistoryKind = enum
     nothing, start, checkpoint
@@ -39,13 +38,13 @@ type
 const projectilesAlwaysCollide = {wall}
 
 var
-  pickupQuadModel, signModel: Model
+  pickupQuadModel, signModel, flagModel: Model
   levelShader, cursorShader, alphaClipShader, flagShader, boxShader, signBuffShader: Shader
 
 addResourceProc:
   pickupQuadModel = loadModel("pickup_quad.dae")
   signModel = loadModel("sign.dae")
-
+  flagModel = loadModel("flag.dae")
   levelShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
   cursorShader = loadShader(ShaderPath"vert.glsl", ShaderPath"cursorfrag.glsl")
   alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
@@ -117,41 +116,8 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
 
 emitDropDownMethods(PickupType)
 
-proc setupEditorGui(world: var World) =
-  world.editorGui.setLen(0)
-  let placeLayout = LayoutGroup.new(ivec2(0), ivec2(400, 50), centre = false)
-  for placeable in succ(empty) .. TileKind.high:
-    let
-      button = Button.new(ivec2(10, 10), ivec2(50, 50), $placeable)
-      world = world.addr
-    capture(placeable):
-      button.onClick = proc() =
-        world.paintKind = placeable
-
-    placeLayout.add button
-  world.editorGui.add placeLayout
-
-  let wrld = world.addr
-  world.inspector = LayoutGroup.new(ivec2(10, 10), ivec2(200, 500), layoutDirection = vertical, centre = false, anchor = {top, right})
-  let pickupLayout = LayoutGroup.new(ivec2(0, 0), ivec2(200, 50), centre = false, margin = 0)
-  pickupLayout.add Label.new(ivec2(0), ivec2(75, 25), "Pickup: ")
-  let myDropDown = Dropdown[PickupType].new(ivec2(0), ivec2(75, 25), PickupType.toSeq)
-  myDropdown.onValueChange = proc(p: PickupType) =
-    if wrld.inspecting in 0..wrld.tiles.high and wrld.tiles[wrld.inspecting].kind == pickup:
-      wrld.tiles[wrld.inspecting].pickupKind = p
-  pickupLayout.add myDropDown
-  pickupLayout.visibleCond = proc(): bool =
-    wrld.tiles[wrld.inspecting].kind == pickup
-  world.inspector.add pickupLayout
-  world.inspector.visibleCond = proc(): bool =
-    wrld.inspecting in 0..wrld.tiles.high
-
-
-proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
-
-proc init*(_: typedesc[World], width, height: int): World =
-  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1)
-  result.setupEditorGui()
+proc lerp(a, b: int, c: float32): int = (a.float32 + (b - a).float32 * c).int
+emitScrollbarMethods(int)
 
 proc isFinished*(world: World): bool =
   for x in world.tiles:
@@ -175,6 +141,91 @@ proc getPointIndex*(world: World, point: Vec3): int =
     -1
 
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
+
+proc resize*(world: var World, newSize: IVec2) =
+  var newTileData = newSeq[Tile](newSize.x * newSize.y)
+  for x in 0..<newSize.x:
+    if x < world.width:
+      for y in 0..<newSize.y:
+        if y < world.height:
+          newTileData[x + y * newSize.x] = world.tiles[x + y * world.width]
+  world.width = newSize.x
+  world.height = newSize.y
+  world.tiles = newTileData
+
+proc reload(world: var World) =
+  ## Used to reload the world state and reposition player
+  world.history.setLen(0)
+  world.player = Player.init(world.getPos(world.playerSpawn.int))
+
+proc setupEditorGui(world: var World) =
+  world.editorGui.setLen(0)
+  let placeLayout = LayoutGroup.new(ivec2(0), ivec2(400, 50), centre = false, margin = 0)
+  for placeable in succ(empty) .. TileKind.high:
+    let
+      button = Button.new(ivec2(10, 10), ivec2(50, 50), $placeable)
+      world = world.addr
+    capture(placeable):
+      button.onClick = proc() =
+        world.paintKind = placeable
+
+    placeLayout.add button
+  let topleftLayout = LayoutGroup.new(ivec2(0), ivec2(400, 50), centre = false, layoutDirection = vertical)
+  topleftLayout.add placeLayout
+  world.editorGui.add topleftLayout
+
+  let wrld = world.addr
+  let inspectorGui = LayoutGroup.new(ivec2(10, 10), ivec2(200, 500), layoutDirection = vertical, centre = false, anchor = {top, right})
+  let pickupLayout = LayoutGroup.new(ivec2(0, 0), ivec2(200, 50), centre = false, margin = 0)
+  pickupLayout.add Label.new(ivec2(0), ivec2(75, 25), "Pickup: ")
+  let myDropDown = Dropdown[PickupType].new(ivec2(0), ivec2(75, 25), PickupType.toSeq)
+  myDropdown.onValueChange = proc(p: PickupType) =
+    if wrld.inspecting in 0..wrld.tiles.high and wrld.tiles[wrld.inspecting].kind == pickup:
+      wrld.tiles[wrld.inspecting].pickupKind = p
+  pickupLayout.add myDropDown
+  pickupLayout.visibleCond = proc(): bool =
+    wrld.tiles[wrld.inspecting].kind == pickup
+
+
+  let
+    widthLabel = Label.new(ivec2(0), ivec2(60, 50), "Width: ")
+    wstartPerc = (world.width - 3).float32 / (30 - 3).float32
+    widthSlider = ScrollBar[int].new(ivec2(0, 15), ivec2(100, 20), 3..30, vec4(1), vec4(0.1), startPercentage = wstartPerc)
+  widthSlider.onValueChange = proc(i: int) =
+    wrld[].resize(ivec2(i, wrld.height.int))
+    wrld[].reload()
+
+  let widthLayout = LayoutGroup.new(ivec2(20, 0), ivec2(400, 40), centre = false)
+  widthLayout.add widthLabel
+  widthLayout.add widthSlider
+
+
+
+  let
+    heightLabel = Label.new(ivec2(0), ivec2(60, 50), "Height: ")
+    hstartPerc = (world.height - 3).float32 / (30 - 3).float32
+    heightSlider = ScrollBar[int].new(ivec2(0, 15), ivec2(100, 20), 3..30, vec4(1), vec4(0.1), startPercentage = hstartPerc)
+  heightSlider.onValueChange = proc(i: int) =
+    wrld[].resize(ivec2(wrld.width.int, i))
+
+  let heightLayout = LayoutGroup.new(ivec2(20, 0), ivec2(400, 40), centre = false)
+  heightLayout.add heightLabel
+  heightLayout.add heightSlider
+
+  topleftLayout.add widthLayout
+  topleftLayout.add heightLayout
+
+  inspectorGui.add pickupLayout
+  world.editorGui.add inspectorGui
+  pickupLayout.visibleCond = proc(): bool =
+    wrld.inspecting in 0..wrld.tiles.high
+
+
+proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
+
+proc init*(_: typedesc[World], width, height: int): World =
+  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1)
+  result.setupEditorGui()
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
   if pos in world and world.getPointIndex(pos) != world.getPointIndex(world.player.mapPos):
@@ -205,15 +256,6 @@ proc placeBlock(world: var World, cam: Camera) =
     else:
       world.tiles[index] = Tile(kind: box)
   player.clearPickup()
-
-proc resize*(world: var World, newSize: IVec2) =
-  var newWorld = World(width: newSize.x, height: newSize.y, tiles: newSeq[Tile](newSize.x * newSize.y))
-  for x in 0..<newWorld.width:
-    if x < world.width:
-      for y in 0..<newWorld.height:
-        if y < world.height:
-          newWorld.tiles[x + y * newWorld.width] = world.tiles[x + y * world.width]
-  world = newWorld
 
 proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   let
@@ -394,7 +436,6 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
   of editing:
     for element in world.editorGui:
       element.update(dt)
-    world.inspector.update(dt)
 
     if not overGui:
       let
@@ -407,6 +448,10 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
             let selectedPos = world.cursorPos(cam)
             if selectedPos in world:
               world.inspecting = world.getPointIndex(selectedPos)
+          elif KeycodeLShift.isPressed:
+            if pos in world:
+              world.playerSpawn = ind
+              world.reload()
           else:
             world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
             case world.paintKind:
@@ -416,12 +461,14 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
               world.tiles[ind].active = true
             else:
               discard
+            world.reload()
         if rightMb.isPressed:
           world.placeTile(Tile(kind: empty), pos.xz.ivec2)
+          world.reload()
 
 
 
-    if KeyCodeF11.isDown:
+    if KeyCodeF11.isDown or KeyCodeEscape.isDown:
       world.state = playing
 
 
@@ -496,12 +543,29 @@ proc render*(world: World, cam: Camera) =
   if world.player.hasPickup:
       world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
   world.projectiles.render(cam, levelShader)
+
   if world.state == editing:
+    with flagShader:
+      var pos = world.getPos(world.playerSpawn.int)
+      pos.y = 1
+      let modelMatrix = mat4() * translate(pos)
+      flagShader.setUniform("mvp", cam.orthoView * modelMatrix)
+      flagShader.setUniform("m", modelMatrix)
+      render(flagModel)
+
     cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
-    renderBlock(Tile(kind: world.paintKind), cam, cursorShader, world.cursorPos(cam))
+    if KeycodeLShift.isPressed:
+      var pos = world.cursorPos(cam)
+      pos.y = 1
+      let modelMatrix = mat4() * translate(pos)
+      cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
+      cursorSHader.setUniform("m", modelMatrix)
+      render(flagModel)
+    else:
+      renderBlock(Tile(kind: world.paintKind), cam, cursorShader, world.cursorPos(cam))
+
     for element in world.editorGui:
       element.draw()
-    world.inspector.draw()
 
 iterator tiles*(world: World): (int, int, Tile) =
   for i, tile in world.tiles:

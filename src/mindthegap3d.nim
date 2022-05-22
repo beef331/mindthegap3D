@@ -45,33 +45,9 @@ addResourceProc do:
   depthBuffer.clearColor = color(0, 0, 0, 1)
   gui.init()
   world = World.init(10, 10)
-  #world.placeTile(Tile(kind: floor), ivec2(0, 0))
-
 
 var
   lastScreenSize: IVec2
-#[
-  editorSocket = createGameSocket()
-  editorFut: Future[World]
-
-proc makeEditorFuture(): Future[World] =
-  result = editorSocket.getWorld
-  result.addCallback proc(fut: Future[World]) {.gcsafe.} =
-    if fut.finished():
-      if not fut.failed():
-        let newWorld = fut.read()
-        if newWorld.width > 0 and newWorld.height > 0:
-          world.unload()
-          world = fut.read()
-          if world.playerSpawn notin 0..<world.tiles.len:
-            world.playerSpawn = 0
-          world.player = Player.init(world.getPos(int world.playerSpawn))
-          world.load()
-      editorFut = makeEditorFuture()
-
-
-editorFut = makeEditorFuture()
-]#
 
 proc cameraMovement =
   var
@@ -126,13 +102,12 @@ proc update(dt: float32) =
 
   let scroll = getMouseScroll()
   if scroll != 0:
-    if KeycodeLCtrl.isPressed:
+    if KeycodeLCtrl.isPressed and not middleMb.isPressed:
       camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
 
   if KeyCodeQ.isDown:
     quitTruss()
   overGui = false
-##  poll(0) # Poll async dispatch
 
 proc draw =
   glEnable(GlDepthTest)

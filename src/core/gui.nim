@@ -204,12 +204,16 @@ method draw*(button: Button, offset = ivec2(0)) =
 proc new*[T](_: typedesc[ScrollBar[T]], pos, size: IVec2, minMax: Slice[T], color, backgroundColor: Vec4, direction = InteractDirection.horizontal, anchor = {left, top}): ScrollBar[T] =
   result = ScrollBar[T](pos: pos, size: size, minMax: minMax, direction: direction, color: color, backgroundColor: backgroundColor, anchor: anchor)
 
+proc new*[T](_: typedesc[ScrollBar[T]], pos, size: IVec2, minMax: Slice[T], color, backgroundColor: Vec4, direction = InteractDirection.horizontal, anchor = {left, top}, startPercentage: float32): ScrollBar[T] =
+  result = ScrollBar[T](pos: pos, size: size, minMax: minMax, direction: direction, color: color, backgroundColor: backgroundColor, anchor: anchor, percentage: startPercentage)
+
 template emitScrollbarMethods*(t: typedesc) =
+  mixin lerp
   method update*(scrollbar: ScrollBar[t], dt: float32, offset = ivec2(0)) =
-    if scrollBar.isOver(offset = offset) and scrollBar.shouldRender:
+    if isOver(scrollBar, offset = offset) and shouldRender(scrollBar):
       overGui = true
       if leftMb.isPressed():
-        let pos = scrollBar.calculatePos(offset)
+        let pos = calculatePos(scrollBar, offset)
         case scrollbar.direction
         of horizontal:
           let oldPercentage = scrollbar.percentage
@@ -222,10 +226,21 @@ template emitScrollbarMethods*(t: typedesc) =
 
 
   method draw*(scrollBar: ScrollBar[t], offset = ivec2(0)) =
-    if scrollBar.shouldRender:
+    if shouldRender(scrollBar):
       with uiShader:
-        let isOver = scrollBar.isOver(offset = offset)
-        uiShader.setUniform("modelMatrix", scrollBar.calculateAnchorMatrix(offset = offset))
+        let isOver = isOver(scrollBar, offset = offset)
+
+        let sliderScale = scrollBar.size.vec2 * vec2(clamp(scrollbar.percentage, 0, 1), 1)
+
+        uiShader.setUniform("modelMatrix", calculateAnchorMatrix(scrollBar, some(sliderScale), offset))
+        uiShader.setUniform("color"):
+          if isOver:
+            scrollBar.color * 2
+          else:
+            scrollBar.color
+        render(uiQuad)
+
+        uiShader.setUniform("modelMatrix", calculateAnchorMatrix(scrollBar, offset = offset))
         uiShader.setUniform("color"):
           if isOver:
             scrollBar.backgroundColor / 2
@@ -233,15 +248,7 @@ template emitScrollbarMethods*(t: typedesc) =
             scrollBar.backgroundColor
         render(uiQuad)
 
-        let sliderScale = scrollBar.size.vec2 * vec2(clamp(scrollbar.percentage, 0, 1), 1)
 
-        uiShader.setUniform("modelMatrix", scrollBar.calculateAnchorMatrix(some(sliderScale), offset))
-        uiShader.setUniform("color"):
-          if isOver:
-            scrollBar.color * 2
-          else:
-            scrollBar.color
-        render(uiQuad)
 
 proc new*(_: typedesc[LayoutGroup], pos, size: IVec2, anchor = {top, left}, margin = 10, layoutDirection = InteractDirection.horizontal, centre = true): LayoutGroup =
   LayoutGroup(pos: pos, size: size, anchor: anchor, margin: margin, layoutDirection: layoutDirection, centre: centre)
