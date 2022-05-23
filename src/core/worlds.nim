@@ -160,63 +160,90 @@ proc reload(world: var World) =
 
 proc setupEditorGui(world: var World) =
   world.editorGui.setLen(0)
-  let placeLayout = LayoutGroup.new(ivec2(0), ivec2(400, 50), centre = false, margin = 0)
-  for placeable in succ(empty) .. TileKind.high:
-    let
-      button = Button.new(ivec2(10, 10), ivec2(50, 50), $placeable)
-      world = world.addr
-    capture(placeable):
-      button.onClick = proc() =
-        world.paintKind = placeable
-
-    placeLayout.add button
-  let topleftLayout = LayoutGroup.new(ivec2(0), ivec2(400, 50), centre = false, layoutDirection = vertical)
-  topleftLayout.add placeLayout
-  world.editorGui.add topleftLayout
-
   let wrld = world.addr
-  let inspectorGui = LayoutGroup.new(ivec2(10, 10), ivec2(200, 500), layoutDirection = vertical, centre = false, anchor = {top, right})
-  let pickupLayout = LayoutGroup.new(ivec2(0, 0), ivec2(200, 50), centre = false, margin = 0)
-  pickupLayout.add Label.new(ivec2(0), ivec2(75, 25), "Pickup: ")
-  let myDropDown = Dropdown[PickupType].new(ivec2(0), ivec2(75, 25), PickupType.toSeq)
-  myDropdown.onValueChange = proc(p: PickupType) =
-    if wrld.inspecting in 0..wrld.tiles.high and wrld.tiles[wrld.inspecting].kind == pickup:
-      wrld.tiles[wrld.inspecting].pickupKind = p
-  pickupLayout.add myDropDown
-  pickupLayout.visibleCond = proc(): bool =
-    wrld.tiles[wrld.inspecting].kind == pickup
 
 
-  let
-    widthLabel = Label.new(ivec2(0), ivec2(60, 50), "Width: ")
-    wstartPerc = (world.width - 3).float32 / (30 - 3).float32
-    widthSlider = ScrollBar[int].new(ivec2(0, 15), ivec2(100, 20), 3..30, vec4(1), vec4(0.1), startPercentage = wstartPerc)
-  widthSlider.onValueChange = proc(i: int) =
-    wrld[].resize(ivec2(i, wrld.height.int))
-    wrld[].reload()
+  world.editorGui.add:
+    makeUi(LayoutGroup):
+      size = ivec2(400, 500)
+      centre = false
+      layoutDirection = vertical
+      children:
+        makeUi(LayoutGroup):
+          size = ivec2(400, 50)
+          centre = false
+          margin = 0
+          children:
+            collect:
+              for placeable in succ(empty) .. TileKind.high:
+                capture(placeable):
+                  makeUi(Button):
+                    pos = ivec2(10)
+                    size = ivec2(50)
+                    text = $placeable
+                    onClick = proc() =
+                      wrld.paintKind = placeable
+        makeUi(LayoutGroup):
+          pos = ivec2(20, 0)
+          size = ivec2(400, 40)
+          centre = false
+          children:
+            makeUi(Label):
+              size = ivec2(60, 50)
+              text = "Width: "
+            makeUi(ScrollBar[int]):
+              pos = ivec2(0, 15)
+              size = ivec2(100, 20)
+              minMax = 3..30
+              color = vec4(10)
+              backgroundColor = vec4(0.1)
+              startPercentage = (world.width - 3).float32 / (30 - 3).float32
+              onValueChange =  proc(i: int) =
+                wrld[].resize(ivec2(i, wrld.height.int))
+                wrld[].reload()
+        makeUi(LayoutGroup):
+          pos = ivec2(20, 0)
+          size = ivec2(400, 40)
+          centre = false
+          children:
+            makeUi(Label):
+              size = ivec2(60, 50)
+              text = "Height: "
+            makeUi(ScrollBar[int]):
+              pos = ivec2(0, 15)
+              size = ivec2(100, 20)
+              minMax = 3..30
+              color = vec4(10)
+              backgroundColor = vec4(0.1)
+              startPercentage = (world.height - 3).float32 / (30 - 3).float32
+              onValueChange = proc(i: int) =
+                wrld[].resize(ivec2(wrld.width.int, i))
+                wrld[].reload()
 
-  let widthLayout = LayoutGroup.new(ivec2(20, 0), ivec2(400, 40), centre = false)
-  widthLayout.add widthLabel
-  widthLayout.add widthSlider
 
-  let
-    heightLabel = Label.new(ivec2(0), ivec2(60, 50), "Height: ")
-    hstartPerc = (world.height - 3).float32 / (30 - 3).float32
-    heightSlider = ScrollBar[int].new(ivec2(0, 15), ivec2(100, 20), 3..30, vec4(1), vec4(0.1), startPercentage = hstartPerc)
-  heightSlider.onValueChange = proc(i: int) =
-    wrld[].resize(ivec2(wrld.width.int, i))
 
-  let heightLayout = LayoutGroup.new(ivec2(20, 0), ivec2(400, 40), centre = false)
-  heightLayout.add heightLabel
-  heightLayout.add heightSlider
-
-  topleftLayout.add widthLayout
-  topleftLayout.add heightLayout
-
-  inspectorGui.add pickupLayout
-  world.editorGui.add inspectorGui
-  pickupLayout.visibleCond = proc(): bool =
-    wrld.inspecting in 0..wrld.tiles.high
+  world.editorGui.add:
+    makeUi(LayoutGroup):
+      pos = ivec2(10)
+      size = ivec2(200, 500)
+      layoutDirection = vertical
+      centre = false
+      anchor = {top, right}
+      visibleCond = proc: bool = wrld.inspecting in 0..wrld.tiles.high
+      children:
+        makeUi(LayoutGroup):
+          size = ivec2(200, 50)
+          centre = false
+          margin = 0
+          visibleCond = proc: bool = wrld.tiles[wrld.inspecting].kind == pickup
+          children:
+            makeUi(Label):
+              size = ivec2(75, 25)
+              text = "Pickup: "
+            makeUi(Dropdown[PickupType]):
+              size = ivec2(75, 25)
+              values = PickupType.toSeq
+              onValueChange = proc(p: PickupType) = wrld.tiles[wrld.inspecting].pickupKind = p
 
 
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
