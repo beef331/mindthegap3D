@@ -166,25 +166,24 @@ proc setupEditorGui(world: var World) =
   world.editorGui.add:
     makeUi(LayoutGroup):
       size = ivec2(400, 500)
+      pos = ivec2(10)
       centre = false
+      margin = 0
       layoutDirection = vertical
       children:
         makeUi(LayoutGroup):
           size = ivec2(400, 50)
           centre = false
-          margin = 0
           children:
             collect:
               for placeable in succ(empty) .. TileKind.high:
                 capture(placeable):
                   makeUi(Button):
-                    pos = ivec2(10)
-                    size = ivec2(50)
+                    size = ivec2(50,40)
                     text = $placeable
                     onClick = proc() =
                       wrld.paintKind = placeable
         makeUi(LayoutGroup):
-          pos = ivec2(20, 0)
           size = ivec2(400, 40)
           centre = false
           children:
@@ -202,7 +201,6 @@ proc setupEditorGui(world: var World) =
                 wrld[].resize(ivec2(i, wrld.height.int))
                 wrld[].reload()
         makeUi(LayoutGroup):
-          pos = ivec2(20, 0)
           size = ivec2(400, 40)
           centre = false
           children:
