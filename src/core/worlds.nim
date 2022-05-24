@@ -179,8 +179,10 @@ proc setupEditorGui(world: var World) =
                 capture(placeable):
                   makeUi(Button):
                     pos = ivec2(10)
-                    size = ivec2(50)
+                    size = ivec2(70, 55)
                     text = $placeable
+                    color = vec4(0.4)
+                    fontColor = vec4(1)
                     onClick = proc() =
                       wrld.paintKind = placeable
         makeUi(LayoutGroup):
@@ -195,8 +197,8 @@ proc setupEditorGui(world: var World) =
               pos = ivec2(0, 15)
               size = ivec2(100, 20)
               minMax = 3..30
-              color = vec4(10)
-              backgroundColor = vec4(0.1)
+              color = vec4(1)
+              backgroundColor = vec4(0.1, 0.1, 0.1, 1)
               startPercentage = (world.width - 3).float32 / (30 - 3).float32
               onValueChange =  proc(i: int) =
                 wrld[].resize(ivec2(i, wrld.height.int))
@@ -213,8 +215,8 @@ proc setupEditorGui(world: var World) =
               pos = ivec2(0, 15)
               size = ivec2(100, 20)
               minMax = 3..30
-              color = vec4(10)
-              backgroundColor = vec4(0.1)
+              color = vec4(1)
+              backgroundColor = vec4(0.1, 0.1, 0.1, 1)
               startPercentage = (world.height - 3).float32 / (30 - 3).float32
               onValueChange = proc(i: int) =
                 wrld[].resize(ivec2(wrld.width.int, i))
