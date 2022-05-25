@@ -114,11 +114,6 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
       yield (index, index + 1)
       index += 1
 
-emitDropDownMethods(PickupType)
-
-proc lerp(a, b: int, c: float32): int = (a.float32 + (b - a).float32 * c).int
-emitScrollbarMethods(int)
-
 proc isFinished*(world: World): bool =
   for x in world.tiles:
     case x.kind
@@ -158,6 +153,13 @@ proc reload(world: var World) =
   world.history.setLen(0)
   world.player = Player.init(world.getPos(world.playerSpawn.int))
 
+emitDropDownMethods(PickupType)
+emitDropDownMethods(StackedObjectKind)
+emitDropDownMethods(Direction)
+
+proc lerp(a, b: int, c: float32): int = (a.float32 + (b - a).float32 * c).int
+emitScrollbarMethods(int)
+
 proc setupEditorGui(world: var World) =
   world.editorGui.setLen(0)
   let wrld = world.addr
@@ -172,7 +174,7 @@ proc setupEditorGui(world: var World) =
         makeUi(LayoutGroup):
           size = ivec2(400, 50)
           centre = false
-          margin = 0
+          margin = 5
           children:
             collect:
               for placeable in succ(empty) .. TileKind.high:
@@ -222,31 +224,68 @@ proc setupEditorGui(world: var World) =
                 wrld[].resize(ivec2(wrld.width.int, i))
                 wrld[].reload()
 
-
+  template inspectingTile: Tile = wrld.tiles[wrld.inspecting]
 
   world.editorGui.add:
     makeUi(LayoutGroup):
       pos = ivec2(10)
       size = ivec2(200, 500)
       layoutDirection = vertical
+      margin = 3
       centre = false
       anchor = {top, right}
       visibleCond = proc: bool = wrld.inspecting in 0..wrld.tiles.high
       children:
-        makeUi(LayoutGroup):
+        makeUi(LayoutGroup): # Pickup selector
           size = ivec2(200, 50)
           centre = false
           margin = 0
-          visibleCond = proc: bool = wrld.tiles[wrld.inspecting].kind == pickup
+          visibleCond = proc: bool = inspectingTile.kind == pickup
           children:
             makeUi(Label):
-              size = ivec2(75, 25)
+              size = ivec2(75, 30)
               text = "Pickup: "
             makeUi(Dropdown[PickupType]):
-              size = ivec2(75, 25)
+              size = ivec2(75, 30)
+              color = vec4(0.3, 0.3, 0.3, 0.7)
               values = PickupType.toSeq
-              onValueChange = proc(p: PickupType) = wrld.tiles[wrld.inspecting].pickupKind = p
+              onValueChange = proc(p: PickupType) = inspectingTile.pickupKind = p
 
+        makeUi(LayoutGroup): # Stacked selector
+          size = ivec2(200, 50)
+          centre = false
+          margin = 0
+          visibleCond = proc: bool = inspectingTile.kind in Walkable
+          children:
+            makeUi(Label):
+              size = ivec2(75, 30)
+              text = "Stacked: "
+            makeUi(Dropdown[StackedObjectKind]):
+              size = ivec2(75, 30)
+              color = vec4(0.3, 0.3, 0.3, 0.7)
+              values = StackedObjectKind.toSeq
+              onValueChange = proc(p: StackedObjectKind) {.closure.} =
+                if p != none:
+                  let pos = wrld[].getPos(wrld.inspecting) + vec3(0, 1, 0)
+                  inspectingTile.giveStackedObject(some(StackedObject(kind: p)), pos, pos)
+                else:
+                  inspectingTile.clearStack()
+
+        makeUi(LayoutGroup): # Direction selector
+          size = ivec2(200, 50)
+          centre = false
+          margin = 0
+          visibleCond = proc: bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret
+          children:
+            makeUi(Label):
+              size = ivec2(75, 30)
+              text = "Direction: "
+            makeUi(Dropdown[Direction]):
+              size = ivec2(75, 30)
+              color = vec4(0.3, 0.3, 0.3, 0.7)
+              values = Direction.toSeq
+              onValueChange = proc(dir: Direction) {.closure.} =
+                inspectingTile.stacked.get.direction = dir
 
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 

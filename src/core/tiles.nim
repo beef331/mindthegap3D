@@ -27,7 +27,9 @@ type
   RenderedTile* = TileKind.wall..TileKind.high
 
   StackedObjectKind* = enum
-    turret, box
+    none = "None"
+    turret = "Turret"
+    box = "Box"
 
   StackedObject* = object
     startPos: Vec3
@@ -41,6 +43,7 @@ type
       projectileKind*: ProjectileKind
     of box:
       discard
+    of none: discard
 
   ProjectileKind* = enum
     hitScan, dynamicProjectile
@@ -137,6 +140,8 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       shader.setUniform("m", modelMatrix)
       render(crossbowmodel)
       ##renderBlock(Tile(kind: shooter), cam)
+    of none:
+      discard
 
 proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.kind in FloorDrawn:
