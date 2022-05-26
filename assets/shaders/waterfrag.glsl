@@ -20,6 +20,7 @@ float rectangle(vec2 samplePosition, vec2 halfSize){
     return outsideDistance + insideDistance;
 }
 
+const vec4 waterColor = vec4(0, 0.3, 0.7, 1);
 
 void main() {
   vec2 uv = (mvp * vec4(pos, 1)).xy * 0.5 + 0.5;
@@ -36,11 +37,14 @@ void main() {
     newVs.y += -time * 0.2;
     foamSample += texture(waterTex, newVs).r * 0.3;
     foamSample = abs(0.75 - rectDist) > 0.2 ? 1: foamSample;
-    frag_colour = mix(vec4(1), vec4(0, 0.3, 0.7, 1), 1 - foamSample);
+    frag_colour = mix(vec4(1), waterColor, 1 - foamSample);
   }else if(rectDist >= 1){
-    frag_colour = vec4(0, 0, 1, 1) + texture(waterTex, worldPos.xz + vec2(0, sineVal * 5) + vec2(time / 2, time / 4)).r * 0.3;
+    frag_colour =  waterColor + texture(waterTex, worldPos.xz + vec2(0, sineVal * 5) + vec2(time / 2, time / 4)).r * 0.3;
   }else{
-    frag_colour = mix(vec4(0, 0, 1, 1), vec4(0, 0.6, 1, 1), foam);
-    frag_colour += vec4(clamp(float(foam > 0.7) * round(foam / 0.3) * 0.3, 0.0, 1.0));
+    foam = clamp(foam, 0, 1);
+    frag_colour = mix(texture(colourTex, uv) * 0.6 + vec4(0, 0.2, 0.7, 1), waterColor,  (1 - foam) * (1 - foam));
+    float foamStepDist = 0.3;
+    float foamRound = round(foam / foamStepDist) * foamStepDist;
+    frag_colour += vec4(clamp(float(foam > 0.7) * foamRound, 0.0, 1.0));
   }
 }
