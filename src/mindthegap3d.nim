@@ -107,11 +107,10 @@ proc update(dt: float32) =
 
   if KeyCodeQ.isDown:
     quitTruss()
-  overGui = false
+  guiState = nothing
 
 proc draw =
   glEnable(GlDepthTest)
-  glCullFace(GlBack)
   with depthBuffer:
     depthBuffer.clear()
     world.renderDepth(camera)
@@ -123,7 +122,6 @@ proc draw =
   glClear(GLDepthBufferBit or GlColorBufferBit)
   with waterShader:
     let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
-    glEnable(GlDepthTest)
     waterShader.setUniform("modelMatrix", waterMatrix)
     waterShader.setUniform("worldSize", vec2(world.width.float - 1, world.height.float - 1))
     waterShader.setUniform("depthTex", depthBuffer.depthTexture)

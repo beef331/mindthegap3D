@@ -144,6 +144,7 @@ proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: f
 
 proc render*(player: Player, camera: Camera, safeDirs: set[Direction]) =
   with playerShader:
+    glShadeModel(GL_FLAT);
     let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.3, 0)) * rotateY(player.rotation))
     playerShader.setUniform("mvp", camera.orthoView * modelMatrix)
     playerShader.setUniform("m", modelMatrix)

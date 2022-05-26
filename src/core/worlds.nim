@@ -148,10 +148,48 @@ proc resize*(world: var World, newSize: IVec2) =
   world.height = newSize.y
   world.tiles = newTileData
 
+# History Procs
+proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
+  let projectiles = collect(for x in world.projectiles.items: x)
+  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: world.player)
+
+proc saveHistoryStep(world: var World, player: Player, kind = HistoryKind.nothing) =
+  let projectiles = collect(for x in world.projectiles.items: x)
+  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: player)
+
+proc popHistoryStep(world: var World) =
+  if world.history.len > 0:
+    let history = world.history.pop
+    world.tiles = history.tiles
+    world.projectiles = Projectiles.init
+    world.projectiles.spawnProjectiles(history.projectiles)
+    world.player = history.player
+    world.player.skipMoveAnim()
+    if history.kind == start:
+      world.history.add history
+
+proc rewindTo*(world: var World, targetStates: set[HistoryKind]) =
+  world.popHistoryStep()
+  while world.history.len > 0 and world.history[^1].kind notin targetStates:
+    world.popHistoryStep()
+
+proc unload*(world: var World) =
+  for sign in world.signs.mitems:
+    sign.free()
+
+proc load*(world: var World) =
+  for sign in world.signs.mitems:
+    sign.load()
+  if world.history.len == 0:
+    world.saveHistoryStep(start)
+
 proc reload(world: var World) =
   ## Used to reload the world state and reposition player
+  if world.history.len > 0:
+    world.rewindTo({start})
   world.history.setLen(0)
   world.player = Player.init(world.getPos(world.playerSpawn.int))
+  world.projectiles = Projectiles.init()
 
 emitDropDownMethods(PickupType)
 emitDropDownMethods(StackedObjectKind)
@@ -247,7 +285,7 @@ proc setupEditorGui(world: var World) =
               text = "Pickup: "
             makeUi(Dropdown[PickupType]):
               size = ivec2(75, 30)
-              color = vec4(0.3, 0.3, 0.3, 0.7)
+              color = vec4(0.3, 0.3, 0.3, 1)
               values = PickupType.toSeq
               onValueChange = proc(p: PickupType) = inspectingTile.pickupKind = p
 
@@ -262,7 +300,7 @@ proc setupEditorGui(world: var World) =
               text = "Stacked: "
             makeUi(Dropdown[StackedObjectKind]):
               size = ivec2(75, 30)
-              color = vec4(0.3, 0.3, 0.3, 0.7)
+              color = vec4(0.3, 0.3, 0.3, 1)
               values = StackedObjectKind.toSeq
               onValueChange = proc(p: StackedObjectKind) {.closure.} =
                 if p != none:
@@ -282,7 +320,7 @@ proc setupEditorGui(world: var World) =
               text = "Direction: "
             makeUi(Dropdown[Direction]):
               size = ivec2(75, 30)
-              color = vec4(0.3, 0.3, 0.3, 0.7)
+              color = vec4(0.3, 0.3, 0.3, 1)
               values = Direction.toSeq
               onValueChange = proc(dir: Direction) {.closure.} =
                 inspectingTile.stacked.get.direction = dir
@@ -353,30 +391,6 @@ proc canPush(world: World, index: int, dir: Direction): bool =
       return true
     else: discard
 
-proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
-  let projectiles = collect(for x in world.projectiles.items: x)
-  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: world.player)
-
-proc saveHistoryStep(world: var World, player: Player, kind = HistoryKind.nothing) =
-  let projectiles = collect(for x in world.projectiles.items: x)
-  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: player)
-
-proc popHistoryStep(world: var World) =
-  if world.history.len > 0:
-    let history = world.history.pop
-    world.tiles = history.tiles
-    world.projectiles = Projectiles.init
-    world.projectiles.spawnProjectiles(history.projectiles)
-    world.player = history.player
-    world.player.skipMoveAnim()
-    if history.kind == start:
-      world.history.add history
-
-proc rewindTo*(world: var World, targetStates: set[HistoryKind]) =
-  world.popHistoryStep()
-  while world.history[^1].kind notin targetStates:
-    world.popHistoryStep()
-
 proc canWalk(world: World, index: int, dir: Direction): bool =
   let tile = world.tiles[index]
   result = tile.isWalkable()
@@ -443,14 +457,6 @@ proc getSign*(world: World, pos: Vec3): Sign =
       result = sign
       break
 
-proc unload*(world: var World) =
-  for sign in world.signs.mitems:
-    sign.free()
-
-proc load*(world: var World) =
-  for sign in world.signs.mitems:
-    sign.load()
-  world.saveHistoryStep(start)
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
   case world.state
@@ -495,6 +501,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     world.projectiles.destroyProjectiles(projRemoveBuffer.items)
     world.projectiles.update(dt, moveDir.isSome())
     if KeyCodeF11.isDown:
+      world.rewindTo({start})
       world.state = editing
 
   of previewing:
@@ -503,7 +510,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     for element in world.editorGui:
       element.update(dt)
 
-    if not overGui:
+    if guiState == nothing:
       let
         pos = world.cursorPos(cam)
         ind = world.getPointIndex(pos)
