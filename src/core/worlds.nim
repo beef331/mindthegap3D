@@ -227,7 +227,6 @@ proc setupEditorGui(world: var World) =
                     onClick = proc() =
                       wrld.paintKind = placeable
         makeUi(LayoutGroup):
-          pos = ivec2(20, 0)
           size = ivec2(400, 40)
           centre = false
           children:
@@ -245,7 +244,6 @@ proc setupEditorGui(world: var World) =
                 wrld[].resize(ivec2(i, wrld.height.int))
                 wrld[].reload()
         makeUi(LayoutGroup):
-          pos = ivec2(20, 0)
           size = ivec2(400, 40)
           centre = false
           children:
@@ -253,7 +251,6 @@ proc setupEditorGui(world: var World) =
               size = ivec2(60, 50)
               text = "Height: "
             makeUi(ScrollBar[int]):
-              pos = ivec2(0, 15)
               size = ivec2(100, 20)
               minMax = 3..30
               color = vec4(1)
@@ -282,8 +279,9 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.kind == pickup
           children:
             makeUi(Label):
-              size = ivec2(75, 40)
-              text = "Pickup: "
+              size = ivec2(150, 40)
+              text = "Pickup:"
+              horizontalAlignment = RightAlign
             makeUi(Dropdown[PickupType]):
               size = ivec2(75, 40)
               color = vec4(0.3, 0.3, 0.3, 1)
@@ -298,8 +296,9 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.kind in Walkable
           children:
             makeUi(Label):
-              size = ivec2(75, 40)
-              text = "Stacked: "
+              size = ivec2(150, 40)
+              text = "Stacked:"
+              horizontalAlignment = RightAlign
             makeUi(Dropdown[StackedObjectKind]):
               size = ivec2(75, 40)
               color = vec4(0.3, 0.3, 0.3, 1)
@@ -323,8 +322,9 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret
           children:
             makeUi(Label):
-              size = ivec2(75, 40)
-              text = "Stacked Direction: "
+              size = ivec2(150, 40)
+              text = "Stacked Direction:"
+              horizontalAlignment = RightAlign
             makeUi(Dropdown[Direction]):
               size = ivec2(75, 40)
               color = vec4(0.3, 0.3, 0.3, 1)
