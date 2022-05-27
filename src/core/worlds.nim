@@ -205,6 +205,7 @@ proc setupEditorGui(world: var World) =
 
   world.editorGui.add:
     makeUi(LayoutGroup):
+      pos = ivec2(10)
       size = ivec2(400, 500)
       centre = false
       layoutDirection = vertical
@@ -281,12 +282,13 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.kind == pickup
           children:
             makeUi(Label):
-              size = ivec2(75, 30)
+              size = ivec2(75, 40)
               text = "Pickup: "
             makeUi(Dropdown[PickupType]):
-              size = ivec2(75, 30)
+              size = ivec2(75, 40)
               color = vec4(0.3, 0.3, 0.3, 1)
               values = PickupType.toSeq
+              watchValue = proc: PickupType = inspectingTile.pickupKind
               onValueChange = proc(p: PickupType) = inspectingTile.pickupKind = p
 
         makeUi(LayoutGroup): # Stacked selector
@@ -296,13 +298,18 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.kind in Walkable
           children:
             makeUi(Label):
-              size = ivec2(75, 30)
+              size = ivec2(75, 40)
               text = "Stacked: "
             makeUi(Dropdown[StackedObjectKind]):
-              size = ivec2(75, 30)
+              size = ivec2(75, 40)
               color = vec4(0.3, 0.3, 0.3, 1)
               values = StackedObjectKind.toSeq
-              onValueChange = proc(p: StackedObjectKind) {.closure.} =
+              watchValue = proc: StackedObjectKind =
+                if inspectingTile.hasStacked:
+                  inspectingTile.stacked.get.kind
+                else:
+                  none
+              onValueChange = proc(p: StackedObjectKind) =
                 if p != none:
                   let pos = wrld[].getPos(wrld.inspecting) + vec3(0, 1, 0)
                   inspectingTile.giveStackedObject(some(StackedObject(kind: p)), pos, pos)
@@ -316,13 +323,16 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret
           children:
             makeUi(Label):
-              size = ivec2(75, 30)
-              text = "Direction: "
+              size = ivec2(75, 40)
+              text = "Stacked Direction: "
             makeUi(Dropdown[Direction]):
-              size = ivec2(75, 30)
+              size = ivec2(75, 40)
               color = vec4(0.3, 0.3, 0.3, 1)
+              margin = 1
               values = Direction.toSeq
-              onValueChange = proc(dir: Direction) {.closure.} =
+              watchValue = proc: Direction =
+                inspectingTile.stacked.get.direction
+              onValueChange = proc(dir: Direction) =
                 inspectingTile.stacked.get.direction = dir
 
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
