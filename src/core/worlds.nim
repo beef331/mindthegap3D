@@ -267,7 +267,7 @@ proc setupEditorGui(world: var World) =
       pos = ivec2(10)
       size = ivec2(200, 500)
       layoutDirection = vertical
-      margin = 3
+      margin = 0
       centre = false
       anchor = {top, right}
       visibleCond = proc: bool = wrld.inspecting in 0..wrld.tiles.high
@@ -283,8 +283,9 @@ proc setupEditorGui(world: var World) =
               text = "Pickup:"
               horizontalAlignment = RightAlign
             makeUi(Dropdown[PickupType]):
-              size = ivec2(75, 40)
+              size = ivec2(75, 30)
               color = vec4(0.3, 0.3, 0.3, 1)
+              margin = 1
               values = PickupType.toSeq
               watchValue = proc: PickupType = inspectingTile.pickupKind
               onValueChange = proc(p: PickupType) = inspectingTile.pickupKind = p
@@ -300,8 +301,9 @@ proc setupEditorGui(world: var World) =
               text = "Stacked:"
               horizontalAlignment = RightAlign
             makeUi(Dropdown[StackedObjectKind]):
-              size = ivec2(75, 40)
+              size = ivec2(75, 30)
               color = vec4(0.3, 0.3, 0.3, 1)
+              margin = 1
               values = StackedObjectKind.toSeq
               watchValue = proc: StackedObjectKind =
                 if inspectingTile.hasStacked:
@@ -326,7 +328,7 @@ proc setupEditorGui(world: var World) =
               text = "Stacked Direction:"
               horizontalAlignment = RightAlign
             makeUi(Dropdown[Direction]):
-              size = ivec2(75, 40)
+              size = ivec2(75, 30)
               color = vec4(0.3, 0.3, 0.3, 1)
               margin = 1
               values = Direction.toSeq
