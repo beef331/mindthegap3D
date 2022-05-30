@@ -662,6 +662,9 @@ proc render*(world: World, cam: Camera) =
       render(flagModel)
     else:
       renderBlock(Tile(kind: world.paintKind), cam, cursorShader, world.cursorPos(cam))
+
+proc renderUI*(world: World) =
+  if world.state == editing:
     for element in world.editorGui:
       element.draw()
 

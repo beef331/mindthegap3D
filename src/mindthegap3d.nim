@@ -13,10 +13,11 @@ const camDefaultSize = 8f
 var
   camera: Camera
   world: World
-  depthBuffer, signBuffer: FrameBuffer
-  depthShader, waterShader: Shader
-  waterQuad: Model
+  mainBuffer, signBuffer, uiBuffer: FrameBuffer
+  depthShader, waterShader, screenShader: Shader
+  waterQuad, screenQuad: Model
   waterTex: Texture
+
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -30,19 +31,31 @@ proc makeRect(w, h: float32): Model =
   data.appendUv([vec2(0, 0), vec2(1, 1), vec2(0, 1), vec2(1, 0)].items)
   result = data.uploadData()
 
+proc makeScreenQuad(): Model =
+  var data: MeshData[Vec2]
+  data.appendVerts([vec2(0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items)
+  data.append([0u32, 1, 2, 0, 2, 3].items)
+  data.appendUv([vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items)
+  result = data.uploadData()
+
 addResourceProc do:
   camera.pos = vec3(0, 8, 0)
   camera.forward = normalize(vec3(5, 0, 5) - camera.pos)
   camera.pos = camera.pos - camera.forward * 20
   camera.changeSize(camDefaultSize)
-  depthBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
+  mainBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
+  uiBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = false)
   signBuffer = genFrameBuffer(screenSize(), tfR, hasDepth = true)
   waterQuad = makeRect(300, 300)
+  screenQuad = makeScreenQuad()
   depthShader = loadShader(ShaderPath "vert.glsl", ShaderPath"depthfrag.glsl")
   waterShader = loadShader(ShaderPath"watervert.glsl", ShaderPath"waterfrag.glsl")
+  screenShader = loadShader(ShaderPath"screenvert.glsl", ShaderPath"screenfrag.glsl")
   waterTex = genTexture()
   readImage("assets/water.png").copyTo(waterTex)
-  depthBuffer.clearColor = color(0, 0, 0, 1)
+  mainBuffer.clearColor = color(0, 0, 0, 0)
+  uiBuffer.clearColor = color(0, 0, 0, 0)
+
   gui.init()
   world = World.init(10, 10)
 
@@ -84,7 +97,7 @@ proc update(dt: float32) =
   if lastScreenSize != scrSize:
     lastScreenSize = scrSize
     camera.calculateMatrix()
-    depthBuffer.resize(scrSize)
+    mainBuffer.resize(scrSize)
     signBuffer.resize(scrSize)
 
   cameraMovement()
@@ -115,23 +128,33 @@ proc draw =
     signBuffer.clear()
     world.renderSignBuff(camera)
 
-  with depthBuffer:
-    depthBuffer.clear()
-    world.renderDepth(camera)
+  with uiBuffer:
+    uiBuffer.clear()
+    world.renderUi()
+
+  with mainBuffer:
+    mainBuffer.clear()
+    world.render(camera)
+    with waterShader:
+      let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
+      waterShader.setUniform("modelMatrix", waterMatrix)
+      waterShader.setUniform("worldSize", vec2(world.width.float - 1, world.height.float - 1))
+      waterShader.setUniform("depthTex", mainBuffer.depthTexture)
+      waterShader.setUniform("colourTex", mainBuffer.colourTexture)
+      waterShader.setUniform("waterTex", waterTex)
+      watershader.setUniform("time", getTime())
+      waterShader.setUniform("mvp", camera.orthoView * waterMatrix)
+      glEnable GlDepthTest
+      glDepthMask false
+      render(waterQuad)
+      glDepthMask true
 
 
-  glClear(GLDepthBufferBit or GlColorBufferBit)
-  with waterShader:
-    let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
-    waterShader.setUniform("modelMatrix", waterMatrix)
-    waterShader.setUniform("worldSize", vec2(world.width.float - 1, world.height.float - 1))
-    waterShader.setUniform("depthTex", depthBuffer.depthTexture)
-    waterShader.setUniform("colourTex", depthBuffer.colourTexture)
-    waterShader.setUniform("waterTex", waterTex)
-    watershader.setUniform("time", getTime())
-    waterShader.setUniform("mvp", camera.orthoView * waterMatrix)
-    render(waterQuad)
-  world.render(camera)
-
+  with screenShader:
+    let scrSize = screenSize()
+    screenShader.setUniform("matrix", scale(vec3(2)) * translate(vec3(-0.5, -0.5, 0f)))
+    screenShader.setUniform("tex", mainBuffer.colourTexture)
+    screenShader.setUniform("uiTex", uiBuffer.colourTexture)
+    render(screenQuad)
 
 initTruss("Something", ivec2(1280, 720), invokeResourceProcs, update, draw)
