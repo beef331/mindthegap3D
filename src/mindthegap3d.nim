@@ -44,7 +44,7 @@ addResourceProc do:
   camera.pos = camera.pos - camera.forward * 20
   camera.changeSize(camDefaultSize)
   mainBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
-  uiBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = false)
+  uiBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
   signBuffer = genFrameBuffer(screenSize(), tfR, hasDepth = true)
   waterQuad = makeRect(300, 300)
   screenQuad = makeScreenQuad()
