@@ -111,13 +111,14 @@ proc update(dt: float32) =
 
 proc draw =
   glEnable(GlDepthTest)
+  with signBuffer:
+    signBuffer.clear()
+    world.renderSignBuff(camera)
+
   with depthBuffer:
     depthBuffer.clear()
     world.renderDepth(camera)
 
-  with signBuffer:
-    signBuffer.clear()
-    world.renderSignBuff(camera)
 
   glClear(GLDepthBufferBit or GlColorBufferBit)
   with waterShader:

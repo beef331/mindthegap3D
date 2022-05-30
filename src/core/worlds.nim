@@ -200,8 +200,10 @@ emitScrollbarMethods(int)
 
 proc setupEditorGui(world: var World) =
   world.editorGui.setLen(0)
-  let wrld = world.addr
-
+  let
+    wrld = world.addr
+    nineSliceTex = genTexture()
+  readImage("assets/uiframe.png").copyTo nineSliceTex
 
   world.editorGui.add:
     makeUi(LayoutGroup):
@@ -222,7 +224,9 @@ proc setupEditorGui(world: var World) =
                     pos = ivec2(10)
                     size = ivec2(70, 55)
                     text = $placeable
-                    color = vec4(0.4)
+                    backgroundColor = vec4(1)
+                    nineSliceSize = 16f32
+                    backgroundTex = nineSliceTex
                     fontColor = vec4(1)
                     onClick = proc() =
                       wrld.paintKind = placeable
@@ -262,6 +266,10 @@ proc setupEditorGui(world: var World) =
 
   template inspectingTile: Tile = wrld.tiles[wrld.inspecting]
 
+  const
+    labelSize = ivec2(150, 40)
+    buttonSize = ivec2(75, 40)
+
   world.editorGui.add:
     makeUi(LayoutGroup):
       pos = ivec2(10)
@@ -279,14 +287,16 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.kind == pickup
           children:
             makeUi(Label):
-              size = ivec2(150, 40)
+              size = labelSize
               text = "Pickup:"
               horizontalAlignment = RightAlign
             makeUi(Dropdown[PickupType]):
-              size = ivec2(75, 30)
-              color = vec4(0.3, 0.3, 0.3, 1)
+              size = buttonSize
               margin = 1
+              nineSliceSize = 16f32
+              backgroundTex = nineSliceTex
               values = PickupType.toSeq
+              backgroundColor = vec4(1)
               watchValue = proc: PickupType = inspectingTile.pickupKind
               onValueChange = proc(p: PickupType) = inspectingTile.pickupKind = p
 
@@ -297,14 +307,16 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.kind in Walkable
           children:
             makeUi(Label):
-              size = ivec2(150, 40)
+              size = labelSize
               text = "Stacked:"
               horizontalAlignment = RightAlign
             makeUi(Dropdown[StackedObjectKind]):
-              size = ivec2(75, 30)
-              color = vec4(0.3, 0.3, 0.3, 1)
+              size = buttonSize
               margin = 1
               values = StackedObjectKind.toSeq
+              nineSliceSize = 16f32
+              backgroundTex = nineSliceTex
+              backgroundColor = vec4(1)
               watchValue = proc: StackedObjectKind =
                 if inspectingTile.hasStacked:
                   inspectingTile.stacked.get.kind
@@ -324,13 +336,15 @@ proc setupEditorGui(world: var World) =
           visibleCond = proc: bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret
           children:
             makeUi(Label):
-              size = ivec2(150, 40)
+              size = labelSize
               text = "Stacked Direction:"
               horizontalAlignment = RightAlign
             makeUi(Dropdown[Direction]):
-              size = ivec2(75, 30)
-              color = vec4(0.3, 0.3, 0.3, 1)
+              size = buttonSize
               margin = 1
+              backgroundColor = vec4(1)
+              nineSliceSize = 16f32
+              backgroundTex = nineSliceTex
               values = Direction.toSeq
               watchValue = proc: Direction =
                 inspectingTile.stacked.get.direction
