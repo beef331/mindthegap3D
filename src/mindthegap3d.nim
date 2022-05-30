@@ -131,6 +131,7 @@ proc draw =
   with uiBuffer:
     uiBuffer.clear()
     world.renderUi()
+  glEnable(GlDepthTest)
 
   with mainBuffer:
     mainBuffer.clear()

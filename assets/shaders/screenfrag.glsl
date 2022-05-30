@@ -44,5 +44,5 @@ void main() {
   vec4 uiColor = texture(uiTex, fuv);
   vec4 col = texture(tex, fuv);
   col.rgb = aces(col.rgb);
-  frag_colour = mix(uiColor, col, 1 - uiColor.a);
+  frag_colour.rgb = uiColor.rgb + col.rgb * (1 - uiColor.a);
 }
