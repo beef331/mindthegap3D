@@ -157,4 +157,4 @@ proc draw =
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     render(screenQuad)
 
-initTruss("Something", ivec2(1280, 720), invokeResourceProcs, update, draw)
+initTruss("Mind The Gap", ivec2(1280, 720), invokeResourceProcs, update, draw)
