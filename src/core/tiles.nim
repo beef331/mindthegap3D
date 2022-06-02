@@ -103,7 +103,13 @@ proc updateBox*(boxTile: var Tile, dt: float32) =
     boxTile.progress += dt
   boxTile.progress = clamp(boxTile.progress, 0, FallTime)
 
-
+proc calcYPos*(tile: Tile): float32 =
+  ## Calculates drop pos for boxes
+  assert tile.kind == box
+  if tile.steppedOn:
+    mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
+  else:
+    mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
 
 proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =
   case tile.kind
@@ -170,11 +176,7 @@ proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
 
 proc renderBox*(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
   var pos = pos
-  pos.y =
-    if tile.steppedOn:
-      mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
-    else:
-      mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
+  pos.y = tile.calcYPos()
   shader.makeActive()
 
   let modelMatrix = mat4() * translate(pos)

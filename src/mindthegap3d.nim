@@ -149,6 +149,10 @@ proc draw =
       glDepthMask false
       render(waterQuad)
       glDepthMask true
+    glColorMask false, false, false, false
+    render(waterQuad)
+    glColorMask true, true, true, true
+    renderWaterSplashes(camera)
 
 
   with screenShader:

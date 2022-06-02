@@ -1,4 +1,4 @@
-import truss3D, truss3D/[models, textures, gui]
+import truss3D, truss3D/[models, textures, gui, particlesystems]
 import pixie, opengl, vmath, easings, flatty
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate]
@@ -40,6 +40,13 @@ const projectilesAlwaysCollide = {wall}
 var
   pickupQuadModel, signModel, flagModel: Model
   levelShader, cursorShader, alphaClipShader, flagShader, boxShader, signBuffShader: Shader
+  waterParticleShader: Shader
+  waterParticleSystem: ParticleSystem
+
+proc particleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
+  particle.pos += dt * particle.velocity * 10 * ((particle.lifeTime / ps.lifeTime))
+  particle.velocity.y -= dt * 3
+
 
 addResourceProc:
   pickupQuadModel = loadModel("pickup_quad.dae")
@@ -51,10 +58,26 @@ addResourceProc:
   flagShader = loadShader(ShaderPath"flagvert.glsl", ShaderPath"frag.glsl")
   boxShader = loadShader(ShaderPath"boxvert.glsl", ShaderPath"frag.glsl")
   signBuffShader = loadShader(ShaderPath"vert.glsl", ShaderPath"signbufffrag.glsl")
+
   cursorShader.setUniform("opacity", 0.6)
   cursorShader.setUniform("invalidColour", vec4(1, 0, 0, 1))
   boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))
   boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
+
+
+
+
+  waterParticleShader = loadShader(ShaderPath"waterparticlevert.glsl", ShaderPath"waterparticlefrag.glsl")
+  waterParticleSystem = initParticleSystem(
+    "cube.glb",
+    vec3(5, 0, 5),
+    vec4(1)..vec4(0, 0.4, 0.6, 0.0),
+    0.5,
+    vec3(0.1)..vec3(0.003),
+    particleUpdate
+  )
+
+
 
 iterator tileKindCoords(world: World): (Tile, Vec3) =
   for i, tile in world.tiles:
@@ -507,9 +530,17 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       world.popHistoryStep()
 
     var projRemoveBuffer: seq[int]
-    for x in world.tiles.mitems:
-      x.update(world.projectiles, dt, moveDir.isSome)
+    for i, tile in enumerate world.tiles.mitems:
+      let startY =
+        if tile.kind == box:
+          tile.calcYPos()
+        else:
+          0f32
+      tile.update(world.projectiles, dt, moveDir.isSome)
 
+      if tile.kind == box:
+        if startY > 1 and tile.calcYPos() <= 1:
+          waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
     for id, proj in world.projectiles.idProj:
       let pos = ivec3(proj.pos + vec3(0.5))
@@ -569,7 +600,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 
     if KeyCodeF11.isDown or KeyCodeEscape.isDown:
       world.state = playing
-
+  waterParticleSystem.update(dt)
 
 # RENDER LOGIC BELOW
 
@@ -662,6 +693,12 @@ proc render*(world: World, cam: Camera) =
       render(flagModel)
     else:
       renderBlock(Tile(kind: world.paintKind), cam, cursorShader, world.cursorPos(cam))
+
+proc renderWaterSplashes*(cam: Camera) =
+  with waterParticleShader:
+    glEnable GlDepthTest
+    waterParticleShader.setUniform("VP", cam.orthoView)
+    waterParticleSystem.render()
 
 proc renderUI*(world: World) =
   if world.state == editing:
