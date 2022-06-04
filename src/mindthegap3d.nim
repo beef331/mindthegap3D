@@ -2,7 +2,7 @@ import truss3D
 import vmath
 import chroma
 import pixie
-import truss3D/[shaders, textures, gui]
+import truss3D/[shaders, textures, gui, audio]
 import core/[worlds, resources, cameras, players, directions, tiles]
 import std/[os, sugar]
 
@@ -56,8 +56,13 @@ addResourceProc do:
   mainBuffer.clearColor = color(0, 0, 0, 0)
   uiBuffer.clearColor = color(0, 0, 0, 0)
 
-  gui.init()
   world = World.init(10, 10)
+
+proc gameInit() =
+  audio.init()
+  gui.init()
+  invokeResourceProcs()
+
 
 var
   lastScreenSize: IVec2
@@ -162,4 +167,4 @@ proc draw =
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     render(screenQuad)
 
-initTruss("Mind The Gap", ivec2(1280, 720), invokeResourceProcs, update, draw)
+initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)

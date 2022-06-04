@@ -1,4 +1,4 @@
-import truss3D/[shaders, models, textures, inputs]
+import truss3D/[shaders, models, textures, inputs, audio]
 import std/[options, decls]
 import resources, cameras, directions, pickups, shadows, consts
 import vmath, pixie, opengl
@@ -35,6 +35,27 @@ var
   playerModel, dirModel: Model
   playerShader, alphaClipShader: Shader
   dirTex: array[Direction, Texture]
+  playerJump: SoundEffect
+
+addResourceProc:
+  playerModel = loadModel("player.dae")
+  playerShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
+  let
+    wImage = makeMoveImage("W")
+    aImage = makeMoveImage("D")
+    sImage = makeMoveImage("S")
+    dImage = makeMoveImage("A")
+
+  for x in dirTex.mitems:
+    x = genTexture()
+
+  wImage.copyTo(dirTex[Direction.up])
+  dImage.copyTo(dirTex[right])
+  sImage.copyTo(dirTex[down])
+  aImage.copyTo(dirTex[left])
+  alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
+  dirModel = loadModel("pickup_quad.dae")
+  playerJump = loadSound("assets/sounds/jump.wav")
 
 proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
@@ -57,12 +78,13 @@ proc targetRotation*(d: Direction): float32 =
   of left: Tau / 2f
   of down: 3f / 4f * Tau
 
-func move(player: var Player, direction: Direction): bool =
+proc move(player: var Player, direction: Direction): bool =
   if player.moveProgress >= MoveTime:
     player.direction = direction
     player.fromPos = player.pos
     player.toPos = direction.toVec + player.pos
     player.moveProgress = 0
+    playerJump.play()
     result = true
 
 func isMoving*(player: Player): bool = player.moveProgress < 1
@@ -171,22 +193,3 @@ func mapPos*(player: Player): Vec3 =
   let pos = player.posOffset()
   vec3(pos.x.floor, pos.y.floor, pos.z.floor)
 func movingToPos*(player: Player): Vec3 = player.toPos + vec3(0.5, 0, 0.5)
-
-addResourceProc:
-  playerModel = loadModel("player.dae")
-  playerShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
-  let
-    wImage = makeMoveImage("W")
-    aImage = makeMoveImage("D")
-    sImage = makeMoveImage("S")
-    dImage = makeMoveImage("A")
-
-  for x in dirTex.mitems:
-    x = genTexture()
-
-  wImage.copyTo(dirTex[Direction.up])
-  dImage.copyTo(dirTex[right])
-  sImage.copyTo(dirTex[down])
-  aImage.copyTo(dirTex[left])
-  alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
-  dirModel = loadModel("pickup_quad.dae")
