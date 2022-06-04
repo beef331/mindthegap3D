@@ -56,6 +56,7 @@ addResourceProc:
   alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
   dirModel = loadModel("pickup_quad.dae")
   playerJump = loadSound("assets/sounds/jump.wav")
+  playerJump.sound.volume = 0.3
 
 proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
