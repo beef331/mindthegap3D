@@ -1,4 +1,4 @@
-import truss3D, truss3D/[models, textures, gui, particlesystems]
+import truss3D, truss3D/[models, textures, gui, particlesystems, audio]
 import pixie, opengl, vmath, easings, flatty
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate]
@@ -42,6 +42,7 @@ var
   levelShader, cursorShader, alphaClipShader, flagShader, boxShader, signBuffShader: Shader
   waterParticleShader: Shader
   waterParticleSystem: ParticleSystem
+  splashSfx: SoundEffect
 
 proc particleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
   particle.pos += dt * particle.velocity * 10 * ((particle.lifeTime / ps.lifeTime))
@@ -64,6 +65,8 @@ addResourceProc:
   boxShader.setUniform("walkColour", vec4(1, 1, 0, 1))
   boxShader.setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
 
+  splashSfx = loadSound("assets/sounds/blocksplash.wav")
+  splashSfx.sound.volume = 0.1
 
 
 
@@ -209,7 +212,7 @@ proc load*(world: var World) =
 proc reload(world: var World) =
   ## Used to reload the world state and reposition player
   if world.history.len > 0:
-    world.rewindTo({start})
+    world.rewindTo({HistoryKind.start})
   world.history.setLen(0)
   world.player = Player.init(world.getPos(world.playerSpawn.int))
   world.projectiles = Projectiles.init()
@@ -507,6 +510,93 @@ proc getSign*(world: World, pos: Vec3): Sign =
       break
 
 
+proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
+  var projRemoveBuffer: seq[int]
+  for id, proj in world.projectiles.idProj:
+    let pos = ivec3(proj.pos + vec3(0.5))
+    if pos.xz == world.player.mapPos().ivec3.xz:
+      world.rewindTo({checkpoint, start})
+      break
+
+    if pos.x notin 0..<world.width.int or pos.z notin 0..<world.height.int:
+      projRemoveBuffer.add id
+    else:
+      let tile = world.tiles[world.getPointIndex(pos.vec3)]
+      if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
+        projRemoveBuffer.add id
+
+  world.projectiles.destroyProjectiles(projRemoveBuffer.items)
+  world.projectiles.update(dt, playerDidMove)
+
+proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: var Option[Direction]) =
+  ## Orchestrates player movement and historyWriting for movement
+  # Top down game dev
+  let
+    playerStartPos = world.player.mapPos
+    startPlayer = world.player
+  world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
+  if world.player.doPlace or moveDir.isSome:
+    world.saveHistoryStep(startPlayer)
+  if world.player.doPlace():
+    world.placeBlock(cam)
+  if moveDir.isSome:
+    world.pushBlock(moveDir.get)
+    world.steppedOff(playerStartPos)
+    world.givePickupIfCan()
+  if KeycodeP.isDown:
+    world.popHistoryStep()
+
+  for i, tile in enumerate world.tiles.mitems:
+    let startY =
+      if tile.kind == box:
+        tile.calcYPos()
+      else:
+        0f32
+    tile.update(world.projectiles, dt, moveDir.isSome)
+
+    if tile.kind == box:
+      if startY > 1 and tile.calcYPos() <= 1:
+        splashSfx.play()
+        waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
+
+
+proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
+  ## Update for world editor logic
+  for element in world.editorGui:
+      element.update(dt)
+
+  if guiState == nothing:
+    let
+      pos = world.cursorPos(cam)
+      ind = world.getPointIndex(pos)
+
+    if pos in world:
+      if leftMb.isPressed:
+        if KeycodeLCtrl.isPressed:
+          let selectedPos = world.cursorPos(cam)
+          if selectedPos in world:
+            world.inspecting = world.getPointIndex(selectedPos)
+        elif KeycodeLShift.isPressed:
+          if pos in world:
+            world.playerSpawn = ind
+            world.reload()
+        else:
+          world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
+          case world.paintKind:
+          of box:
+            world.tiles[ind].progress = FallTime
+          of pickup:
+            world.tiles[ind].active = true
+          else:
+            discard
+          world.reload()
+      if rightMb.isPressed:
+        world.placeTile(Tile(kind: empty), pos.xz.ivec2)
+        world.reload()
+
+    if KeyCodeF11.isDown or KeyCodeEscape.isDown:
+      world.state = playing
+
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
   case world.state
   of playing:
@@ -514,92 +604,18 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
       sign.update(dt)
 
     var moveDir = none(Direction)
-    let
-      playerStartPos = world.player.mapPos
-      startPlayer = world.player
-    world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
-    if world.player.doPlace or moveDir.isSome:
-      world.saveHistoryStep(startPlayer)
-    if world.player.doPlace():
-      world.placeBlock(cam)
-    if moveDir.isSome:
-      world.pushBlock(moveDir.get)
-      world.steppedOff(playerStartPos)
-      world.givePickupIfCan()
-    if KeycodeP.isDown:
-      world.popHistoryStep()
 
-    var projRemoveBuffer: seq[int]
-    for i, tile in enumerate world.tiles.mitems:
-      let startY =
-        if tile.kind == box:
-          tile.calcYPos()
-        else:
-          0f32
-      tile.update(world.projectiles, dt, moveDir.isSome)
+    world.playerMovementUpdate(cam, dt, moveDir)
+    world.projectileUpdate(dt, moveDir.isSome)
 
-      if tile.kind == box:
-        if startY > 1 and tile.calcYPos() <= 1:
-          waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
-
-    for id, proj in world.projectiles.idProj:
-      let pos = ivec3(proj.pos + vec3(0.5))
-      if pos.xz == world.player.mapPos().ivec3.xz:
-        world.rewindTo({start, checkpoint})
-        break
-
-      if pos.x notin 0..<world.width.int or pos.z notin 0..<world.height.int:
-        projRemoveBuffer.add id
-      else:
-        let tile = world.tiles[world.getPointIndex(pos.vec3)]
-        if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
-          projRemoveBuffer.add id
-
-    world.projectiles.destroyProjectiles(projRemoveBuffer.items)
-    world.projectiles.update(dt, moveDir.isSome())
     if KeyCodeF11.isDown:
-      world.rewindTo({start})
+      world.rewindTo({HistoryKind.checkpoint})
       world.state = editing
-
   of previewing:
     discard
   of editing:
-    for element in world.editorGui:
-      element.update(dt)
+    world.editorUpdate(cam, dt)
 
-    if guiState == nothing:
-      let
-        pos = world.cursorPos(cam)
-        ind = world.getPointIndex(pos)
-
-      if pos in world:
-        if leftMb.isPressed:
-          if KeycodeLCtrl.isPressed:
-            let selectedPos = world.cursorPos(cam)
-            if selectedPos in world:
-              world.inspecting = world.getPointIndex(selectedPos)
-          elif KeycodeLShift.isPressed:
-            if pos in world:
-              world.playerSpawn = ind
-              world.reload()
-          else:
-            world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
-            case world.paintKind:
-            of box:
-              world.tiles[ind].progress = FallTime
-            of pickup:
-              world.tiles[ind].active = true
-            else:
-              discard
-            world.reload()
-        if rightMb.isPressed:
-          world.placeTile(Tile(kind: empty), pos.xz.ivec2)
-          world.reload()
-
-
-
-    if KeyCodeF11.isDown or KeyCodeEscape.isDown:
-      world.state = playing
   waterParticleSystem.update(dt)
 
 # RENDER LOGIC BELOW
