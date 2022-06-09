@@ -14,7 +14,9 @@ type
     playerSpawn*: int64
     state*: WorldState
     player*: Player
+    playerStart: Player ## Player stats before moving, meant for history
     projectiles*: Projectiles
+    pastProjectiles: seq[Projectile]
     history: seq[History]
 
     # Editor fields
@@ -23,7 +25,7 @@ type
     editorGui: seq[UIElement]
 
   HistoryKind = enum
-    nothing, start, checkpoint
+    nothing, start, checkpoint, ontoBox, pushed, placed
   History = object
     kind: HistoryKind
     player: Player
@@ -141,16 +143,11 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
       index += 1
 
 proc isFinished*(world: World): bool =
-  for x in world.tiles:
-    case x.kind
-    of empty:
-      return false
-    of box:
-      if not x.steppedOn:
-        return false
-    of AlwaysCompleted:
-      discard
   result = true
+  for x in world.tiles:
+    result = x.completed()
+    if not result:
+      return
 
 proc contains*(world: World, vec: Vec3): bool =
   floor(vec.x).int in 0..<world.width and floor(vec.z).int in 0..<world.height
@@ -176,28 +173,28 @@ proc resize*(world: var World, newSize: IVec2) =
 
 # History Procs
 proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
-  let projectiles = collect(for x in world.projectiles.items: x)
-  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: world.player)
+  world.history.add History(kind: kind, tiles: world.tiles, projectiles: world.pastProjectiles, player: world.playerStart)
 
-proc saveHistoryStep(world: var World, player: Player, kind = HistoryKind.nothing) =
-  let projectiles = collect(for x in world.projectiles.items: x)
-  world.history.add History(kind: kind, tiles: world.tiles, projectiles: projectiles, player: player)
+proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = false) =
+  var
+    ind: int = -1
+    skipped = false
 
-proc popHistoryStep(world: var World) =
-  if world.history.len > 0:
-    let history = world.history.pop
-    world.tiles = history.tiles
+  for i in countDown(world.history.high, 0):
+    if not skipFirst or skipped:
+      if world.history[i].kind in targetStates:
+          ind = i
+          break
+    skipped = true
+
+  if ind >= 0:
+    template targetHis: History = world.history[ind]
+    world.tiles = targetHis.tiles
     world.projectiles = Projectiles.init
-    world.projectiles.spawnProjectiles(history.projectiles)
-    world.player = history.player
+    world.projectiles.spawnProjectiles(targetHis.projectiles)
+    world.player = targetHis.player
     world.player.skipMoveAnim()
-    if history.kind == start:
-      world.history.add history
-
-proc rewindTo*(world: var World, targetStates: set[HistoryKind]) =
-  world.popHistoryStep()
-  while world.history.len > 0 and world.history[^1].kind notin targetStates:
-    world.popHistoryStep()
+    world.history.setLen(ind + 1)
 
 proc unload*(world: var World) =
   for sign in world.signs.mitems:
@@ -211,9 +208,12 @@ proc load*(world: var World) =
 
 proc reload(world: var World) =
   ## Used to reload the world state and reposition player
-  if world.history.len > 0:
+  world.unload()
+  world.load()
+  if world.history.len > 1:
     world.rewindTo({HistoryKind.start})
   world.history.setLen(0)
+  world.saveHistoryStep(start)
   world.player = Player.init(world.getPos(world.playerSpawn.int))
   world.projectiles = Projectiles.init()
 
@@ -421,16 +421,30 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   if ind >= 0:
     world.tiles[ind] = tile
 
+
+proc steppedOn(world: var World, pos: Vec3) =
+  if pos in world:
+    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    let hadSteppedOn = tile.steppedOn
+    tile.steppedOn = true
+    case tile.kind
+    of checkpoint:
+      if not hadSteppedOn:
+        world.playerStart = world.player
+        world.saveHistoryStep(checkpoint)
+    else:
+      world.saveHistoryStep(nothing)
+    if world.isFinished:
+      echo "Donezo"
+
+
 proc steppedOff(world: var World, pos: Vec3) =
   if pos in world:
     var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
     case tile.kind
     of box:
-      tile.steppedOn = true
       tile.progress = 0
     else: discard
-    if world.isFinished:
-      echo "Donezo"
 
 proc canPush(world: World, index: int, dir: Direction): bool =
   result = false
@@ -511,11 +525,16 @@ proc getSign*(world: World, pos: Vec3): Sign =
 
 
 proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
+  if playerDidMove:
+    world.pastProjectiles.setLen(0)
+    for proj in world.projectiles.items:
+      world.pastProjectiles.add proj
+
   var projRemoveBuffer: seq[int]
   for id, proj in world.projectiles.idProj:
     let pos = ivec3(proj.pos + vec3(0.5))
-    if pos.xz == world.player.mapPos().ivec3.xz:
-      world.rewindTo({checkpoint, start})
+    if pos.xz == world.player.pos().ivec3.xz:
+      world.rewindTo({HistoryKind.checkpoint, start})
       break
 
     if pos.x notin 0..<world.width.int or pos.z notin 0..<world.height.int:
@@ -531,20 +550,19 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
 proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: var Option[Direction]) =
   ## Orchestrates player movement and historyWriting for movement
   # Top down game dev
-  let
-    playerStartPos = world.player.mapPos
-    startPlayer = world.player
+  let playerStartPos = world.player.mapPos
+  world.playerStart = world.player
   world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
-  if world.player.doPlace or moveDir.isSome:
-    world.saveHistoryStep(startPlayer)
   if world.player.doPlace():
     world.placeBlock(cam)
+    world.saveHistoryStep(placed)
   if moveDir.isSome:
     world.pushBlock(moveDir.get)
     world.steppedOff(playerStartPos)
+    world.steppedOn(world.player.movingToPos)
     world.givePickupIfCan()
   if KeycodeP.isDown:
-    world.popHistoryStep()
+    world.rewindTo({HistoryKind.start, checkpoint}, true)
 
   for i, tile in enumerate world.tiles.mitems:
     let startY =
@@ -595,6 +613,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
         world.reload()
 
     if KeyCodeF11.isDown or KeyCodeEscape.isDown:
+      world.reload() # Saves the world state before we play again
       world.state = playing
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
@@ -609,7 +628,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     world.projectileUpdate(dt, moveDir.isSome)
 
     if KeyCodeF11.isDown:
-      world.rewindTo({HistoryKind.checkpoint})
+      world.rewindTo({HistoryKind.start})
       world.state = editing
   of previewing:
     discard
@@ -623,11 +642,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
 proc renderDepth*(world: World, cam: Camera) =
   for (tile, pos) in world.tileKindCoords:
     if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-      case tile.kind:
-      of box:
-        renderBox(tile, cam, pos, levelShader)
-      else:
-        renderBlock(tile, cam, levelShader, pos)
+      renderBlock(tile, cam, levelShader, alphaClipShader, pos)
 
 proc renderSignBuff*(world: World, cam: Camera) =
   for i, x in world.signs:
@@ -668,7 +683,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
 
         cursorShader.setUniform("valid", canPlace.ord)
         let pos = pos + vec3(0, yPos, 0)
-        renderBlock(Tile(kind: box), cam, cursorShader, pos)
+        renderBlock(Tile(kind: box), cam, cursorShader, alphaClipShader, pos, true)
         glEnable(GlDepthTest)
 
 proc render*(world: World, cam: Camera) =
@@ -677,12 +692,10 @@ proc render*(world: World, cam: Camera) =
       if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
         renderStack(tile, cam, levelShader, pos)
         case tile.kind
-        of box:
-          renderBox(tile, cam, pos, boxShader)
-        of pickup:
-          renderPickup(tile, cam, pos, alphaClipShader, levelShader)
+        of box, checkpoint:
+          renderBlock(tile, cam, boxShader, alphaClipShader, pos)
         else:
-          renderBlock(tile, cam, levelShader, pos)
+          renderBlock(tile, cam, levelShader, alphaClipShader, pos)
 
   renderSigns(world, cam)
   world.player.render(cam, world.playerSafeDirections)
@@ -708,7 +721,7 @@ proc render*(world: World, cam: Camera) =
       cursorSHader.setUniform("m", modelMatrix)
       render(flagModel)
     else:
-      renderBlock(Tile(kind: world.paintKind), cam, cursorShader, world.cursorPos(cam))
+      renderBlock(Tile(kind: world.paintKind), cam, cursorShader, alphaClipShader, world.cursorPos(cam), true)
 
 proc renderWaterSplashes*(cam: Camera) =
   with waterParticleShader:

@@ -5,7 +5,7 @@ import std/[options, decls]
 
 
 var
-  floorModel, wallModel, pedestalModel, pickupQuadModel, flagModel, boxModel, signModel, crossbowmodel: Model
+  floorModel, wallModel, pedestalModel, pickupQuadModel, checkpointModel, flagModel, boxModel, signModel, crossbowmodel: Model
 
 addResourceProc:
   floorModel = loadModel("floor.dae")
@@ -16,11 +16,13 @@ addResourceProc:
   boxModel = loadModel("box.dae")
   signModel = loadModel("sign.dae")
   crossbowmodel = loadModel("crossbow.dae")
+  checkpointModel = loadModel("checkpoint.dae")
 
 type
   TileKind* = enum
     empty
     wall # Insert before wall for non rendered tiles
+    checkpoint
     floor
     pickup
     box
@@ -52,21 +54,34 @@ type
   Tile* = object
     stacked*: Option[StackedObject]
     direction*: Direction
+    steppedOn*: bool
     case kind*: TileKind
     of pickup:
       pickupKind*: PickupType
       active*: bool
     of box:
       progress*: float32
-      steppedOn*: bool
     else: discard
 
 
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup}
   Walkable* = {TileKind.floor, pickup, box}
-  AlwaysWalkable* = {TileKind.floor, pickup}
+  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint}
   AlwaysCompleted* = {TileKind.floor, wall, pickup}
+
+proc completed*(t: Tile): bool =
+  case t.kind:
+  of empty:
+    false
+  of AlwaysCompleted:
+    true
+  of box:
+    t.steppedOn
+  else:
+    true
+
+
 
 
 proc hasStacked*(tile: Tile): bool = tile.stacked.isSome()
@@ -129,8 +144,8 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
           projectiles.spawnProjectile(stacked.toPos + vec3(0, 0.5, 0), stacked.direction)
     else: discard
 
+proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false)
 
-proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3)
 
 proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.hasStacked():
@@ -139,7 +154,7 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       pos = lerp(stacked.startPos, stacked.toPos, clamp(easingsOutBounce(stacked.moveTime / MoveTime), 0f, 1f))
     case tile.stacked.get.kind
     of box:
-      renderBlock(Tile(kind: box), cam, shader, pos)
+      renderBlock(Tile(kind: box), cam, shader, shader, pos)
     of turret:
       let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
@@ -149,7 +164,8 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
     of none:
       discard
 
-proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
+
+proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false) =
   if tile.kind in FloorDrawn:
     let modelMatrix = mat4() * translate(pos)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
@@ -162,34 +178,29 @@ proc renderBlock*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
     shader.setUniform("m", modelMatrix)
     render(wallModel)
   of pickup:
-    let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0))
-    shader.setUniform("m", modelMatrix)
-    shader.setUniform("mvp", cam.orthoView * modelMatrix)
-    render(pedestalModel)
+    with transparentShader:
+      transparentShader.setUniform("tex", getPickupTexture(tile.pickupKind))
+      transparentShader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
+      render(pickupQuadModel)
+    with shader:
+      let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0))
+      shader.setUniform("m", modelMatrix)
+      shader.setUniform("mvp", cam.orthoView * modelMatrix)
+      render(pedestalModel)
   of box:
+      var pos = pos
+      if not drawAtPos:
+        pos.y = tile.calcYPos()
+      with shader:
+        let modelMatrix = mat4() * translate(pos)
+        shader.setUniform("m", modelMatrix)
+        shader.setUniform("mvp", cam.orthoView * modelMatrix)
+        shader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
+        render(boxModel)
+
+  of checkpoint:
     let modelMatrix = mat4() * translate(pos)
     shader.setUniform("mvp", cam.orthoView * modelMatrix)
     shader.setUniform("m", modelMatrix)
-    render(boxModel)
+    render(checkpointModel)
   else: discard
-
-
-proc renderBox*(tile: Tile, cam: Camera, pos: Vec3, shader: Shader) =
-  var pos = pos
-  pos.y = tile.calcYPos()
-  shader.makeActive()
-
-  let modelMatrix = mat4() * translate(pos)
-  shader.setUniform("m", modelMatrix)
-  shader.setUniform("mvp", cam.orthoView * modelMatrix)
-  shader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
-  render(boxModel)
-
-proc renderPickup*(tile: Tile, cam: Camera, pos: Vec3, shader, defaultShader: Shader) =
-  renderBlock(tile, cam, defaultShader, pos)
-  shader.makeActive()
-  shader.setUniform("tex", getPickupTexture(tile.pickupKind))
-  shader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
-  render(pickupQuadModel)
-  defaultShader.makeActive()
-
