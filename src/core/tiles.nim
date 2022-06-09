@@ -154,7 +154,7 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       pos = lerp(stacked.startPos, stacked.toPos, clamp(easingsOutBounce(stacked.moveTime / MoveTime), 0f, 1f))
     case tile.stacked.get.kind
     of box:
-      renderBlock(Tile(kind: box), cam, shader, shader, pos)
+      renderBlock(Tile(kind: box), cam, shader, shader, pos, true)
     of turret:
       let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
       shader.setUniform("mvp", cam.orthoView * modelMatrix)

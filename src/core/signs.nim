@@ -1,4 +1,4 @@
-import vmath, pixie, opengl, flatty
+import vmath, pixie, opengl
 import truss3D/[textures, shaders, models]
 import cameras, resources
 
@@ -13,14 +13,6 @@ type
 var
   messageModel: Model
   messageShader: Shader
-
-proc toFlatty*(s: var string; x: Sign) =
-  s.add x.pos.toFlatty
-  s.add x.message.toFlatty
-
-proc fromFlatty*(s: string; i: var int, sign: var Sign) =
-  fromFlatty(s, i, sign.pos)
-  fromFlatty(s, i, sign.message)
 
 const messageTime = 0.3f
 

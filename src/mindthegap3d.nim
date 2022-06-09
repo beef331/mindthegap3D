@@ -1,10 +1,8 @@
-import truss3D
-import vmath
-import chroma
-import pixie
+import truss3D, vmath, chroma, pixie, frosty
+import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio]
 import core/[worlds, resources, cameras, players, directions, tiles]
-import std/[os, sugar]
+import std/[os, sugar, streams]
 
 shaderPath = "assets/shaders"
 modelPath = "assets/models"
@@ -62,6 +60,13 @@ proc gameInit() =
   audio.init()
   gui.init()
   invokeResourceProcs()
+  try:
+    if fileExists(getTempDir() / "mtgdebuglevel"):
+      let myFs = newFileStream(getTempDir() / "mtgdebuglevel", fmRead)
+      defer: myFs.close()
+      thaw(myFs, world)
+  except CatchableError as e:
+    echo "Debug level could not be loaded: ", e.msg
 
 
 var
@@ -124,6 +129,9 @@ proc update(dt: float32) =
       camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
 
   if KeyCodeQ.isDown:
+    let myFs = newFileStream(getTempDir() / "mtgdebuglevel", fmWrite)
+    defer: myFs.close()
+    freeze(myFs, world)
     quitTruss()
   guiState = nothing
 

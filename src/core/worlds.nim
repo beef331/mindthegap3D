@@ -1,8 +1,7 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio]
-import pixie, opengl, vmath, easings, flatty
+import pixie, opengl, vmath, easings, frosty
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate]
-export toFlatty, fromFlatty
 
 type
   WorldState* = enum
@@ -37,7 +36,9 @@ type
     placeEmpty
     placeStacked
 
-const projectilesAlwaysCollide = {wall}
+const
+  projectilesAlwaysCollide = {wall}
+  worldUnserializedFields = ["inspecting", "paintKind", "editorGui"]
 
 var
   pickupQuadModel, signModel, flagModel: Model
@@ -205,6 +206,18 @@ proc load*(world: var World) =
     sign.load()
   if world.history.len == 0:
     world.saveHistoryStep(start)
+
+proc serialize*[S](output: var S; world: World) =
+  for name, field in world.fieldPairs:
+    when name notin worldUnserializedFields:
+      serialize(output, field)
+
+proc deserialize*[S](input: var S; world: var World) =
+  for name, field in world.fieldPairs:
+    when name notin worldUnserializedFields:
+      deserialize(input, field)
+  world.unload()
+  world.load()
 
 proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
@@ -536,7 +549,7 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
   var projRemoveBuffer: seq[int]
   for id, proj in world.projectiles.idProj:
     let pos = ivec3(proj.pos + vec3(0.5))
-    if pos.xz == world.player.pos().ivec3.xz:
+    if pos.xz == world.player.mapPos().ivec3.xz:
       world.rewindTo({HistoryKind.checkpoint, start})
       break
 
