@@ -199,8 +199,10 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
         render(boxModel)
 
   of checkpoint:
-    let modelMatrix = mat4() * translate(pos)
-    shader.setUniform("mvp", cam.orthoView * modelMatrix)
-    shader.setUniform("m", modelMatrix)
-    render(checkpointModel)
+    with shader:
+      let modelMatrix = mat4() * translate(pos)
+      shader.setUniform("isWalkable", tile.steppedOn.ord) # Stupid name uniform now
+      shader.setUniform("mvp", cam.orthoView * modelMatrix)
+      shader.setUniform("m", modelMatrix)
+      render(checkpointModel)
   else: discard

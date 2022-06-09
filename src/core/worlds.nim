@@ -206,6 +206,41 @@ proc load*(world: var World) =
   if world.history.len == 0:
     world.saveHistoryStep(start)
 
+proc steppedOn(world: var World, pos: Vec3) =
+  if pos in world:
+    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    let hadSteppedOn = tile.steppedOn
+    if tile.kind != box:
+      tile.steppedOn = true
+    case tile.kind
+    of checkpoint:
+      if not hadSteppedOn:
+        world.playerStart = world.player
+        world.saveHistoryStep(checkpoint)
+    else:
+      world.saveHistoryStep(nothing)
+    if world.isFinished:
+      echo "Donezo"
+
+
+proc steppedOff(world: var World, pos: Vec3) =
+  if pos in world:
+    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    case tile.kind
+    of box:
+      tile.progress = 0
+      tile.steppedOn = true
+    else: discard
+
+proc givePickupIfCan(world: var World) =
+  ## If the player can get the pickup give it to them else do nothing
+  let pos = world.player.movingToPos
+  if not world.player.hasPickup and pos in world:
+    let index = world.getPointIndex(pos)
+    if world.tiles[index].kind == pickup and world.tiles[index].active:
+      world.tiles[index].active = false
+      world.player.givePickup world.tiles[index].pickupKind
+
 proc reload(world: var World) =
   ## Used to reload the world state and reposition player
   world.unload()
@@ -216,6 +251,8 @@ proc reload(world: var World) =
   world.saveHistoryStep(start)
   world.player = Player.init(world.getPos(world.playerSpawn.int))
   world.projectiles = Projectiles.init()
+  world.steppedOn(world.player.pos)
+  world.givePickupIfCan()
 
 emitDropDownMethods(PickupType)
 emitDropDownMethods(StackedObjectKind)
@@ -421,31 +458,6 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   if ind >= 0:
     world.tiles[ind] = tile
 
-
-proc steppedOn(world: var World, pos: Vec3) =
-  if pos in world:
-    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
-    let hadSteppedOn = tile.steppedOn
-    tile.steppedOn = true
-    case tile.kind
-    of checkpoint:
-      if not hadSteppedOn:
-        world.playerStart = world.player
-        world.saveHistoryStep(checkpoint)
-    else:
-      world.saveHistoryStep(nothing)
-    if world.isFinished:
-      echo "Donezo"
-
-
-proc steppedOff(world: var World, pos: Vec3) =
-  if pos in world:
-    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
-    case tile.kind
-    of box:
-      tile.progress = 0
-    else: discard
-
 proc canPush(world: World, index: int, dir: Direction): bool =
   result = false
   for tile in world.tilesInDir(index, dir):
@@ -499,15 +511,6 @@ proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
     {}
 
 proc playerSafeDirections(world: World): set[Direction] = world.getSafeDirections(world.player.mapPos)
-
-proc givePickupIfCan(world: var World) =
-  ## If the player can get the pickup give it to them else do nothing
-  let pos = world.player.movingToPos
-  if not world.player.hasPickup and pos in world:
-    let index = world.getPointIndex(pos)
-    if world.tiles[index].kind == pickup and world.tiles[index].active:
-      world.tiles[index].active = false
-      world.player.givePickup world.tiles[index].pickupKind
 
 proc hoverSign*(world: var World, index: int) =
   world.signs[index].hovered = true
@@ -607,10 +610,9 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
             world.tiles[ind].active = true
           else:
             discard
-          world.reload()
+
       if rightMb.isPressed:
         world.placeTile(Tile(kind: empty), pos.xz.ivec2)
-        world.reload()
 
     if KeyCodeF11.isDown or KeyCodeEscape.isDown:
       world.reload() # Saves the world state before we play again
