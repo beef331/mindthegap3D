@@ -274,7 +274,7 @@ emitDropDownMethods(Direction)
 proc lerp(a, b: int, c: float32): int = (a.float32 + (b - a).float32 * c).int
 emitScrollbarMethods(int)
 
-proc setupEditorGui(world: var World) =
+proc setupEditorGui*(world: var World) =
   world.editorGui.setLen(0)
   let
     wrld = world.addr
@@ -613,7 +613,9 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
         elif KeycodeLShift.isPressed:
           if pos in world:
             world.playerSpawn = ind
+            world.history.setLen(0)
             world.reload()
+
         else:
           world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
           case world.paintKind:

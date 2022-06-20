@@ -17,6 +17,7 @@ var
   waterTex: Texture
 
 
+
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
   data.appendVerts:
@@ -65,6 +66,7 @@ proc gameInit() =
       let myFs = newFileStream(getTempDir() / "mtgdebuglevel", fmRead)
       defer: myFs.close()
       thaw(myFs, world)
+      world.setupEditorGui()
   except CatchableError as e:
     echo "Debug level could not be loaded: ", e.msg
 
@@ -134,6 +136,7 @@ proc update(dt: float32) =
     freeze(myFs, world)
     quitTruss()
   guiState = nothing
+  audio.update()
 
 proc draw =
   glEnable(GlDepthTest)
