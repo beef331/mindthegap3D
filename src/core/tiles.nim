@@ -1,11 +1,23 @@
 import directions, pickups, cameras, resources, projectiles, consts
-import vmath, easings, opengl
-import truss3D/[shaders, models]
+import vmath, easings, opengl, pixie
+import truss3D/[shaders, models, textures]
 import std/[options, decls]
 
 
 var
-  floorModel, wallModel, pedestalModel, pickupQuadModel, checkpointModel, flagModel, boxModel, signModel, crossbowmodel: Model
+  floorModel, wallModel, pedestalModel, pickupQuadModel: Model
+  checkpointModel, flagModel, boxModel, signModel, crossbowmodel: Model
+  quadModel: Model
+  progressShader: Shader
+  progressTex: Texture
+
+proc makeQuad(width, height: float32): Model =
+  var data: MeshData[Vec3]
+  let halfPos = vec3(width / 2, height / 2, 0)
+  data.appendVerts([vec3(0) - halfPos, vec3(width, height, 0) - halfPos, vec3(0, height, 0) - halfPos, vec3(width, 0, 0) - halfPos].items)
+  data.appendUV([vec2(1, 1), vec2(0, 0), vec2(1, 0), vec2(0, 1)].items)
+  data.append([1u32, 0, 2, 0, 1, 3].items)
+  result = data.uploadData()
 
 addResourceProc:
   floorModel = loadModel("floor.dae")
@@ -17,6 +29,10 @@ addResourceProc:
   signModel = loadModel("sign.dae")
   crossbowmodel = loadModel("crossbow.dae")
   checkpointModel = loadModel("checkpoint.dae")
+  quadModel = makeQuad(1, 1)
+  progressShader = loadShader(ShaderPath"texvert.glsl", ShaderPath"animtextfrag.glsl")
+  progressTex = genTexture()
+  readImage("assets/progress.png").copyto progressTex
 
 type
   TileKind* = enum
@@ -82,8 +98,6 @@ proc completed*(t: Tile): bool =
     true
 
 
-
-
 proc hasStacked*(tile: Tile): bool = tile.stacked.isSome()
 
 proc isWalkable*(tile: Tile): bool =
@@ -146,7 +160,6 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
 
 proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false)
 
-
 proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.hasStacked():
     let
@@ -160,6 +173,22 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
       shader.setUniform("m", modelMatrix)
       render(crossbowmodel)
+
+      let
+        progress = clamp(float32 (stacked.movesToNextShot - 1) / MovesBetweenShots, 0f..1f)
+        pos = pos + vec3(0, 1, 0)
+        targetUp = cam.up
+        targetRot = fromTwoVectors(vec3(0, 0, 1), cam.forward)
+        upRot = fromTwoVectors(mat4(targetRot) * vec3(0, 1, 0), targetUp)
+        mat = mat4() * translate(pos) * (mat4(upRot) * mat4(targetRot))
+      progressShader.setUniform("mvp", cam.orthoView * mat)
+      progressShader.setUniform("tex", progressTex)
+      progressShader.setUniform("progress", progress)
+      with progressShader:
+        render(quadModel)
+
+
+
       ##renderBlock(Tile(kind: shooter), cam)
     of none:
       discard
