@@ -1,2 +1,2 @@
 --experimental:overloadableEnums
--d:nimOldCaseObjects
+--define:nimOldCaseObjects
