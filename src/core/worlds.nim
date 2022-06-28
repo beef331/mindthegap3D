@@ -630,8 +630,11 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
         world.placeTile(Tile(kind: empty), pos.xz.ivec2)
 
     if KeyCodeF11.isDown or KeyCodeEscape.isDown:
-      world.reload() # Saves the world state before we play again
+      world.history.setLen(0)
+      world.saveHistoryStep(start)
       world.state = playing
+      world.reload()
+
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
   case world.state
@@ -645,8 +648,8 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     world.projectileUpdate(dt, moveDir.isSome)
 
     if KeyCodeF11.isDown:
-      world.rewindTo({HistoryKind.start})
       world.state = editing
+      world.reload()
   of previewing:
     discard
   of editing:
