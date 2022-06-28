@@ -58,6 +58,7 @@ addResourceProc do:
   world = World.init(10, 10)
 
 proc gameInit() =
+  gui.fontPath = "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
   gui.init()
   invokeResourceProcs()
