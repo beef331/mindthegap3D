@@ -444,7 +444,7 @@ proc setupEditorGui*(world: var World) =
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 
 proc init*(_: typedesc[World], width, height: int): World =
-  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1)
+  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1, state: previewing)
   result.setupEditorGui()
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =

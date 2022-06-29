@@ -15,6 +15,8 @@ var
   depthShader, waterShader, screenShader: Shader
   waterQuad, screenQuad: Model
   waterTex: Texture
+  mainMenu: seq[UiElement]
+  inMenu = true
 
 
 
@@ -57,19 +59,92 @@ addResourceProc do:
 
   world = World.init(10, 10)
 
+let lastLevelPath = getTempDir() / "mtgdebuglevel"
+
+proc loadLastPlayed() =
+  try:
+    if fileExists(lastLevelPath):
+      let myFs = newFileStream(lastLevelPath, fmRead)
+      defer: myFs.close()
+      thaw(myFs, world)
+      world.setupEditorGui()
+      inMenu = false
+  except CatchableError as e:
+    echo "Debug level could not be loaded: ", e.msg
+    discard tryRemoveFile(lastLevelPath)
+
+proc saveLastPlayed() =
+  let myFs = newFileStream(lastLevelPath, fmWrite)
+  defer: myFs.close()
+  freeze(myFs, world)
+
 proc gameInit() =
   gui.fontPath = "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
   gui.init()
   invokeResourceProcs()
-  try:
-    if fileExists(getTempDir() / "mtgdebuglevel"):
-      let myFs = newFileStream(getTempDir() / "mtgdebuglevel", fmRead)
-      defer: myFs.close()
-      thaw(myFs, world)
-      world.setupEditorGui()
-  except CatchableError as e:
-    echo "Debug level could not be loaded: ", e.msg
+
+  var inLevelSelect {.global.} = false
+
+  const
+    fontSize = 50
+    layoutSize = ivec2(500, fontSize)
+    labelSize = ivec2(100, fontSize)
+
+
+  let nineSliceTex = genTexture()
+  readImage("assets/uiframe.png").copyTo nineSliceTex
+
+  mainMenu.add:
+    makeUi(Label):
+      pos = ivec2(0, 30)
+      size = ivec2(300, 100)
+      text = "Mind the Gap"
+      fontSize = 100
+      anchor = {top}
+
+  mainMenu.add:
+    makeUi(LayoutGroup):
+      pos = ivec2(0, 30)
+      size = ivec2(500, 300)
+      layoutDirection = vertical
+      anchor = {bottom}
+      margin = 10
+      children:
+        makeUi(Button):
+          size = labelSize
+          text = "Continue"
+          backgroundColor = vec4(1)
+          nineSliceSize = 32f32
+          fontColor = vec4(1)
+          backgroundTex = nineSliceTex
+          visibleCond = proc(): bool = fileExists(lastLevelPath)
+          onClick = proc() = loadLastPlayed()
+        makeUi(Button):
+          size = labelSize
+          text = "Play"
+          nineSliceSize = 32f32
+          backgroundColor = vec4(1)
+          backgroundTex = nineSliceTex
+        makeUi(Button):
+          size = labelSize
+          text = "Edit"
+          nineSliceSize = 32f32
+          backgroundColor = vec4(1)
+          backgroundTex = nineSliceTex
+        makeUi(Button):
+          size = labelSize
+          text = "Options"
+          nineSliceSize = 32f32
+          backgroundColor = vec4(1)
+          backgroundTex = nineSliceTex
+        makeUi(Button):
+          size = labelSize
+          text = "Quit"
+          nineSliceSize = 32f32
+          backgroundColor = vec4(1)
+          backgroundTex = nineSliceTex
+          onClick = proc() = quitTruss()
 
 
 var
@@ -112,31 +187,37 @@ proc update(dt: float32) =
     camera.calculateMatrix()
     mainBuffer.resize(scrSize)
     signBuffer.resize(scrSize)
+    uiBuffer.resize(scrSize)
 
-  cameraMovement()
+  if world.state != previewing:
+    cameraMovement()
+    let scroll = getMouseScroll()
+    if scroll != 0:
+      if KeycodeLCtrl.isPressed and not middleMb.isPressed:
+        camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
 
-  with signBuffer:
-    let
-      mousePos = getMousePos()
-      colData = 0u8
-    glReadPixels(mousePos.x, screenSize().y - mousePos.y, 1, 1, GlRed, GlUnsignedByte, colData.unsafeAddr)
-    let selected = world.getSignIndex(colData / 255)
-    if selected >= 0:
-      world.hoverSign(selected)
 
-  world.update(camera, dt)
+    with signBuffer:
+      let
+        mousePos = getMousePos()
+        colData = 0u8
+      glReadPixels(mousePos.x, screenSize().y - mousePos.y, 1, 1, GlRed, GlUnsignedByte, colData.unsafeAddr)
+      let selected = world.getSignIndex(colData / 255)
+      if selected >= 0:
+        world.hoverSign(selected)
 
-  let scroll = getMouseScroll()
-  if scroll != 0:
-    if KeycodeLCtrl.isPressed and not middleMb.isPressed:
-      camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
+    if KeyCodeQ.isDown:
+      saveLastPlayed()
+      inMenu = true
+      world = World.init(10, 10)
+    world.update(camera, dt)
 
-  if KeyCodeQ.isDown:
-    let myFs = newFileStream(getTempDir() / "mtgdebuglevel", fmWrite)
-    defer: myFs.close()
-    freeze(myFs, world)
-    quitTruss()
+  if inMenu:
+    for element in mainMenu:
+      element.update(dt)
+
   audio.update()
+  guiState = nothing
 
 proc draw =
   glEnable(GlDepthTest)
@@ -146,12 +227,18 @@ proc draw =
 
   with uiBuffer:
     uiBuffer.clear()
-    world.renderUi()
+    if inMenu:
+      for element in mainMenu:
+        element.draw()
+    else:
+      world.renderUi()
+
   glEnable(GlDepthTest)
 
   with mainBuffer:
     mainBuffer.clear()
-    world.render(camera)
+    if not inMenu:
+      world.render(camera)
     with waterShader:
       let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
       waterShader.setUniform("modelMatrix", waterMatrix)
@@ -171,6 +258,7 @@ proc draw =
     renderWaterSplashes(camera)
 
 
+
   with screenShader:
     let scrSize = screenSize()
     screenShader.setUniform("matrix", scale(vec3(2)) * translate(vec3(-0.5, -0.5, 0f)))
@@ -178,7 +266,7 @@ proc draw =
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     render(screenQuad)
 
-  guiState = nothing
+
 
 
 initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)
