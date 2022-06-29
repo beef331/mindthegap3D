@@ -136,7 +136,6 @@ proc update(dt: float32) =
     defer: myFs.close()
     freeze(myFs, world)
     quitTruss()
-  guiState = nothing
   audio.update()
 
 proc draw =
@@ -178,5 +177,8 @@ proc draw =
     screenShader.setUniform("tex", mainBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     render(screenQuad)
+
+  guiState = nothing
+
 
 initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)

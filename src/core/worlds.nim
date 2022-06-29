@@ -17,6 +17,7 @@ type
     projectiles*: Projectiles
     pastProjectiles: seq[Projectile]
     history: seq[History]
+    levelName: string
 
     # Editor fields
     inspecting: int
@@ -338,7 +339,20 @@ proc setupEditorGui*(world: var World) =
               startPercentage = (world.height - 3).float32 / (30 - 3).float32
               onValueChange = proc(i: int) =
                 wrld[].resize(ivec2(wrld.width.int, i))
-                wrld[].reload()
+        makeUi(LayoutGroup):
+          size = ivec2(400, 50)
+          centre = false
+          margin = 5
+          children:
+            makeUi(Label):
+              size = ivec2(100, 50)
+              text = "Level Name: "
+            makeUi(TextArea):
+              size = ivec2(200, 50)
+              fontsize = 50
+              backgroundColor = vec4(0)
+              vAlign = MiddleAlign
+              onTextChange = proc(s: string) = wrld[].levelName = s
 
   template inspectingTile: Tile = wrld.tiles[wrld.inspecting]
 
@@ -346,7 +360,7 @@ proc setupEditorGui*(world: var World) =
     labelSize = ivec2(150, 40)
     buttonSize = ivec2(75, 40)
 
-  world.editorGui.add:
+  world.editorGui.add: ## Inspector
     makeUi(LayoutGroup):
       pos = ivec2(10)
       size = ivec2(200, 500)
@@ -731,17 +745,17 @@ proc render*(world: World, cam: Camera) =
       flagShader.setUniform("mvp", cam.orthoView * modelMatrix)
       flagShader.setUniform("m", modelMatrix)
       render(flagModel)
-
-    cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
-    if KeycodeLShift.isPressed:
-      var pos = world.cursorPos(cam)
-      pos.y = 1
-      let modelMatrix = mat4() * translate(pos)
-      cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
-      cursorSHader.setUniform("m", modelMatrix)
-      render(flagModel)
-    else:
-      renderBlock(Tile(kind: world.paintKind), cam, cursorShader, alphaClipShader, world.cursorPos(cam), true)
+    if guiState == nothing:
+      cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
+      if KeycodeLShift.isPressed:
+        var pos = world.cursorPos(cam)
+        pos.y = 1
+        let modelMatrix = mat4() * translate(pos)
+        cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
+        cursorSHader.setUniform("m", modelMatrix)
+        render(flagModel)
+      else:
+        renderBlock(Tile(kind: world.paintKind), cam, cursorShader, alphaClipShader, world.cursorPos(cam), true)
 
 proc renderWaterSplashes*(cam: Camera) =
   with waterParticleShader:
