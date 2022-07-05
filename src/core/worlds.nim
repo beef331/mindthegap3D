@@ -1,7 +1,8 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio]
 import pixie, opengl, vmath, easings, frosty
+import frosty/streams as froststreams
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
-import std/[sequtils, options, decls, options, strformat, sugar, enumerate]
+import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams]
 
 type
   WorldState* = enum
@@ -40,6 +41,10 @@ type
 const
   projectilesAlwaysCollide = {wall}
   worldUnserializedFields = ["inspecting", "paintKind", "editorGui"]
+
+let
+  campaignLevelPath = getConfigDir() / "mindthegap" / "campaign"
+  userLevelPath = getConfigDir() / "mindthegap" / "userlevels"
 
 var
   pickupQuadModel, signModel, flagModel: Model
@@ -220,6 +225,20 @@ proc deserialize*[S](input: var S; world: var World) =
   world.unload()
   world.load()
 
+proc save*(world: World) =
+  discard existsOrCreateDir(getConfigDir() / "mindthegap")
+  discard existsOrCreateDir(userLevelPath)
+  let path = userLevelPath / world.levelname & ".lvl"
+  try:
+    let fs = newFileStream(path, fmWrite)
+    defer: fs.close()
+    fs.freeze(world)
+  except Exception as e:
+    echo e.msg
+    echo userLevelPath
+
+
+
 proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
     var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
@@ -350,9 +369,23 @@ proc setupEditorGui*(world: var World) =
             makeUi(TextArea):
               size = ivec2(200, 50)
               fontsize = 50
-              backgroundColor = vec4(0)
+              backgroundColor = vec4(0, 0, 0, 0.5)
               vAlign = MiddleAlign
               onTextChange = proc(s: string) = wrld[].levelName = s
+        makeUi(LayoutGroup):
+          size = ivec2(400, 50)
+          centre = false
+          margin = 5
+          children:
+            makeUI(Button):
+              size = ivec2(100, 50)
+              text = "Save"
+              backgroundColor = vec4(1)
+              nineSliceSize = 16f32
+              backgroundTex = nineSliceTex
+              onClick = proc() =
+                wrld[].save()
+
 
   template inspectingTile: Tile = wrld.tiles[wrld.inspecting]
 
