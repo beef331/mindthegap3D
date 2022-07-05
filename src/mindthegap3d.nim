@@ -8,6 +8,12 @@ shaderPath = "assets/shaders"
 modelPath = "assets/models"
 
 const camDefaultSize = 8f
+
+type MenuState = enum
+  noMenu
+  inMain
+  optionsMenu
+
 var
   camera: Camera
   world: World
@@ -16,7 +22,7 @@ var
   waterQuad, screenQuad: Model
   waterTex: Texture
   mainMenu: seq[UiElement]
-  inMenu = true
+  menuState = inMain
 
 
 
@@ -68,7 +74,7 @@ proc loadLastPlayed() =
       defer: myFs.close()
       thaw(myFs, world)
       world.setupEditorGui()
-      inMenu = false
+      menuState = noMenu
   except CatchableError as e:
     echo "Debug level could not be loaded: ", e.msg
     discard tryRemoveFile(lastLevelPath)
@@ -97,6 +103,7 @@ proc gameInit() =
 
   mainMenu.add:
     makeUi(Label):
+      visibleCond = proc(): bool = menuState != noMenu
       pos = ivec2(0, 30)
       size = ivec2(300, 100)
       text = "Mind the Gap"
@@ -105,6 +112,7 @@ proc gameInit() =
 
   mainMenu.add:
     makeUi(LayoutGroup):
+      visibleCond = proc(): bool = menuState == inMain
       pos = ivec2(0, 30)
       size = ivec2(500, 300)
       layoutDirection = vertical
@@ -132,6 +140,11 @@ proc gameInit() =
           nineSliceSize = 32f32
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
+          onClick = proc() =
+            menuState = noMenu
+            world = World.init(10, 10)
+            world.setupEditorGui()
+            world.state = {editing}
         makeUi(Button):
           size = labelSize
           text = "Options"
@@ -189,7 +202,7 @@ proc update(dt: float32) =
     signBuffer.resize(scrSize)
     uiBuffer.resize(scrSize)
 
-  if world.state != previewing:
+  if previewing notin world.state:
     cameraMovement()
     let scroll = getMouseScroll()
     if scroll != 0:
@@ -208,11 +221,11 @@ proc update(dt: float32) =
 
     if KeyCodeQ.isDown:
       saveLastPlayed()
-      inMenu = true
+      menuState = inMain
       world = World.init(10, 10)
     world.update(camera, dt)
 
-  if inMenu:
+  if menuState != noMenu:
     for element in mainMenu:
       element.update(dt)
 
@@ -227,17 +240,16 @@ proc draw =
 
   with uiBuffer:
     uiBuffer.clear()
-    if inMenu:
-      for element in mainMenu:
-        element.draw()
-    else:
+    for element in mainMenu:
+      element.draw()
+    if menuState == noMenu:
       world.renderUi()
 
   glEnable(GlDepthTest)
 
   with mainBuffer:
     mainBuffer.clear()
-    if not inMenu:
+    if menuState == noMenu:
       world.render(camera)
     with waterShader:
       let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))

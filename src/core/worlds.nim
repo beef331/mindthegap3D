@@ -11,7 +11,7 @@ type
     tiles*: seq[Tile]
     signs*: seq[Sign]
     playerSpawn*: int64
-    state*: WorldState
+    state*: set[WorldState]
     player*: Player
     playerStart: Player ## Player stats before moving, meant for history
     projectiles*: Projectiles
@@ -444,7 +444,7 @@ proc setupEditorGui*(world: var World) =
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 
 proc init*(_: typedesc[World], width, height: int): World =
-  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1, state: previewing)
+  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1, state: {previewing})
   result.setupEditorGui()
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
@@ -643,16 +643,15 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
       if rightMb.isPressed:
         world.placeTile(Tile(kind: empty), pos.xz.ivec2)
 
-    if KeyCodeF11.isDown or KeyCodeEscape.isDown:
+    if (KeyCodeF11.isDown or KeyCodeEscape.isDown) and world.state == {editing}:
       world.history.setLen(0)
       world.saveHistoryStep(start)
-      world.state = playing
+      world.state.incl playing
       world.reload()
 
 
 proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
-  case world.state
-  of playing:
+  if playing in world.state:
     for sign in world.signs.mitems:
       sign.update(dt)
 
@@ -661,12 +660,12 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     world.playerMovementUpdate(cam, dt, moveDir)
     world.projectileUpdate(dt, moveDir.isSome)
 
-    if KeyCodeF11.isDown:
-      world.state = editing
+    if KeyCodeF11.isDown and world.state == {playing, editing}:
+      world.state = {editing}
       world.reload()
-  of previewing:
+  elif previewing in world.state:
     discard
-  of editing:
+  elif {editing} == world.state:
     world.editorUpdate(cam, dt)
 
   waterParticleSystem.update(dt)
@@ -696,7 +695,7 @@ proc renderSigns(world: World, cam: Camera) =
     render(signModel)
 
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
-  if world.state == playing:
+  if playing in world.state:
     let start = ivec3(cam.raycast(pos))
     with cursorShader:
       for pos in pickup.positions(dir, vec3 start):
@@ -737,7 +736,7 @@ proc render*(world: World, cam: Camera) =
       world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
   world.projectiles.render(cam, levelShader)
 
-  if world.state == editing:
+  if world.state == {editing}:
     with flagShader:
       var pos = world.getPos(world.playerSpawn.int)
       pos.y = 1
@@ -764,7 +763,7 @@ proc renderWaterSplashes*(cam: Camera) =
     waterParticleSystem.render()
 
 proc renderUI*(world: World) =
-  if world.state == editing:
+  if world.state == {editing}:
     for element in world.editorGui:
       element.draw()
 
