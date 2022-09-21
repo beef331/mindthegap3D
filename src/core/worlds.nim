@@ -210,6 +210,7 @@ proc unload*(world: var World) =
 proc load*(world: var World) =
   for sign in world.signs.mitems:
     sign.load()
+
   if world.history.len == 0:
     world.saveHistoryStep(start)
 
@@ -387,6 +388,7 @@ proc setupEditorGui*(world: var World) =
               nineSliceSize = 16f32
               backgroundTex = nineSliceTex
               onClick = proc() =
+                reset wrld[].history
                 wrld[].save()
 
 

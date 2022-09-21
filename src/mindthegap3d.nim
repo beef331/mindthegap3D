@@ -92,8 +92,8 @@ proc loadSelectedLevel() =
   world = World()
   unload(world)
   fs.thaw world
-  load(world)
   world.state.incl previewing
+  load(world)
 
 
 proc nextUserLevel() =
