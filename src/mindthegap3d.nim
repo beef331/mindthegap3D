@@ -12,6 +12,7 @@ const camDefaultSize = 8f
 type MenuState = enum
   noMenu
   inMain
+  previewingLevels
   optionsMenu
 
 var
@@ -23,8 +24,8 @@ var
   waterTex: Texture
   mainMenu: seq[UiElement]
   menuState = inMain
-
-
+  userLevels: seq[string]
+  selectedLevel: int
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -84,6 +85,33 @@ proc saveLastPlayed() =
   defer: myFs.close()
   freeze(myFs, world)
 
+
+proc loadSelectedLevel() =
+  var fs = newFileStream(userLevels[selectedLevel])
+  defer: fs.close
+  world = World()
+  unload(world)
+  fs.thaw world
+  load(world)
+  world.state.incl previewing
+
+
+proc nextUserLevel() =
+  let
+    start = selectedLevel
+    newLevel = (start + 1 + userLevels.len) mod userLevels.len
+  if newLevel != start:
+    selectedLevel = newLevel
+    loadSelectedLevel()
+
+proc prevUserLevel() =
+  let
+    start = selectedLevel
+    newLevel = (start - 1 + userLevels.len) mod userLevels.len
+  if newLevel != start:
+    selectedLevel = newLevel
+    loadSelectedLevel()
+
 proc gameInit() =
   gui.fontPath = "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
@@ -134,6 +162,11 @@ proc gameInit() =
           nineSliceSize = 32f32
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
+          onClick = proc() =
+            userLevels = fetchUserLevelNames()
+            loadSelectedLevel()
+            menuState = previewingLevels
+
         makeUi(Button):
           size = labelSize
           text = "Edit"
@@ -159,7 +192,55 @@ proc gameInit() =
           backgroundTex = nineSliceTex
           onClick = proc() = quitTruss()
 
+  mainMenu.add:
+    makeUi(LayoutGroup):
+      pos = ivec2(0, 15)
+      size = ivec2(800, 75)
+      layoutDirection = vertical
+      anchor = {bottom}
+      centre = true
+      margin = 0
+      visibleCond =  proc(): bool = menuState == previewingLevels
+      children:
+        makeUi(LayoutGroup):
+          size = ivec2(800, 75)
+          layoutDirection = horizontal
+          anchor = {bottom}
+          children:
+            makeUi(Button):
+              size = labelSize
+              text = "<"
+              backgroundColor = vec4(0)
+              color = vec4(0)
+              fontColor = vec4(1)
+              onClick = prevUserLevel
+            makeUi(Button):
+              size = labelSize
+              text = "Play" # TODO: Implement text closure
+              backgroundColor = vec4(1)
+              nineSliceSize = 32f32
+              fontColor = vec4(1)
+              backgroundTex = nineSliceTex
+              onClick = proc() =
+                world.state = {playing}
+                menuState = noMenu
 
+            makeUi(Button):
+              size = labelSize
+              text = ">"
+              fontColor = vec4(1)
+              color = vec4(0)
+              backgroundColor = vec4(0)
+              backgroundTex = nineSliceTex
+              onClick = nextUserLevel
+        makeUi(Button):
+          size = labelSize
+          text = "Back"
+          backgroundColor = vec4(1)
+          nineSliceSize = 32f32
+          fontColor = vec4(1)
+          backgroundTex = nineSliceTex
+          onClick = proc() = menuState = inMain
 var
   lastScreenSize: IVec2
 
@@ -249,7 +330,7 @@ proc draw =
 
   with mainBuffer:
     mainBuffer.clear()
-    if menuState == noMenu:
+    if menuState == noMenu or previewing in world.state:
       world.render(camera)
     with waterShader:
       let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))

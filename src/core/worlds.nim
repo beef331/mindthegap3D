@@ -237,7 +237,10 @@ proc save*(world: World) =
     echo e.msg
     echo userLevelPath
 
-
+proc fetchUserLevelNames*(): seq[string] =
+  for dir in walkDir(userLevelPath, false):
+    if dir.kind == pcFile:
+      result.add dir.path
 
 proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
