@@ -127,6 +127,7 @@ proc gameInit() =
 
 
   let nineSliceTex = genTexture()
+  const nineSliceSize = 16f32
   readImage("assets/uiframe.png").copyTo nineSliceTex
 
   mainMenu.add:
@@ -151,7 +152,7 @@ proc gameInit() =
           size = labelSize
           text = "Continue"
           backgroundColor = vec4(1)
-          nineSliceSize = 32f32
+          nineSliceSize = nineSliceSize
           fontColor = vec4(1)
           backgroundTex = nineSliceTex
           visibleCond = proc(): bool = fileExists(lastLevelPath)
@@ -159,7 +160,7 @@ proc gameInit() =
         makeUi(Button):
           size = labelSize
           text = "Play"
-          nineSliceSize = 32f32
+          nineSliceSize = nineSliceSize
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
@@ -170,7 +171,7 @@ proc gameInit() =
         makeUi(Button):
           size = labelSize
           text = "Edit"
-          nineSliceSize = 32f32
+          nineSliceSize = nineSliceSize
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
@@ -181,13 +182,13 @@ proc gameInit() =
         makeUi(Button):
           size = labelSize
           text = "Options"
-          nineSliceSize = 32f32
+          nineSliceSize = nineSliceSize
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
         makeUi(Button):
           size = labelSize
           text = "Quit"
-          nineSliceSize = 32f32
+          nineSliceSize = nineSliceSize
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() = quitTruss()
@@ -195,21 +196,20 @@ proc gameInit() =
   mainMenu.add:
     makeUi(LayoutGroup):
       pos = ivec2(0, 15)
-      size = ivec2(800, 75)
+      size = ivec2(800, 150)
       layoutDirection = vertical
       anchor = {bottom}
-      centre = true
-      margin = 0
+      margin = 10
       visibleCond =  proc(): bool = menuState == previewingLevels
       children:
         makeUi(LayoutGroup):
           size = ivec2(800, 75)
           layoutDirection = horizontal
-          anchor = {bottom}
           children:
             makeUi(Button):
               size = labelSize
               text = "<"
+              fontSize = 100f32
               backgroundColor = vec4(0)
               color = vec4(0)
               fontColor = vec4(1)
@@ -218,7 +218,7 @@ proc gameInit() =
               size = labelSize
               text = "Play" # TODO: Implement text closure
               backgroundColor = vec4(1)
-              nineSliceSize = 32f32
+              nineSliceSize = 16f32
               fontColor = vec4(1)
               backgroundTex = nineSliceTex
               onClick = proc() =
@@ -228,16 +228,18 @@ proc gameInit() =
             makeUi(Button):
               size = labelSize
               text = ">"
+              fontSize = 100f32
               fontColor = vec4(1)
               color = vec4(0)
               backgroundColor = vec4(0)
               backgroundTex = nineSliceTex
               onClick = nextUserLevel
+
         makeUi(Button):
           size = labelSize
           text = "Back"
           backgroundColor = vec4(1)
-          nineSliceSize = 32f32
+          nineSliceSize = 16f32
           fontColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() = menuState = inMain
