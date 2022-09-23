@@ -193,6 +193,8 @@ proc gameInit() =
           backgroundTex = nineSliceTex
           onClick = proc() = quitTruss()
 
+  let worldAddr = world.addr
+
   mainMenu.add:
     makeUi(LayoutGroup):
       pos = ivec2(0, 15)
@@ -216,7 +218,9 @@ proc gameInit() =
               onClick = prevUserLevel
             makeUi(Button):
               size = labelSize
-              text = "Play" # TODO: Implement text closure
+              text = ""
+              labelProc = proc(): string =
+                "Play " & worldAddr[].levelName
               backgroundColor = vec4(1)
               nineSliceSize = 16f32
               fontColor = vec4(1)

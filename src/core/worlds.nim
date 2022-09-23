@@ -18,7 +18,7 @@ type
     projectiles*: Projectiles
     pastProjectiles: seq[Projectile]
     history: seq[History]
-    levelName: string
+    levelName*: string
 
     # Editor fields
     inspecting: int
