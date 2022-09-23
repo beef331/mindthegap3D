@@ -123,7 +123,7 @@ proc gameInit() =
   const
     fontSize = 50
     layoutSize = ivec2(500, fontSize)
-    labelSize = ivec2(100, fontSize)
+    labelSize = ivec2(140, fontSize)
 
 
   let nineSliceTex = genTexture()
@@ -204,40 +204,18 @@ proc gameInit() =
       margin = 10
       visibleCond =  proc(): bool = menuState == previewingLevels
       children:
-        makeUi(LayoutGroup):
-          size = ivec2(800, 75)
-          layoutDirection = horizontal
-          children:
-            makeUi(Button):
-              size = labelSize
-              text = "<"
-              fontSize = 100f32
-              backgroundColor = vec4(0)
-              color = vec4(0)
-              fontColor = vec4(1)
-              onClick = prevUserLevel
-            makeUi(Button):
-              size = labelSize
-              text = ""
-              labelProc = proc(): string =
-                "Play " & worldAddr[].levelName
-              backgroundColor = vec4(1)
-              nineSliceSize = 16f32
-              fontColor = vec4(1)
-              backgroundTex = nineSliceTex
-              onClick = proc() =
-                world.state = {playing}
-                menuState = noMenu
-
-            makeUi(Button):
-              size = labelSize
-              text = ">"
-              fontSize = 100f32
-              fontColor = vec4(1)
-              color = vec4(0)
-              backgroundColor = vec4(0)
-              backgroundTex = nineSliceTex
-              onClick = nextUserLevel
+        makeUi(Button):
+          size = labelSize
+          text = ""
+          labelProc = proc(): string =
+            "Play " & worldAddr[].levelName
+          backgroundColor = vec4(1)
+          nineSliceSize = 16f32
+          fontColor = vec4(1)
+          backgroundTex = nineSliceTex
+          onClick = proc() =
+            world.state = {playing}
+            menuState = noMenu
 
         makeUi(Button):
           size = labelSize
@@ -247,6 +225,40 @@ proc gameInit() =
           fontColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() = menuState = inMain
+
+
+  const
+    arrowSize = iVec2(200, 200)
+    arrowPos = ivec2(300, 0)
+
+  mainMenu.add:
+    makeUi(Button):
+      pos = arrowPos
+      size = arrowSize
+      anchor = {bottom, right}
+      text = ">"
+      fontSize = 100f32
+      fontColor = vec4(1)
+      color = vec4(0)
+      backgroundColor = vec4(0)
+      backgroundTex = nineSliceTex
+      visibleCond = proc(): bool = menuState == previewingLevels
+      onClick = nextUserLevel
+
+
+  mainMenu.add:
+    makeUi(Button):
+      pos = arrowPos
+      size = arrowSize
+      anchor = {bottom, left}
+      text = "<"
+      fontSize = 100f32
+      backgroundColor = vec4(0)
+      color = vec4(0)
+      fontColor = vec4(1)
+      visibleCond = proc(): bool = menuState == previewingLevels
+      onClick = prevUserLevel
+
 var
   lastScreenSize: IVec2
 
