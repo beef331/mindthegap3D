@@ -228,14 +228,14 @@ proc gameInit() =
 
 
   const
-    arrowSize = iVec2(200, 200)
-    arrowPos = ivec2(300, 0)
+    arrowSize = iVec2(50, 100)
+    arrowPos = ivec2(150, 75)
 
   mainMenu.add:
     makeUi(Button):
       pos = arrowPos
       size = arrowSize
-      anchor = {bottom, right}
+      anchor = {bottom}
       text = ">"
       fontSize = 100f32
       fontColor = vec4(1)
@@ -248,9 +248,9 @@ proc gameInit() =
 
   mainMenu.add:
     makeUi(Button):
-      pos = arrowPos
+      pos = ivec2(-arrowPos.x, arrowPos.y)
       size = arrowSize
-      anchor = {bottom, left}
+      anchor = {bottom}
       text = "<"
       fontSize = 100f32
       backgroundColor = vec4(0)

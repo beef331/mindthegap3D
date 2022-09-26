@@ -478,6 +478,26 @@ proc setupEditorGui*(world: var World) =
                 inspectingTile.stacked.get.direction
               onValueChange = proc(dir: Direction) =
                 inspectingTile.stacked.get.direction = dir
+        makeUI(TextArea):
+          size = ivec2(200, 100)
+          fontsize = 50
+          backgroundColor = vec4(0, 0, 0, 0.5)
+          vAlign = MiddleAlign
+          visibleCond = proc: bool = not inspectingTile.hasStacked and inspectingTile.kind in {TileKind.floor, pickup}
+          onTextChange = proc(s: string) =
+            let pos = ivec2(int32 wrld.inspecting mod wrld.width, int32 wrld.inspecting div wrld.width)
+            for sign in wrld.signs.mitems:
+              if ivec2(sign.pos.xz) == pos:
+                sign.message = s
+                sign.load()
+                return # Exit if we already have a sign
+            var newSign = Sign.init(vec3(float32 pos.x, 0, float32 pos.y), s)
+            newSign.load()
+            wrld.signs.add newSign
+
+
+
+
 
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 
@@ -716,21 +736,22 @@ proc renderDepth*(world: World, cam: Camera) =
       renderBlock(tile, cam, levelShader, alphaClipShader, pos)
 
 proc renderSignBuff*(world: World, cam: Camera) =
-  for i, x in world.signs:
-    let mat = mat4() * translate(x.pos)
-    signBuffShader.setUniform("mvp", cam.orthoView * mat)
-    signBuffShader.setUniform("signColour", i.getSignColor(world.signs.len))
-    render(signModel)
+  with signBuffShader:
+    for i, x in world.signs:
+      let mat = mat4() * translate(x.pos)
+      signBuffShader.setUniform("mvp", cam.orthoView * mat)
+      signBuffShader.setUniform("signColour", i.getSignColor(world.signs.len))
+      render(signModel)
 
 proc renderSigns(world: World, cam: Camera) =
   for sign in world.signs:
     renderShadow(cam, sign.pos, vec3(0.5), 0.9)
     sign.render(cam)
-    levelShader.makeActive()
-    let mat = mat4() * translate(sign.pos)
-    levelShader.setUniform("mvp", cam.orthoView * mat)
-    levelShader.setUniform("m", mat)
-    render(signModel)
+    with levelShader:
+      let mat = mat4() * translate(sign.pos)
+      levelShader.setUniform("mvp", cam.orthoView * mat)
+      levelShader.setUniform("m", mat)
+      render(signModel)
 
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
   if playing in world.state:
@@ -783,16 +804,17 @@ proc render*(world: World, cam: Camera) =
       flagShader.setUniform("m", modelMatrix)
       render(flagModel)
     if guiState == nothing:
-      cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
-      if KeycodeLShift.isPressed:
-        var pos = world.cursorPos(cam)
-        pos.y = 1
-        let modelMatrix = mat4() * translate(pos)
-        cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
-        cursorSHader.setUniform("m", modelMatrix)
-        render(flagModel)
-      else:
-        renderBlock(Tile(kind: world.paintKind), cam, cursorShader, alphaClipShader, world.cursorPos(cam), true)
+      with cursorShader:
+        cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
+        if KeycodeLShift.isPressed:
+          var pos = world.cursorPos(cam)
+          pos.y = 1
+          let modelMatrix = mat4() * translate(pos)
+          cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
+          cursorShader.setUniform("m", modelMatrix)
+          render(flagModel)
+        else:
+          renderBlock(Tile(kind: world.paintKind), cam, cursorShader, alphaClipShader, world.cursorPos(cam), true)
 
 proc renderWaterSplashes*(cam: Camera) =
   with waterParticleShader:

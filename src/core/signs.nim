@@ -43,8 +43,8 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
   ctx.fillRoundedRect(rect(border.float, border.float, rectWidth, rectHeight), 20, 20, 20, 20)
   font.size = 120
   img.fillText(font.typeset(sign.message, vec2(rectWidth, rectHeight), hAlign = CenterAlign, vAlign = MiddleAlign), translate(vec2(border.float)))
-
-  sign.messageTexture = genTexture()
+  if Gluint(sign.messageTexture) == 0:
+    sign.messageTexture = genTexture()
   img.copyTo(sign.messageTexture)
 
 proc init*(_: typedesc[Sign], pos: Vec3, message: string): Sign =
