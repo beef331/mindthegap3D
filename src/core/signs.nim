@@ -49,7 +49,7 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
 
 proc init*(_: typedesc[Sign], pos: Vec3, message: string): Sign =
   var pos = pos
-  pos.y = 1.25
+  pos.y = 1
   result = Sign(pos: pos, message: message, progress: 0)
 
 proc update*(sign: var Sign, dt: float32) =
@@ -79,6 +79,7 @@ proc render*(sign: Sign, cam: Camera) =
 
 proc load*(sign: var Sign) =
   sign.makeSignTexture()
+  sign.pos.y = 1
 
 proc free*(sign: var Sign) = 
   sign.messageTexture.delete()

@@ -621,7 +621,7 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
   var projRemoveBuffer: seq[int]
   for id, proj in world.projectiles.idProj:
     let pos = ivec3(proj.pos + vec3(0.5))
-    if pos.xz == world.player.mapPos().ivec3.xz:
+    if pos.xz == world.player.mapPos().ivec3.xz or ivec2(proj.pos.xz) == ivec2(world.player.mapPos.xz):
       world.rewindTo({HistoryKind.checkpoint, start})
       break
 
@@ -745,7 +745,9 @@ proc renderSignBuff*(world: World, cam: Camera) =
 
 proc renderSigns(world: World, cam: Camera) =
   for sign in world.signs:
-    renderShadow(cam, sign.pos, vec3(0.5), 0.9)
+    glDisable(GlDepthTest)
+    renderShadow(cam, sign.pos, vec3(0.6), 0.7)
+    glEnable(GlDepthTest)
     sign.render(cam)
     with levelShader:
       let mat = mat4() * translate(sign.pos)
