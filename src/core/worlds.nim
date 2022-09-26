@@ -789,8 +789,8 @@ proc render*(world: World, cam: Camera) =
         else:
           renderBlock(tile, cam, levelShader, alphaClipShader, pos)
 
-  renderSigns(world, cam)
   world.player.render(cam, world.playerSafeDirections)
+  renderSigns(world, cam)
   if world.player.hasPickup:
       world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
   world.projectiles.render(cam, levelShader)

@@ -73,6 +73,7 @@ proc render*(sign: Sign, cam: Camera) =
         mat = mat4() * translate(pos) * (mat4(upRot) * mat4(targetRot)) * scale(scale)
       messageShader.setUniform("mvp", cam.orthoView * mat)
       messageShader.setUniform("tex", sign.messageTexture)
+      glEnable(GLDepthTest)
       render(messageModel)
 
 
@@ -81,3 +82,4 @@ proc load*(sign: var Sign) =
 
 proc free*(sign: var Sign) = 
   sign.messageTexture.delete()
+  reset sign.messageTexture
