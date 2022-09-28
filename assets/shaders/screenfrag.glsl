@@ -29,6 +29,8 @@ out vec4 frag_colour;
 in vec2 fuv;
 uniform sampler2D tex;
 uniform sampler2D uiTex;
+uniform float finishProgress;
+uniform vec2 playerPos;
 
 vec3 aces(vec3 x) {
   const float a = 2.51;
@@ -45,4 +47,11 @@ void main() {
   vec4 col = texture(tex, fuv);
   col.rgb = aces(col.rgb);
   frag_colour.rgb = uiColor.rgb + col.rgb * (1 - uiColor.a);
+  vec2 texSize = vec2(textureSize(tex, 0));
+  vec2 realPlayerPos = vec2(playerPos) / texSize;
+  realPlayerPos.y = 1 - realPlayerPos.y;
+  vec2 offsetUv = fuv * vec2(1, (texSize.y / texSize.x)) - realPlayerPos * vec2(1, (texSize.y / texSize.x)) ;
+  if(finishProgress > 0){
+    frag_colour.rgb *= float(length(offsetUv) < clamp(finishProgress, 0, 1));
+  }
 }

@@ -1,7 +1,7 @@
 import truss3D, vmath, chroma, pixie, frosty
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio]
-import core/[worlds, resources, cameras, players, directions, tiles]
+import core/[worlds, resources, cameras, players, directions, tiles, consts]
 import std/[os, sugar, streams]
 
 shaderPath = "assets/shaders"
@@ -375,6 +375,8 @@ proc draw =
     screenShader.setUniform("matrix", scale(vec3(2)) * translate(vec3(-0.5, -0.5, 0f)))
     screenShader.setUniform("tex", mainBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
+    screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
+    screenShader.setUniform("finishProgress", world.finishTime / LevelCompleteAnimationTime)
     render(screenQuad)
 
 

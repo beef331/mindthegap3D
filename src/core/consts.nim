@@ -8,3 +8,4 @@ const
   FallTime* = 1f
   SinkHeight* = -0.6
   MovesBetweenShots* = 4
+  LevelCompleteAnimationTime* = 1f

@@ -2,7 +2,9 @@ import truss3D, truss3D/[models, textures, gui, particlesystems, audio]
 import pixie, opengl, vmath, easings, frosty
 import frosty/streams as froststreams
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
-import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams]
+import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams, macros]
+
+template unserialized {.pragma.}
 
 type
   WorldState* = enum
@@ -20,10 +22,14 @@ type
     history: seq[History]
     levelName*: string
 
+
+    finished* {.unserialized.}: bool
+    finishTime* {.unserialized.}: float32
+
     # Editor fields
-    inspecting: int
-    paintKind: TileKind
-    editorGui: seq[UIElement]
+    inspecting {.unserialized.}: int
+    paintKind {.unserialized.}: TileKind
+    editorGui {.unserialized.}: seq[UIElement]
 
   HistoryKind = enum
     nothing, start, checkpoint, ontoBox, pushed, placed
@@ -40,7 +46,6 @@ type
 
 const
   projectilesAlwaysCollide = {wall}
-  worldUnserializedFields = ["inspecting", "paintKind", "editorGui"]
 
 let
   campaignLevelPath = getConfigDir() / "mindthegap" / "campaign"
@@ -215,13 +220,13 @@ proc load*(world: var World) =
     world.saveHistoryStep(start)
 
 proc serialize*[S](output: var S; world: World) =
-  for name, field in world.fieldPairs:
-    when name notin worldUnserializedFields:
+  for field in world.fields:
+    when not field.hasCustomPragma(unserialized):
       serialize(output, field)
 
 proc deserialize*[S](input: var S; world: var World) =
-  for name, field in world.fieldPairs:
-    when name notin worldUnserializedFields:
+  for field in world.fields:
+    when not field.hasCustomPragma(unserialized):
       deserialize(input, field)
   world.unload()
   world.load()
@@ -256,8 +261,10 @@ proc steppedOn(world: var World, pos: Vec3) =
         world.saveHistoryStep(checkpoint)
     else:
       world.saveHistoryStep(nothing)
-    if world.isFinished:
-      echo "Donezo"
+    if not world.finished:
+      world.finished = world.isFinished
+      if world.finished:
+        world.finishTime = LevelCompleteAnimationTime
 
 
 proc steppedOff(world: var World, pos: Vec3) =
@@ -495,14 +502,10 @@ proc setupEditorGui*(world: var World) =
             newSign.load()
             wrld.signs.add newSign
 
-
-
-
-
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 
 proc init*(_: typedesc[World], width, height: int): World =
-  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1, state: {previewing})
+  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1, state: {previewing}, finishTime : LevelCompleteAnimationTime, finished : false)
   result.setupEditorGui()
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
@@ -721,6 +724,9 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     if KeyCodeF11.isDown and world.state == {playing, editing}:
       world.state = {editing}
       world.reload()
+    if world.finished:
+      world.finishTime -= dt
+      world.finishTime = clamp(world.finishTime, 0.000001, LevelCompleteAnimationTime)
   elif previewing in world.state:
     discard
   elif {editing} == world.state:

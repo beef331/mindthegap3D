@@ -158,9 +158,6 @@ proc doPlace*(player: var Player): bool =
 proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
   player.move(safeDirs, camera, dt, moveDir)
 
-  if KeycodeR.isPressed:
-    player.presentPickup = none(PickupType)
-
   if KeycodeLCtrl.isNothing:
     let scroll = getMouseScroll().sgn
     player.pickupRotation.nextDirection(scroll)
