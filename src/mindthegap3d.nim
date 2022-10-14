@@ -1,7 +1,7 @@
 import truss3D, vmath, chroma, pixie, frosty
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio]
-import core/[worlds, resources, cameras, players, directions, tiles, consts]
+import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters]
 import std/[os, sugar, streams]
 
 shaderPath = "assets/shaders"
@@ -26,6 +26,7 @@ var
   menuState = inMain
   userLevels: seq[string]
   selectedLevel: int
+  light = ShadowCaster.init(vec3(0, 5, 0), vec3(1, -1, 1), 10, 0.1, 100)
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -118,13 +119,9 @@ proc gameInit() =
   gui.init()
   invokeResourceProcs()
 
-  var inLevelSelect {.global.} = false
-
   const
     fontSize = 50
-    layoutSize = ivec2(500, fontSize)
     labelSize = ivec2(140, fontSize)
-
 
   let nineSliceTex = genTexture()
   const nineSliceSize = 16f32
@@ -371,7 +368,6 @@ proc draw =
 
 
   with screenShader:
-    let scrSize = screenSize()
     screenShader.setUniform("matrix", scale(vec3(2)) * translate(vec3(-0.5, -0.5, 0f)))
     screenShader.setUniform("tex", mainBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
@@ -380,6 +376,5 @@ proc draw =
     render(screenQuad)
 
 
-
-
 initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)
+
