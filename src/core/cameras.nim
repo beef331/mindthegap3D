@@ -27,7 +27,9 @@ proc changeSize*(camera: var Camera, size: float32) =
   camera.size = size
   camera.calculateMatrix()
 
-proc init*(_: typedesc[Camera], pos, forward: Vec3): Camera {.constr.}
+proc init*(_: typedesc[Camera], pos, forward: Vec3, size: float32): Camera =
+  result = Camera(pos: pos, forward: forward, size: size)
+  result.calculateMatrix()
 
 const globalUp = vec3(0, 1, 0)
 

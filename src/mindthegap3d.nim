@@ -18,7 +18,7 @@ type MenuState = enum
 var
   camera: Camera
   world: World
-  mainBuffer, signBuffer, uiBuffer: FrameBuffer
+  mainBuffer, signBuffer, uiBuffer, shadowMap: FrameBuffer
   depthShader, waterShader, screenShader: Shader
   waterQuad, screenQuad: Model
   waterTex: Texture
@@ -26,7 +26,7 @@ var
   menuState = inMain
   userLevels: seq[string]
   selectedLevel: int
-  light = ShadowCaster.init(vec3(0, 5, 0), vec3(1, -1, 1), 10, 0.1, 100)
+  shadowCamera = Camera.init(vec3(0, 0, 0), normalize vec3(-1, -1, 0), 20)
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -52,9 +52,9 @@ addResourceProc do:
   camera.forward = normalize(vec3(5, 0, 5) - camera.pos)
   camera.pos = camera.pos - camera.forward * 20
   camera.changeSize(camDefaultSize)
-  mainBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
-  uiBuffer = genFrameBuffer(screenSize(), tfRgba, hasDepth = true)
-  signBuffer = genFrameBuffer(screenSize(), tfR, hasDepth = true)
+  mainBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color, Depth})
+  uiBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color, Depth})
+  signBuffer = genFrameBuffer(screenSize(), tfR, {FrameBufferKind.Color, Depth})
   waterQuad = makeRect(300, 300)
   screenQuad = makeScreenQuad()
   depthShader = loadShader(ShaderPath "vert.glsl", ShaderPath"depthfrag.glsl")
@@ -64,6 +64,8 @@ addResourceProc do:
   readImage("assets/water.png").copyTo(waterTex)
   mainBuffer.clearColor = color(0, 0, 0, 0)
   uiBuffer.clearColor = color(0, 0, 0, 0)
+  shadowMap = genFrameBuffer(ivec2(1024, 1024),  tfR, {Depth})
+  shadowMap.clearColor = color(0, 0, 0, 0)
 
   world = World.init(10, 10)
 
@@ -223,7 +225,6 @@ proc gameInit() =
           backgroundTex = nineSliceTex
           onClick = proc() = menuState = inMain
 
-
   const
     arrowSize = iVec2(50, 100)
     arrowPos = ivec2(150, 75)
@@ -241,7 +242,6 @@ proc gameInit() =
       backgroundTex = nineSliceTex
       visibleCond = proc(): bool = menuState == previewingLevels
       onClick = nextUserLevel
-
 
   mainMenu.add:
     makeUi(Button):
@@ -327,6 +327,8 @@ proc update(dt: float32) =
 
   audio.update()
   guiState = nothing
+  shadowCamera.pos = vec3(float32(world.width), 0, float32(world.height)) - shadowCamera.forward * 10
+  shadowCamera.changeSize sqrt(float32(world.width div 2) ^ 2 + float32(world.height div 2) ^ 2) * 2
 
 proc draw =
   glEnable(GlDepthTest)
@@ -341,8 +343,12 @@ proc draw =
     if menuState == noMenu:
       world.renderUi()
 
-  glEnable(GlDepthTest)
 
+  with shadowMap:
+    shadowMap.clear()
+    world.render(shadowCamera)
+
+  glEnable(GlDepthTest)
   with mainBuffer:
     mainBuffer.clear()
     if menuState == noMenu or previewing in world.state:
@@ -377,4 +383,3 @@ proc draw =
 
 
 initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)
-
