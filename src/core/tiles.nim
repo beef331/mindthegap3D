@@ -1,6 +1,6 @@
-import directions, pickups, cameras, resources, projectiles, consts
+import directions, pickups, cameras, resources, projectiles, consts, renderinstances
 import vmath, easings, opengl, pixie
-import truss3D/[shaders, models, textures]
+import truss3D/[shaders, models, textures, instancemodels]
 import std/[options, decls]
 
 
@@ -188,13 +188,30 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
     of none:
       discard
 
+proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
+  case tile.kind
+  of wall:
+    instance.buffer[RenderedModel.walls].push mat4() * translate(pos)
+  of pickup:
+    instance.buffer[RenderedModel.pickups].push mat4() * translate(pos)
+  else:
+    discard
+
+  if tile.hasStacked:
+    let
+      stacked = tile.stacked.unsafeget
+      pos = lerp(stacked.startPos, stacked.toPos, clamp(easingsOutBounce(stacked.moveTime / MoveTime), 0f, 1f))
+      modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
+    case stacked.kind
+    of turret:
+      instance.buffer[RenderedModel.crossbows].push modelMatrix
+    of box:
+      instance.buffer[RenderedModel.blocks].push modelMatrix
+    else: discard
+
+
 
 proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false) =
-  if tile.kind in FloorDrawn:
-    let modelMatrix = mat4() * translate(pos)
-    shader.setUniform("mvp", cam.orthoView * modelMatrix)
-    shader.setUniform("m", modelMatrix)
-    render(floorModel)
   case tile.kind
   of wall:
     let modelMatrix = mat4() * translate(pos + vec3(0, 1, 0)) * rotateY tile.direction.asRot

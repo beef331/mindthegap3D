@@ -1,7 +1,7 @@
 import truss3D, vmath, chroma, pixie, frosty
 import frosty/streams as froststreams
-import truss3D/[shaders, textures, gui, audio]
-import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters]
+import truss3D/[shaders, textures, gui, audio, instancemodels]
+import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances]
 import std/[os, sugar, streams]
 
 shaderPath = "assets/shaders"
@@ -27,6 +27,7 @@ var
   userLevels: seq[string]
   selectedLevel: int
   shadowCamera = Camera.init(vec3(0, 0, 0), normalize vec3(-1, -1, 0), 20)
+  renderInstance = RenderInstance()
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -129,10 +130,28 @@ proc gameInit() =
   const nineSliceSize = 16f32
   readImage("assets/uiframe.png").copyTo nineSliceTex
 
+  renderInstance.buffer[floors] = loadInstancedModel[seq[Mat4]]("floor.dae", floors.ord)
+  renderInstance.shaders[floors] = loadShader(ShaderPath"instvert.glsl", ShaderPath"frag.glsl")
+
+  renderInstance.buffer[checkpoints] = loadInstancedModel[seq[Mat4]]("checkpoint.dae", checkpoints.ord)
+  renderInstance.shaders[checkpoints] = renderInstance.shaders[floors]
+
+  renderInstance.buffer[signs] = loadInstancedModel[seq[Mat4]]("sign.dae", signs.ord)
+  renderInstance.shaders[signs] = renderInstance.shaders[floors]
+
+
+  #[
+  renderInstance.buffer[walls] = loadInstancedModel[seq[Mat4]]("wall.dae")
+  renderInstance.buffer[pedestals] = loadInstancedModel[seq[Mat4]]("pickup_platform.dae")
+  renderInstance.buffer[blocks] = loadInstancedModel[seq[Mat4]]("box.dae")
+  renderInstance.buffer[crossbows] = loadInstancedModel[seq[Mat4]]("crossbow.dae")
+  renderInstance.buffer[signs] = loadInstancedModel[seq[Mat4]]("sign.dae")
+  ]#
   mainMenu.add:
     makeUi(Label):
       visibleCond = proc(): bool = menuState != noMenu
       pos = ivec2(0, 30)
+
       size = ivec2(300, 100)
       text = "Mind the Gap"
       fontSize = 100
@@ -319,7 +338,7 @@ proc update(dt: float32) =
       saveLastPlayed()
       menuState = inMain
       world = World.init(10, 10)
-    world.update(camera, dt)
+  world.update(camera, dt, renderInstance)
 
   if menuState != noMenu:
     for element in mainMenu:
@@ -346,13 +365,13 @@ proc draw =
 
   with shadowMap:
     shadowMap.clear()
-    world.render(shadowCamera)
+    world.render(shadowCamera, renderInstance)
 
   glEnable(GlDepthTest)
   with mainBuffer:
     mainBuffer.clear()
     if menuState == noMenu or previewing in world.state:
-      world.render(camera)
+      world.render(camera, renderInstance)
     with waterShader:
       let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
       waterShader.setUniform("modelMatrix", waterMatrix)

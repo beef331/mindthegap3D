@@ -1,7 +1,7 @@
-import truss3D, truss3D/[models, textures, gui, particlesystems, audio]
+import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
 import pixie, opengl, vmath, easings, frosty
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams, macros]
 
 template unserialized {.pragma.}
@@ -22,6 +22,8 @@ type
     history: seq[History]
     levelName*: string
 
+
+    needsToUploadBuffers {.unserialized.}: bool
 
     finished* {.unserialized.}: bool
     finishTime* {.unserialized.}: float32
@@ -218,6 +220,8 @@ proc load*(world: var World) =
 
   if world.history.len == 0:
     world.saveHistoryStep(start)
+  world.needsToUploadBuffers = true
+
 
 proc serialize*[S](output: var S; world: World) =
   for field in world.fields:
@@ -230,6 +234,8 @@ proc deserialize*[S](input: var S; world: var World) =
       deserialize(input, field)
   world.unload()
   world.load()
+  world.needsToUploadBuffers = true
+
 
 proc save*(world: World) =
   discard existsOrCreateDir(getConfigDir() / "mindthegap")
@@ -505,7 +511,17 @@ proc setupEditorGui*(world: var World) =
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 
 proc init*(_: typedesc[World], width, height: int): World =
-  result = World(width: width, height: height, tiles: newSeq[Tile](width * height), projectiles: Projectiles.init(), inspecting: -1, state: {previewing}, finishTime : LevelCompleteAnimationTime, finished : false)
+  result = World(
+    width: width,
+    height: height,
+    tiles: newSeq[Tile](width * height),
+    projectiles: Projectiles.init(),
+    inspecting: -1,
+    state: {previewing},
+    finishTime : LevelCompleteAnimationTime,
+    finished : false,
+    needsToUploadBuffers: true
+  )
   result.setupEditorGui()
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
@@ -614,7 +630,6 @@ proc getSign*(world: World, pos: Vec3): Sign =
       result = sign
       break
 
-
 proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
   if playerDidMove:
     world.pastProjectiles.setLen(0)
@@ -711,7 +726,39 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
       world.reload()
 
 
-proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera var...?
+proc updateFixedModels(world: World, instance: var RenderInstance) =
+  for buffer in instance.buffer.mitems:
+    buffer.clear()
+
+  for sign in world.signs:
+    instance.buffer[RenderedModel.signs].push mat4() * translate(sign.pos)
+
+  for (tile, pos) in world.tileKindCoords:
+    case tile.kind
+    of FloorDrawn:
+      instance.buffer[RenderedModel.floors].push mat4() * translate(pos)
+    of TileKind.checkpoint:
+      instance.buffer[RenderedModel.checkpoints].push mat4() * translate(pos)
+    else:
+      discard
+
+  for kind in [RenderedModel.signs, floors, checkpoints]:
+    if instance.buffer[kind].drawCount > 0:
+      instance.buffer[kind].reuploadSsbo
+
+proc updateDynamicModels(world: World, instance: var RenderInstance) =
+  const dynamicModelKinds = {blocks, crossbows}
+  for x in dynamicModelKinds:
+    instance.buffer[x].clear()
+  for (tile, pos) in world.tileKindCoords:
+    updateTileModel(tile, pos, instance)
+
+
+proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var RenderInstance) = # Maybe make camera var...?
+  if world.needsToUploadBuffers:
+    updateFixedModels(world, renderInstance)
+    world.needsToUploadBuffers = false
+
   if playing in world.state:
     for sign in world.signs.mitems:
       sign.update(dt)
@@ -727,6 +774,7 @@ proc update*(world: var World, cam: Camera, dt: float32) = # Maybe make camera v
     if world.finished:
       world.finishTime -= dt
       world.finishTime = clamp(world.finishTime, 0.000001, LevelCompleteAnimationTime)
+    updateDynamicModels(world, renderInstance)
   elif previewing in world.state:
     discard
   elif {editing} == world.state:
@@ -751,15 +799,9 @@ proc renderSignBuff*(world: World, cam: Camera) =
 
 proc renderSigns(world: World, cam: Camera) =
   for sign in world.signs:
-    glDisable(GlDepthTest)
     renderShadow(cam, sign.pos, vec3(0.6), 0.7)
     glEnable(GlDepthTest)
     sign.render(cam)
-    with levelShader:
-      let mat = mat4() * translate(sign.pos)
-      levelShader.setUniform("mvp", cam.orthoView * mat)
-      levelShader.setUniform("m", mat)
-      render(signModel)
 
 proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
   if playing in world.state:
@@ -786,21 +828,20 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         renderBlock(Tile(kind: box), cam, cursorShader, alphaClipShader, pos, true)
         glEnable(GlDepthTest)
 
-proc render*(world: World, cam: Camera) =
-  with levelShader:
-    for (tile, pos) in world.tileKindCoords:
-      if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
-        renderStack(tile, cam, levelShader, pos)
-        case tile.kind
-        of box, checkpoint:
-          renderBlock(tile, cam, boxShader, alphaClipShader, pos)
-        else:
-          renderBlock(tile, cam, levelShader, alphaClipShader, pos)
+proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
+  for kind in [floors, checkpoints, RenderedModel.signs]:
+    with renderInstance.shaders[kind]:
+      setUniform("vp", cam.orthoView)
+      renderInstance.buffer[kind].render()
+  renderSigns(world, cam)
 
   world.player.render(cam, world.playerSafeDirections)
-  renderSigns(world, cam)
+
+
   if world.player.hasPickup:
-      world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
+    world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
+
+
   world.projectiles.render(cam, levelShader)
 
   if world.state == {editing}:
