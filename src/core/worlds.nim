@@ -747,17 +747,23 @@ proc updateFixedModels(world: World, instance: var RenderInstance) =
       instance.buffer[kind].reuploadSsbo
 
 proc updateDynamicModels(world: World, instance: var RenderInstance) =
-  const dynamicModelKinds = {blocks, crossbows}
+  const dynamicModelKinds = {blocks, crossbows, RenderedModel.pickups}
   for x in dynamicModelKinds:
     instance.buffer[x].clear()
   for (tile, pos) in world.tileKindCoords:
     updateTileModel(tile, pos, instance)
+  for x in dynamicModelKinds:
+    if instance.buffer[x].drawCount > 0:
+      instance.buffer[x].reuploadSsbo()
 
 
 proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var RenderInstance) = # Maybe make camera var...?
   if world.needsToUploadBuffers:
     updateFixedModels(world, renderInstance)
     world.needsToUploadBuffers = false
+
+  updateDynamicModels(world, renderInstance)
+
 
   if playing in world.state:
     for sign in world.signs.mitems:
@@ -774,7 +780,6 @@ proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var Ren
     if world.finished:
       world.finishTime -= dt
       world.finishTime = clamp(world.finishTime, 0.000001, LevelCompleteAnimationTime)
-    updateDynamicModels(world, renderInstance)
   elif previewing in world.state:
     discard
   elif {editing} == world.state:
@@ -829,13 +834,13 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         glEnable(GlDepthTest)
 
 proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
-  for kind in [floors, checkpoints, RenderedModel.signs]:
+  for kind in RenderedModel:
     with renderInstance.shaders[kind]:
       setUniform("vp", cam.orthoView)
       renderInstance.buffer[kind].render()
-  renderSigns(world, cam)
 
   world.player.render(cam, world.playerSafeDirections)
+  renderSigns(world, cam)
 
 
   if world.player.hasPickup:

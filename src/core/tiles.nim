@@ -191,9 +191,11 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
 proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
   case tile.kind
   of wall:
-    instance.buffer[RenderedModel.walls].push mat4() * translate(pos)
+    instance.buffer[RenderedModel.walls].push mat4() * translate(pos + vec3(0, 1, 0))
   of pickup:
-    instance.buffer[RenderedModel.pickups].push mat4() * translate(pos)
+    instance.buffer[RenderedModel.pickups].push mat4() * translate(pos + vec3(0, 1, 0))
+  of box:
+    instance.buffer[RenderedModel.blocks].push mat4() * translate(vec3(pos.x, tile.calcYPos, pos.z))
   else:
     discard
 
@@ -201,11 +203,12 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
     let
       stacked = tile.stacked.unsafeget
       pos = lerp(stacked.startPos, stacked.toPos, clamp(easingsOutBounce(stacked.moveTime / MoveTime), 0f, 1f))
-      modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
     case stacked.kind
     of turret:
+      let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
       instance.buffer[RenderedModel.crossbows].push modelMatrix
     of box:
+      let modelMatrix = mat4() * translate(pos)
       instance.buffer[RenderedModel.blocks].push modelMatrix
     else: discard
 

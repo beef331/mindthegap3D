@@ -139,14 +139,20 @@ proc gameInit() =
   renderInstance.buffer[signs] = loadInstancedModel[seq[Mat4]]("sign.dae", signs.ord)
   renderInstance.shaders[signs] = renderInstance.shaders[floors]
 
+  renderInstance.buffer[walls] = loadInstancedModel[seq[Mat4]]("wall.dae", walls.ord)
+  renderInstance.shaders[walls] = renderInstance.shaders[floors]
 
-  #[
-  renderInstance.buffer[walls] = loadInstancedModel[seq[Mat4]]("wall.dae")
-  renderInstance.buffer[pedestals] = loadInstancedModel[seq[Mat4]]("pickup_platform.dae")
-  renderInstance.buffer[blocks] = loadInstancedModel[seq[Mat4]]("box.dae")
-  renderInstance.buffer[crossbows] = loadInstancedModel[seq[Mat4]]("crossbow.dae")
-  renderInstance.buffer[signs] = loadInstancedModel[seq[Mat4]]("sign.dae")
-  ]#
+
+  renderInstance.buffer[pickups] = loadInstancedModel[seq[Mat4]]("pickup_platform.dae", pickups.ord)
+  renderInstance.shaders[pickups] = renderInstance.shaders[floors]
+
+  renderInstance.buffer[blocks] = loadInstancedModel[seq[Mat4]]("box.dae", blocks.ord)
+  renderInstance.shaders[blocks] = renderInstance.shaders[floors]
+
+  renderInstance.buffer[crossbows] = loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord)
+  renderInstance.shaders[crossbows] = renderInstance.shaders[floors]
+
+
   mainMenu.add:
     makeUi(Label):
       visibleCond = proc(): bool = menuState != noMenu
