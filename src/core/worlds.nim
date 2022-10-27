@@ -738,13 +738,15 @@ proc updateFixedModels(world: World, instance: var RenderInstance) =
     of FloorDrawn:
       instance.buffer[RenderedModel.floors].push mat4() * translate(pos)
     of TileKind.checkpoint:
-      instance.buffer[RenderedModel.checkpoints].push mat4() * translate(pos)
+      let
+        isWalkable = not tile.steppedOn
+        blockInstance = BlockInstanceData(walkable: int32 isWalkable, matrix: mat4() * translate(pos))
+      instance.buffer[RenderedModel.checkpoints].push blockInstance
     else:
       discard
 
   for kind in [RenderedModel.signs, floors, checkpoints]:
-    if instance.buffer[kind].drawCount > 0:
-      instance.buffer[kind].reuploadSsbo
+    instance.buffer[kind].reuploadSsbo
 
 proc updateDynamicModels(world: World, instance: var RenderInstance) =
   const dynamicModelKinds = {blocks, crossbows, RenderedModel.pickups}
@@ -753,15 +755,11 @@ proc updateDynamicModels(world: World, instance: var RenderInstance) =
   for (tile, pos) in world.tileKindCoords:
     updateTileModel(tile, pos, instance)
   for x in dynamicModelKinds:
-    if instance.buffer[x].drawCount > 0:
-      instance.buffer[x].reuploadSsbo()
+    instance.buffer[x].reuploadSsbo()
 
 
 proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var RenderInstance) = # Maybe make camera var...?
-  if world.needsToUploadBuffers:
-    updateFixedModels(world, renderInstance)
-    world.needsToUploadBuffers = false
-
+  updateFixedModels(world, renderInstance)
   updateDynamicModels(world, renderInstance)
 
 
@@ -837,6 +835,13 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
   for kind in RenderedModel:
     with renderInstance.shaders[kind]:
       setUniform("vp", cam.orthoView)
+      case kind
+      of blocks:
+        setUniform("walkColour", vec4(1, 1, 0, 1))
+        setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
+      else: discard
+
+
       renderInstance.buffer[kind].render()
 
   world.player.render(cam, world.playerSafeDirections)

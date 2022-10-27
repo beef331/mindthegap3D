@@ -195,7 +195,10 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
   of pickup:
     instance.buffer[RenderedModel.pickups].push mat4() * translate(pos + vec3(0, 1, 0))
   of box:
-    instance.buffer[RenderedModel.blocks].push mat4() * translate(vec3(pos.x, tile.calcYPos, pos.z))
+    let
+      isWalkable = tile.isWalkable
+      blockInstance = BlockInstanceData(walkable: int32 isWalkable, matrix: mat4() * translate(vec3(pos.x, tile.calcYPos, pos.z)))
+    instance.buffer[RenderedModel.blocks].push blockInstance
   else:
     discard
 

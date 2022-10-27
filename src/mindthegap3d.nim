@@ -130,26 +130,26 @@ proc gameInit() =
   const nineSliceSize = 16f32
   readImage("assets/uiframe.png").copyTo nineSliceTex
 
-  renderInstance.buffer[floors] = loadInstancedModel[seq[Mat4]]("floor.dae", floors.ord)
+  renderInstance.buffer[floors] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("floor.dae", floors.ord))
   renderInstance.shaders[floors] = loadShader(ShaderPath"instvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[checkpoints] = loadInstancedModel[seq[Mat4]]("checkpoint.dae", checkpoints.ord)
-  renderInstance.shaders[checkpoints] = renderInstance.shaders[floors]
-
-  renderInstance.buffer[signs] = loadInstancedModel[seq[Mat4]]("sign.dae", signs.ord)
+  renderInstance.buffer[signs] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("sign.dae", signs.ord))
   renderInstance.shaders[signs] = renderInstance.shaders[floors]
 
-  renderInstance.buffer[walls] = loadInstancedModel[seq[Mat4]]("wall.dae", walls.ord)
+  renderInstance.buffer[walls] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("wall.dae", walls.ord))
   renderInstance.shaders[walls] = renderInstance.shaders[floors]
 
 
-  renderInstance.buffer[pickups] = loadInstancedModel[seq[Mat4]]("pickup_platform.dae", pickups.ord)
+  renderInstance.buffer[pickups] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("pickup_platform.dae", pickups.ord))
   renderInstance.shaders[pickups] = renderInstance.shaders[floors]
 
-  renderInstance.buffer[blocks] = loadInstancedModel[seq[Mat4]]("box.dae", blocks.ord)
-  renderInstance.shaders[blocks] = renderInstance.shaders[floors]
+  renderInstance.buffer[blocks] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("box.dae", blocks.ord))
+  renderInstance.shaders[blocks] = loadShader(ShaderPath"instblockvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[crossbows] = loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord)
+  renderInstance.buffer[checkpoints] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("checkpoint.dae", checkpoints.ord))
+  renderInstance.shaders[checkpoints] = renderInstance.shaders[blocks]
+
+  renderInstance.buffer[crossbows] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[floors]
 
 
