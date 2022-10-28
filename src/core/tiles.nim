@@ -211,8 +211,7 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
       let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
       instance.buffer[RenderedModel.crossbows].push modelMatrix
     of box:
-      let modelMatrix = mat4() * translate(pos)
-      instance.buffer[RenderedModel.blocks].push modelMatrix
+      instance.buffer[RenderedModel.blocks].push BlockInstanceData(matrix: mat4() * translate(pos))
     else: discard
 
 

@@ -20,6 +20,6 @@ proc asRot*(dir: Direction): float32 =
 proc asVec3*(dir: Direction): Vec3 =
   case dir:
   of up: vec3(0, 0, 1)
-  of right: vec3(-1, 0, 0)
+  of right: vec3(1, 0, 0)
   of down: vec3(0, 0, -1)
-  of left: vec3(1, 0, 0)
+  of left: vec3(-1, 0, 0)

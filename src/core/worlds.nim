@@ -731,16 +731,27 @@ proc updateModels(world: World, instance: var RenderInstance) =
     buffer.clear()
 
   for sign in world.signs:
-    instance.buffer[RenderedModel.signs].push mat4() * translate(sign.pos)
-
-  for (tile, pos) in world.tileKindCoords:
+    instance.buffer[RenderedModel.signs].push translate(sign.pos)
+  let safeDirs = world.playerSafeDirections()
+  for i, (tile, pos) in enumerate world.tileKindCoords:
     case tile.kind
     of FloorDrawn:
-      instance.buffer[RenderedModel.floors].push mat4() * translate(pos)
+      let
+        playerXZ = ivec2(int32 ceil(world.player.mapPos.x), int32 ceil(world.player.mapPos.z))
+        floorState = block:
+          var res = 2i32
+          for dir in safeDirs:
+            if playerXZ + dir.asVec3.xz.ivec2 == ivec2 pos.xz:
+              res = 1
+              break
+          res
+        blockInstance = BlockInstanceData(state: floorState, matrix: translate(pos))
+
+      instance.buffer[RenderedModel.floors].push blockInstance
     of TileKind.checkpoint:
       let
         isWalkable = tile.steppedOn
-        blockInstance = BlockInstanceData(state: int32 isWalkable, matrix: mat4() * translate(pos))
+        blockInstance = BlockInstanceData(state: int32 isWalkable, matrix: translate(pos))
       instance.buffer[RenderedModel.checkpoints].push blockInstance
     else: discard
     updateTileModel(tile, pos, instance)
@@ -825,10 +836,18 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
   for kind in RenderedModel:
     with renderInstance.shaders[kind]:
       setUniform("vp", cam.orthoView)
+      const
+        activeColour = vec4(1, 1, 0, 1)
+        inactiveColour = vec4(0.3, 0.3, 0.3, 1)
       case kind
       of blocks:
-        setUniform("walkColour", vec4(1, 1, 0, 1))
-        setUniform("notWalkableColour", vec4(0.3, 0.3, 0.3, 1))
+        setUniform("activeColour", activeColour)
+        setUniform("inactiveColour", inActiveColour)
+      of floors:
+        const baseColour = vec4(0.49, 0.369, 0.302, 1)
+
+        setUniform("activeColour", mix(activeColour, baseColour, abs(sin(getTime() * 4))))
+        setUniform("inactiveColour", baseColour)
       else: discard
 
 

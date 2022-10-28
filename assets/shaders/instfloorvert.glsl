@@ -15,7 +15,7 @@ out vec3 fNormal;
 out vec2 fuv;
 
 struct data{
-  int isWalkable;
+  int nearPlayer;
   mat4 matrix;
 };
 
@@ -30,13 +30,8 @@ void main() {
   mat3 normToWorld = mat3(matrix);
   gl_Position =  vp * matrix * vec4(vertex_position, 1);
   fColour = colour;
-
-  if(fColour.rgb == vec3(1, 1, 1)){
-    if(theData.isWalkable == 1){
-      fColour = activeColour;
-    }else{
-      fColour = inactiveColour;
-    }
+  if(fColour.rgb == vec3(1)){
+    fColour.rgb /= float(theData.nearPlayer);
   }
 
   fNormal = normalize(normToWorld * normal).xyz;
