@@ -14,7 +14,7 @@ type
     checkpoints
 
   BlockInstanceData* = object
-    walkable*: int32
+    state*: int32
     matrix* {.align: 16.} : Mat4
 
   InstanceBase* = ref object of RootObj

@@ -726,7 +726,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
       world.reload()
 
 
-proc updateFixedModels(world: World, instance: var RenderInstance) =
+proc updateModels(world: World, instance: var RenderInstance) =
   for buffer in instance.buffer.mitems:
     buffer.clear()
 
@@ -739,28 +739,18 @@ proc updateFixedModels(world: World, instance: var RenderInstance) =
       instance.buffer[RenderedModel.floors].push mat4() * translate(pos)
     of TileKind.checkpoint:
       let
-        isWalkable = not tile.steppedOn
-        blockInstance = BlockInstanceData(walkable: int32 isWalkable, matrix: mat4() * translate(pos))
+        isWalkable = tile.steppedOn
+        blockInstance = BlockInstanceData(state: int32 isWalkable, matrix: mat4() * translate(pos))
       instance.buffer[RenderedModel.checkpoints].push blockInstance
-    else:
-      discard
-
-  for kind in [RenderedModel.signs, floors, checkpoints]:
-    instance.buffer[kind].reuploadSsbo
-
-proc updateDynamicModels(world: World, instance: var RenderInstance) =
-  const dynamicModelKinds = {blocks, crossbows, RenderedModel.pickups}
-  for x in dynamicModelKinds:
-    instance.buffer[x].clear()
-  for (tile, pos) in world.tileKindCoords:
+    else: discard
     updateTileModel(tile, pos, instance)
-  for x in dynamicModelKinds:
-    instance.buffer[x].reuploadSsbo()
+
+  for buff in instance.buffer:
+    buff.reuploadSsbo
 
 
 proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var RenderInstance) = # Maybe make camera var...?
-  updateFixedModels(world, renderInstance)
-  updateDynamicModels(world, renderInstance)
+  updateModels(world, renderInstance)
 
 
   if playing in world.state:
