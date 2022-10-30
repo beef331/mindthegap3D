@@ -60,6 +60,7 @@ var
   waterParticleSystem: ParticleSystem
   splashSfx: SoundEffect
 
+
 proc particleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
   particle.pos += dt * particle.velocity * 10 * ((particle.lifeTime / ps.lifeTime))
   particle.velocity.y -= dt * 3
@@ -848,6 +849,8 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
 
         setUniform("activeColour", mix(activeColour, baseColour, abs(sin(getTime() * 4))))
         setUniform("inactiveColour", baseColour)
+      of pickupIcons:
+        setUniform("textures", textureArray)
       else: discard
 
 

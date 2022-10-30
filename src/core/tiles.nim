@@ -194,6 +194,8 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
     instance.buffer[RenderedModel.walls].push mat4() * translate(pos + vec3(0, 1, 0))
   of pickup:
     instance.buffer[RenderedModel.pickups].push mat4() * translate(pos + vec3(0, 1, 0))
+    let blockInstance = BlockInstanceData(state: getPickupTexId(tile.pickupKind), matrix: mat4() * translate(vec3(pos.x, pos.y + 1.1, pos.z)))
+    instance.buffer[RenderedModel.pickupIcons].push blockInstance
   of box:
     let
       isWalkable = tile.isWalkable

@@ -10,6 +10,7 @@ type
     blocks
     signs
     pickups
+    pickupIcons
     crossbows
     checkpoints
 

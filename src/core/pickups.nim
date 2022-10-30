@@ -1,5 +1,5 @@
 import resources, directions
-import truss3D/textures
+import truss3D/[textures, shaders]
 import truss3D, pixie
 import std/os
 import vmath
@@ -35,15 +35,21 @@ const
     line: @[vec3(0), vec3(0, 0, 1), vec3(0, 0, 2), vec3(0, 0, -1)],
   ]
 
-var pickupTextures: array[PickupType, Texture]
+var
+  pickupTextures: array[PickupType, Texture]
+  textureArray*: TextureArray
 
 addResourceProc:
-  for i, _ in pickupTextures.pairs:
+  for i in PickupType:
     pickupTextures[i] = genTexture()
     let img = readImage(imageNames[i])
+    if i == PickupType.low:
+      textureArray = genTextureArray(img.width, img.height, PickupType.high.ord + 1)
     img.copyTo pickupTextures[i]
+    img.copyTo textureArray, ord(i)
 
 proc getPickupTexture*(pickupKind: PickupType): Texture = pickupTextures[pickupKind]
+proc getPickupTexId*(pickupKind: PickupType): int32 = int32(ord(pickupKind))
 
 iterator positions*(pickUpKind: PickupType, dir: Direction, origin = vec3(0, 0, 0)): Vec3 =
   let rot = dir.asRot
