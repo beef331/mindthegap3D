@@ -253,4 +253,10 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
       shader.setUniform("m", modelMatrix)
       render(checkpointModel)
-  else: discard
+  of floor:
+     with shader:
+      let modelMatrix = mat4() * translate(pos)
+      shader.setUniform("mvp", cam.orthoView * modelMatrix)
+      shader.setUniform("m", modelMatrix)
+      render(floorModel)
+  of empty: discard

@@ -826,7 +826,6 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
 
         case placeState
         of cannotPlace:
-          glDisable(GlDepthTest)
           yPos = 0
           canPlace = false
         of placeEmpty:
@@ -868,10 +867,6 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
 
   if world.player.hasPickup:
     world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
-
-
-  world.projectiles.render(cam, levelShader)
-
   if world.state == {editing}:
     with flagShader:
       var pos = world.getPos(world.playerSpawn.int)
@@ -891,7 +886,11 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
           cursorShader.setUniform("m", modelMatrix)
           render(flagModel)
         else:
-          renderBlock(Tile(kind: world.paintKind), cam, cursorShader, alphaClipShader, world.cursorPos(cam), true)
+          renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, world.cursorPos(cam), true)
+
+  world.projectiles.render(cam, levelShader)
+
+
 
 proc renderWaterSplashes*(cam: Camera) =
   with waterParticleShader:
