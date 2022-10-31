@@ -93,11 +93,19 @@ proc saveLastPlayed() =
 proc loadSelectedLevel() =
   var fs = newFileStream(userLevels[selectedLevel])
   defer: fs.close
+  let
+    gui = world.editorGui # Bit of a hack
+    nameInput = world.nameInput
   world = World()
   unload(world)
   fs.thaw world
   world.state.incl previewing
   load(world)
+  if nameInput != nil:
+    world.nameInput = nameInput
+  world.nameInput.setMessage(world.levelName)
+  if gui.len > 0:
+    world.editorGui = gui
 
 
 proc nextUserLevel() =
@@ -233,15 +241,24 @@ proc gameInit() =
       children:
         makeUi(Button):
           size = labelSize
-          text = ""
-          labelProc = proc(): string =
-            "Play " & worldAddr[].levelName
+          text = "Play"
           backgroundColor = vec4(1)
           nineSliceSize = 16f32
           fontColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
             world.state = {playing}
+            menuState = noMenu
+
+        makeUi(Button):
+          size = labelSize
+          text = "Edit"
+          backgroundColor = vec4(1)
+          nineSliceSize = 16f32
+          fontColor = vec4(1)
+          backgroundTex = nineSliceTex
+          onClick = proc() =
+            world.state = {editing}
             menuState = noMenu
 
         makeUi(Button):

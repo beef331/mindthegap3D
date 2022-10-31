@@ -23,15 +23,14 @@ type
     levelName*: string
 
 
-    needsToUploadBuffers {.unserialized.}: bool
-
     finished* {.unserialized.}: bool
     finishTime* {.unserialized.}: float32
 
     # Editor fields
     inspecting {.unserialized.}: int
     paintKind {.unserialized.}: TileKind
-    editorGui {.unserialized.}: seq[UIElement]
+    editorGui* {.unserialized.}: seq[UIElement]
+    nameInput* {.unserialized.}: TextArea
 
   HistoryKind = enum
     nothing, start, checkpoint, ontoBox, pushed, placed
@@ -221,7 +220,6 @@ proc load*(world: var World) =
 
   if world.history.len == 0:
     world.saveHistoryStep(start)
-  world.needsToUploadBuffers = true
 
 
 proc serialize*[S](output: var S; world: World) =
@@ -235,7 +233,6 @@ proc deserialize*[S](input: var S; world: var World) =
       deserialize(input, field)
   world.unload()
   world.load()
-  world.needsToUploadBuffers = true
 
 
 proc save*(world: World) =
@@ -319,6 +316,13 @@ proc setupEditorGui*(world: var World) =
     nineSliceTex = genTexture()
   readImage("assets/uiframe.png").copyTo nineSliceTex
 
+  world.nameInput = makeUi(TextArea):
+    size = ivec2(200, 50)
+    fontsize = 50
+    backgroundColor = vec4(0, 0, 0, 0.5)
+    vAlign = MiddleAlign
+    onTextChange = proc(s: string) = wrld[].levelName = s
+
   world.editorGui.add:
     makeUi(LayoutGroup):
       pos = ivec2(10)
@@ -384,12 +388,8 @@ proc setupEditorGui*(world: var World) =
             makeUi(Label):
               size = ivec2(100, 50)
               text = "Level Name: "
-            makeUi(TextArea):
-              size = ivec2(200, 50)
-              fontsize = 50
-              backgroundColor = vec4(0, 0, 0, 0.5)
-              vAlign = MiddleAlign
-              onTextChange = proc(s: string) = wrld[].levelName = s
+            world.nameInput
+
         makeUi(LayoutGroup):
           size = ivec2(400, 50)
           centre = false
@@ -521,7 +521,6 @@ proc init*(_: typedesc[World], width, height: int): World =
     state: {previewing},
     finishTime : LevelCompleteAnimationTime,
     finished : false,
-    needsToUploadBuffers: true
   )
   result.setupEditorGui()
 
