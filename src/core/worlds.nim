@@ -187,7 +187,13 @@ proc resize*(world: var World, newSize: IVec2) =
 
 # History Procs
 proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
-  world.history.add History(kind: kind, tiles: world.tiles, projectiles: world.pastProjectiles, player: world.playerStart)
+  var player = world.playerStart
+  case kind
+  of HistoryKind.start:
+    player = world.player
+  else: discard
+
+  world.history.add History(kind: kind, tiles: world.tiles, projectiles: world.pastProjectiles, player: player)
 
 proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = false) =
   var
@@ -289,7 +295,7 @@ proc givePickupIfCan(world: var World) =
       world.tiles[index].active = false
       world.player.givePickup world.tiles[index].pickupKind
 
-proc reload(world: var World) =
+proc reload*(world: var World) =
   ## Used to reload the world state and reposition player
   world.unload()
   world.load()
@@ -298,6 +304,7 @@ proc reload(world: var World) =
   world.history.setLen(0)
   world.saveHistoryStep(start)
   world.player = Player.init(world.getPos(world.playerSpawn.int))
+  world.playerStart = world.player
   world.projectiles = Projectiles.init()
   world.steppedOn(world.player.pos)
   world.givePickupIfCan()
@@ -668,7 +675,7 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
     world.steppedOn(world.player.movingToPos)
     world.givePickupIfCan()
   if KeycodeP.isDown:
-    world.rewindTo({HistoryKind.start, checkpoint}, true)
+    world.reload()
 
   for i, tile in enumerate world.tiles.mitems:
     let startY =
