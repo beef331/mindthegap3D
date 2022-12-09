@@ -364,6 +364,13 @@ proc update(dt: float32) =
       saveLastPlayed()
       menuState = inMain
       world = World.init(10, 10)
+
+    if playing in world.state and world.playedTransition():
+      menuState = previewingLevels
+      world.reload()
+
+
+
   world.update(camera, dt, renderInstance)
 
   if menuState != noMenu:
@@ -423,10 +430,7 @@ proc draw =
     screenShader.setUniform("tex", mainBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
-    if playing notin world.state:
-      screenShader.setUniform("finishProgress", 0)
-    else:
-      screenShader.setUniform("finishProgress", world.finishTime / LevelCompleteAnimationTime)
+    screenShader.setUniform("finishProgress", world.finishTime / LevelCompleteAnimationTime)
     render(screenQuad)
 
 
