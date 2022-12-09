@@ -259,6 +259,7 @@ proc gameInit() =
           backgroundTex = nineSliceTex
           onClick = proc() =
             world.state = {editing}
+            world.setupEditorGui()
             menuState = noMenu
 
         makeUi(Button):
