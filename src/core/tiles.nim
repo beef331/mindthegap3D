@@ -79,7 +79,6 @@ type
       progress*: float32
     else: discard
 
-
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup}
   Walkable* = {TileKind.floor, pickup, box}

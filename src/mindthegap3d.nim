@@ -1,7 +1,7 @@
 import truss3D, vmath, chroma, pixie, frosty
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio, instancemodels]
-import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances]
+import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances, saves]
 import std/[os, sugar, streams]
 
 shaderPath = "assets/shaders"
@@ -12,8 +12,13 @@ const camDefaultSize = 8f
 type MenuState = enum
   noMenu
   inMain
-  previewingLevels
+  previewingBuiltinLevels
+  previewingUserLevels
   optionsMenu
+
+const previewingLevels = {previewingBuiltinLevels, previewingUserLevels}
+
+let playerLevels = newSeq[World](0) # Populate at CT
 
 var
   camera: Camera
@@ -28,6 +33,10 @@ var
   selectedLevel: int
   shadowCamera = Camera.init(vec3(0, 0, 0), normalize vec3(-1, -1, 0), 20)
   renderInstance = RenderInstance()
+  saveData = loadSaveData()
+
+proc canPlayLevel: bool =
+  menuState != previewingBuiltinLevels or selectedLevel == 0 or saveData.finished(selectedLevel - 1)
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -124,6 +133,20 @@ proc prevUserLevel() =
     selectedLevel = newLevel
     loadSelectedLevel()
 
+proc nextLevel() =
+  if menuState == previewingBuiltinLevels:
+    discard
+  else:
+    nextUserLevel()
+
+
+proc prevLevel() =
+  if menuState == previewingBuiltinLevels:
+    discard
+  else:
+    prevUserLevel()
+
+
 proc gameInit() =
   gui.fontPath = "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
@@ -194,14 +217,23 @@ proc gameInit() =
           onClick = proc() = loadLastPlayed()
         makeUi(Button):
           size = labelSize
-          text = "Play"
+          text = "Play Campaign"
+          nineSliceSize = nineSliceSize
+          backgroundColor = vec4(1)
+          backgroundTex = nineSliceTex
+          onClick = proc() =
+            menuState = previewingBuiltinLevels
+
+        makeUi(Button):
+          size = labelSize
+          text = "Play User Levels"
           nineSliceSize = nineSliceSize
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
             userLevels = fetchUserLevelNames()
             loadSelectedLevel()
-            menuState = previewingLevels
+            menuState = previewingUserLevels
 
         makeUi(Button):
           size = labelSize
@@ -237,7 +269,7 @@ proc gameInit() =
       layoutDirection = vertical
       anchor = {bottom}
       margin = 10
-      visibleCond =  proc(): bool = menuState == previewingLevels
+      visibleCond =  proc(): bool = menuState in previewingLevels
       children:
         makeUi(Button):
           size = labelSize
@@ -253,6 +285,7 @@ proc gameInit() =
         makeUi(Button):
           size = labelSize
           text = "Edit"
+          visibleCond =  proc(): bool = menuState == previewingUserLevels
           backgroundColor = vec4(1)
           nineSliceSize = 16f32
           fontColor = vec4(1)
@@ -286,8 +319,9 @@ proc gameInit() =
       color = vec4(0)
       backgroundColor = vec4(0)
       backgroundTex = nineSliceTex
-      visibleCond = proc(): bool = menuState == previewingLevels
-      onClick = nextUserLevel
+      visibleCond = proc(): bool =
+        menuState in previewingLevels
+      onClick = nextLevel
 
   mainMenu.add:
     makeUi(Button):
@@ -299,8 +333,8 @@ proc gameInit() =
       backgroundColor = vec4(0)
       color = vec4(0)
       fontColor = vec4(1)
-      visibleCond = proc(): bool = menuState == previewingLevels
-      onClick = prevUserLevel
+      visibleCond = proc(): bool = menuState in previewingLevels
+      onClick = nextLevel
 
 var
   lastScreenSize: IVec2
@@ -367,7 +401,6 @@ proc update(dt: float32) =
       world = World.init(10, 10)
 
     if playing in world.state and world.playedTransition():
-      menuState = previewingLevels
       world.reload()
 
 
@@ -432,6 +465,7 @@ proc draw =
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
     screenShader.setUniform("finishProgress", world.finishTime / LevelCompleteAnimationTime)
+    screenShader.setUniform("isPlayable", int32(canPlayLevel()))
     render(screenQuad)
 
 

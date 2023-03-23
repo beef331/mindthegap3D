@@ -45,12 +45,9 @@ type
     placeEmpty
     placeStacked
 
-const
-  projectilesAlwaysCollide = {wall}
+const projectilesAlwaysCollide = {wall}
 
-let
-  campaignLevelPath = getConfigDir() / "mindthegap" / "campaign"
-  userLevelPath = getConfigDir() / "mindthegap" / "userlevels"
+
 
 var
   pickupQuadModel, signModel, flagModel: Model
@@ -245,7 +242,6 @@ proc deserialize*[S](input: var S; world: var World) =
 
 
 proc save*(world: World) =
-  discard existsOrCreateDir(getConfigDir() / "mindthegap")
   discard existsOrCreateDir(userLevelPath)
   let path = userLevelPath / world.levelname & ".lvl"
   try:
