@@ -48,3 +48,7 @@ proc save*(saveData: var SaveData, level: string, steps: int) =
   saveData.userLevels[level] = newEntry
 
 proc finished*(saveData: var SaveData, i: int): bool = i in saveData.campaignLevels
+
+proc highestPlayableLevel*(saveData: SaveData): int =
+  for lvl, _ in saveData.campaignLevels:
+    result = max(lvl, result)

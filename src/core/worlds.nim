@@ -504,7 +504,6 @@ proc setupEditorGui*(world: var World) =
           fontsize = 50
           backgroundColor = vec4(0, 0, 0, 0.5)
           vAlign = MiddleAlign
-          visibleCond = proc: bool = not inspectingTile.hasStacked and inspectingTile.kind in {TileKind.floor, pickup}
           onTextChange = proc(s: string) =
             let pos = ivec2(int32 wrld.inspecting mod wrld.width, int32 wrld.inspecting div wrld.width)
             for sign in wrld.signs.mitems:

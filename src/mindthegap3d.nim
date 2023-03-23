@@ -18,7 +18,17 @@ type MenuState = enum
 
 const previewingLevels = {previewingBuiltinLevels, previewingUserLevels}
 
-let playerLevels = newSeq[World](0) # Populate at CT
+proc loadBuiltinLevels*(): seq[string] =
+  try:
+    for line in lines(campaignLevelPath / "levellayout.dat"):
+      if line.len > 0:
+        result.add campaignLevelPath / line
+  except IoError as e:
+    echo "Cannot load built in levels: ", e.msg
+  except OsError as e:
+    echo "Cannot load built in levels: ", e.msg
+
+let builtinLevels = loadBuiltinLevels()
 
 var
   camera: Camera
@@ -31,6 +41,7 @@ var
   menuState = inMain
   userLevels: seq[string]
   selectedLevel: int
+  playingUserLevel = false
   shadowCamera = Camera.init(vec3(0, 0, 0), normalize vec3(-1, -1, 0), 20)
   renderInstance = RenderInstance()
   saveData = loadSaveData()
@@ -99,8 +110,8 @@ proc saveLastPlayed() =
   freeze(myFs, world)
 
 
-proc loadSelectedLevel() =
-  var fs = newFileStream(userLevels[selectedLevel])
+proc loadSelectedLevel(path: string) =
+  var fs = newFileStream(path)
   defer: fs.close
   let
     gui = world.editorGui # Bit of a hack
@@ -116,35 +127,41 @@ proc loadSelectedLevel() =
   if gui.len > 0:
     world.editorGui = gui
 
-
-proc nextUserLevel() =
-  let
-    start = selectedLevel
-    newLevel = (start + 1 + userLevels.len) mod userLevels.len
-  if newLevel != start:
-    selectedLevel = newLevel
-    loadSelectedLevel()
-
-proc prevUserLevel() =
-  let
-    start = selectedLevel
-    newLevel = (start - 1 + userLevels.len) mod userLevels.len
-  if newLevel != start:
-    selectedLevel = newLevel
-    loadSelectedLevel()
-
 proc nextLevel() =
-  if menuState == previewingBuiltinLevels:
-    discard
-  else:
-    nextUserLevel()
+  let
+    isBuiltin = menuState == previewingBuiltinLevels
+    start = selectedLevel
+    len =
+      if isBuiltin:
+        builtinLevels.len
+      else:
+        userLevels.len
+    newLevel = (start + 1 + len) mod len
+  if newLevel != start:
+    selectedLevel = newLevel
+    if menuState == previewingBuiltinLevels:
+      loadSelectedLevel(builtinLevels[selectedLevel])
+    else:
+      loadSelectedLevel(userLevels[selectedLevel])
+
 
 
 proc prevLevel() =
-  if menuState == previewingBuiltinLevels:
-    discard
-  else:
-    prevUserLevel()
+  let
+    isBuiltin = menuState == previewingBuiltinLevels
+    start = selectedLevel
+    len =
+      if isBuiltin:
+        builtinLevels.len
+      else:
+        userLevels.len
+    newLevel = (start - 1 + len) mod len
+  if newLevel != start:
+    selectedLevel = newLevel
+    if isBuiltin:
+      loadSelectedLevel(builtinLevels[selectedLevel])
+    else:
+      loadSelectedLevel(userLevels[selectedLevel])
 
 
 proc gameInit() =
@@ -223,6 +240,10 @@ proc gameInit() =
           backgroundTex = nineSliceTex
           onClick = proc() =
             menuState = previewingBuiltinLevels
+            playingUserLevel = false
+            selectedLevel = saveData.highestPlayableLevel()
+            if builtinLevels.len > 0:
+              loadSelectedLevel(builtinLevels[selectedLevel])
 
         makeUi(Button):
           size = labelSize
@@ -232,7 +253,10 @@ proc gameInit() =
           backgroundTex = nineSliceTex
           onClick = proc() =
             userLevels = fetchUserLevelNames()
-            loadSelectedLevel()
+            selectedLevel = 0
+            playingUserLevel = true
+            if userLevels.len > 0:
+              loadSelectedLevel(userLevels[0])
             menuState = previewingUserLevels
 
         makeUi(Button):
@@ -279,8 +303,9 @@ proc gameInit() =
           fontColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
-            world.state = {playing}
-            menuState = noMenu
+            if canPlayLevel():
+              world.state = {playing}
+              menuState = noMenu
 
         makeUi(Button):
           size = labelSize
@@ -401,7 +426,16 @@ proc update(dt: float32) =
       world = World.init(10, 10)
 
     if playing in world.state and world.playedTransition():
+      if playingUserLevel:
+        saveData.save(userLevels[selectedLevel], 0)
+        menuState = previewingUserLevels
+      else:
+        saveData.save(selectedLevel, 0)
+        selectedLevel = min(selectedLevel + 1, builtinLevels.high)
+        menuState = previewingBuiltinLevels
+        loadSelectedLevel(builtinLevels[selectedLevel])
       world.reload()
+
 
 
 
