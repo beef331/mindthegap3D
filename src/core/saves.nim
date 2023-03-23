@@ -42,10 +42,12 @@ proc saveData*(data: SaveData) {.raises: [ValueError].} =
 proc save*(saveData: var SaveData, level, steps: int) =
   let newEntry = SaveEntry(steps: max(saveData.campaignLevels.getOrDefault(level).steps, steps))
   saveData.campaignLevels[level] = newEntry
+  saveData.saveData()
 
 proc save*(saveData: var SaveData, level: string, steps: int) =
   let newEntry = SaveEntry(steps: max(saveData.userLevels.getOrDefault(level).steps, steps))
   saveData.userLevels[level] = newEntry
+  saveData.saveData()
 
 proc finished*(saveData: var SaveData, i: int): bool = i in saveData.campaignLevels
 
