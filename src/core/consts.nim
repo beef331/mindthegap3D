@@ -1,5 +1,5 @@
 ## Shared constants
-import math
+import std/[math, os]
 const
   MoveTime* = 0.3f
   RotationSpeed* = Tau * 3
@@ -9,3 +9,12 @@ const
   SinkHeight* = -0.6
   MovesBetweenShots* = 4
   LevelCompleteAnimationTime* = 1f
+
+let
+  gameDir* = getConfigDir() / "mindthegap"
+  savePath* = gameDir / "gamesaves"
+  campaignLevelPath* = getAppDir() / "levels"
+  userLevelPath* = gameDir / "userlevels"
+
+discard existsOrCreateDir(gameDir)
+discard existsOrCreateDir(campaignLevelPath)

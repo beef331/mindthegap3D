@@ -31,6 +31,7 @@ uniform sampler2D tex;
 uniform sampler2D uiTex;
 uniform float finishProgress;
 uniform vec2 playerPos;
+uniform int isPlayable;
 
 vec3 aces(vec3 x) {
   const float a = 2.51;
@@ -45,6 +46,9 @@ vec3 aces(vec3 x) {
 void main() {
   vec4 uiColor = texture(uiTex, fuv);
   vec4 col = texture(tex, fuv);
+  if(isPlayable == 0){
+    col.rgb = vec3((col.r + col.g + col.b) / 3);
+  }
   col.rgb = aces(col.rgb);
   frag_colour.rgb = uiColor.rgb + col.rgb * (1 - uiColor.a);
   vec2 texSize = vec2(textureSize(tex, 0));

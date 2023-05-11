@@ -1,7 +1,7 @@
 import truss3D, vmath, chroma, pixie, frosty
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio, instancemodels]
-import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances]
+import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances, saves]
 import std/[os, sugar, streams]
 
 shaderPath = "assets/shaders"
@@ -12,8 +12,23 @@ const camDefaultSize = 8f
 type MenuState = enum
   noMenu
   inMain
-  previewingLevels
+  previewingBuiltinLevels
+  previewingUserLevels
   optionsMenu
+
+const previewingLevels = {previewingBuiltinLevels, previewingUserLevels}
+
+proc loadBuiltinLevels*(): seq[string] =
+  try:
+    for line in lines(campaignLevelPath / "levellayout.dat"):
+      if line.len > 0:
+        result.add campaignLevelPath / line
+  except IoError as e:
+    echo "Cannot load built in levels: ", e.msg
+  except OsError as e:
+    echo "Cannot load built in levels: ", e.msg
+
+let builtinLevels = loadBuiltinLevels()
 
 var
   camera: Camera
@@ -26,8 +41,13 @@ var
   menuState = inMain
   userLevels: seq[string]
   selectedLevel: int
+  playingUserLevel = false
   shadowCamera = Camera.init(vec3(0, 0, 0), normalize vec3(-1, -1, 0), 20)
   renderInstance = RenderInstance()
+  saveData = loadSaveData()
+
+proc canPlayLevel: bool =
+  menuState != previewingBuiltinLevels or selectedLevel == 0 or saveData.finished(selectedLevel - 1)
 
 proc makeRect(w, h: float32): Model =
   var data: MeshData[Vec3]
@@ -90,8 +110,8 @@ proc saveLastPlayed() =
   freeze(myFs, world)
 
 
-proc loadSelectedLevel() =
-  var fs = newFileStream(userLevels[selectedLevel])
+proc loadSelectedLevel(path: string) =
+  var fs = newFileStream(path)
   defer: fs.close
   let
     gui = world.editorGui # Bit of a hack
@@ -107,22 +127,42 @@ proc loadSelectedLevel() =
   if gui.len > 0:
     world.editorGui = gui
 
-
-proc nextUserLevel() =
+proc nextLevel() =
   let
+    isBuiltin = menuState == previewingBuiltinLevels
     start = selectedLevel
-    newLevel = (start + 1 + userLevels.len) mod userLevels.len
+    len =
+      if isBuiltin:
+        builtinLevels.len
+      else:
+        userLevels.len
+    newLevel = (start + 1 + len) mod len
   if newLevel != start:
     selectedLevel = newLevel
-    loadSelectedLevel()
+    if menuState == previewingBuiltinLevels:
+      loadSelectedLevel(builtinLevels[selectedLevel])
+    else:
+      loadSelectedLevel(userLevels[selectedLevel])
 
-proc prevUserLevel() =
+
+
+proc prevLevel() =
   let
+    isBuiltin = menuState == previewingBuiltinLevels
     start = selectedLevel
-    newLevel = (start - 1 + userLevels.len) mod userLevels.len
+    len =
+      if isBuiltin:
+        builtinLevels.len
+      else:
+        userLevels.len
+    newLevel = (start - 1 + len) mod len
   if newLevel != start:
     selectedLevel = newLevel
-    loadSelectedLevel()
+    if isBuiltin:
+      loadSelectedLevel(builtinLevels[selectedLevel])
+    else:
+      loadSelectedLevel(userLevels[selectedLevel])
+
 
 proc gameInit() =
   gui.fontPath = "assets/fonts/MarradaRegular-Yj0O.ttf"
@@ -194,14 +234,30 @@ proc gameInit() =
           onClick = proc() = loadLastPlayed()
         makeUi(Button):
           size = labelSize
-          text = "Play"
+          text = "Play Campaign"
+          nineSliceSize = nineSliceSize
+          backgroundColor = vec4(1)
+          backgroundTex = nineSliceTex
+          onClick = proc() =
+            menuState = previewingBuiltinLevels
+            playingUserLevel = false
+            selectedLevel = saveData.highestPlayableLevel()
+            if builtinLevels.len > 0:
+              loadSelectedLevel(builtinLevels[selectedLevel])
+
+        makeUi(Button):
+          size = labelSize
+          text = "Play User Levels"
           nineSliceSize = nineSliceSize
           backgroundColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
             userLevels = fetchUserLevelNames()
-            loadSelectedLevel()
-            menuState = previewingLevels
+            selectedLevel = 0
+            playingUserLevel = true
+            if userLevels.len > 0:
+              loadSelectedLevel(userLevels[0])
+            menuState = previewingUserLevels
 
         makeUi(Button):
           size = labelSize
@@ -237,7 +293,7 @@ proc gameInit() =
       layoutDirection = vertical
       anchor = {bottom}
       margin = 10
-      visibleCond =  proc(): bool = menuState == previewingLevels
+      visibleCond =  proc(): bool = menuState in previewingLevels
       children:
         makeUi(Button):
           size = labelSize
@@ -247,18 +303,21 @@ proc gameInit() =
           fontColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
-            world.state = {playing}
-            menuState = noMenu
+            if canPlayLevel():
+              world.state = {playing}
+              menuState = noMenu
 
         makeUi(Button):
           size = labelSize
           text = "Edit"
+          visibleCond =  proc(): bool = menuState == previewingUserLevels
           backgroundColor = vec4(1)
           nineSliceSize = 16f32
           fontColor = vec4(1)
           backgroundTex = nineSliceTex
           onClick = proc() =
             world.state = {editing}
+            world.setupEditorGui()
             menuState = noMenu
 
         makeUi(Button):
@@ -285,8 +344,9 @@ proc gameInit() =
       color = vec4(0)
       backgroundColor = vec4(0)
       backgroundTex = nineSliceTex
-      visibleCond = proc(): bool = menuState == previewingLevels
-      onClick = nextUserLevel
+      visibleCond = proc(): bool =
+        menuState in previewingLevels
+      onClick = nextLevel
 
   mainMenu.add:
     makeUi(Button):
@@ -298,8 +358,8 @@ proc gameInit() =
       backgroundColor = vec4(0)
       color = vec4(0)
       fontColor = vec4(1)
-      visibleCond = proc(): bool = menuState == previewingLevels
-      onClick = prevUserLevel
+      visibleCond = proc(): bool = menuState in previewingLevels
+      onClick = nextLevel
 
 var
   lastScreenSize: IVec2
@@ -364,6 +424,21 @@ proc update(dt: float32) =
       saveLastPlayed()
       menuState = inMain
       world = World.init(10, 10)
+
+    if playing in world.state and world.playedTransition():
+      if playingUserLevel:
+        saveData.save(userLevels[selectedLevel], 0)
+        menuState = previewingUserLevels
+      else:
+        saveData.save(selectedLevel, 0)
+        selectedLevel = min(selectedLevel + 1, builtinLevels.high)
+        menuState = previewingBuiltinLevels
+        loadSelectedLevel(builtinLevels[selectedLevel])
+      world.reload()
+
+
+
+
   world.update(camera, dt, renderInstance)
 
   if menuState != noMenu:
@@ -424,6 +499,7 @@ proc draw =
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
     screenShader.setUniform("finishProgress", world.finishTime / LevelCompleteAnimationTime)
+    screenShader.setUniform("isPlayable", int32(canPlayLevel()))
     render(screenQuad)
 
 

@@ -131,7 +131,6 @@ proc skipMoveAnim*(player: var Player) =
   player.moveProgress = MoveTime
 
 proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
-  movementUpdate(player, dt)
 
   template move(keycodes: set[TKeycode], dir: Direction) =
     var player{.byaddr.} = player
@@ -155,12 +154,14 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
 proc doPlace*(player: var Player): bool =
   leftMb.isDown and player.hasPickup
 
-proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
-  player.move(safeDirs, camera, dt, moveDir)
+proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction], levelFinished: bool) =
+  movementUpdate(player, dt)
+  if not levelFinished:
+    player.move(safeDirs, camera, dt, moveDir)
 
-  if KeycodeLCtrl.isNothing:
-    let scroll = getMouseScroll().sgn
-    player.pickupRotation.nextDirection(scroll)
+    if KeycodeLCtrl.isNothing:
+      let scroll = getMouseScroll().sgn
+      player.pickupRotation.nextDirection(scroll)
 
 proc render*(player: Player, camera: Camera, safeDirs: set[Direction]) =
   with playerShader:

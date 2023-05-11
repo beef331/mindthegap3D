@@ -32,7 +32,7 @@ type
     editorGui* {.unserialized.}: seq[UIElement]
     nameInput* {.unserialized.}: TextArea
 
-  HistoryKind = enum
+  HistoryKind* = enum
     nothing, start, checkpoint, ontoBox, pushed, placed
   History = object
     kind: HistoryKind
@@ -45,12 +45,9 @@ type
     placeEmpty
     placeStacked
 
-const
-  projectilesAlwaysCollide = {wall}
+const projectilesAlwaysCollide = {wall}
 
-let
-  campaignLevelPath = getConfigDir() / "mindthegap" / "campaign"
-  userLevelPath = getConfigDir() / "mindthegap" / "userlevels"
+
 
 var
   pickupQuadModel, signModel, flagModel: Model
@@ -163,6 +160,8 @@ proc isFinished*(world: World): bool =
     if not result:
       return
 
+proc playedTransition*(world: World): bool = world.isFinished and abs(world.finishTime) <= 0.00001
+
 proc contains*(world: World, vec: Vec3): bool =
   floor(vec.x).int in 0..<world.width and floor(vec.z).int in 0..<world.height
 
@@ -226,6 +225,7 @@ proc load*(world: var World) =
 
   if world.history.len == 0:
     world.saveHistoryStep(start)
+  world.finishTime = LevelCompleteAnimationTime
 
 
 proc serialize*[S](output: var S; world: World) =
@@ -242,7 +242,6 @@ proc deserialize*[S](input: var S; world: var World) =
 
 
 proc save*(world: World) =
-  discard existsOrCreateDir(getConfigDir() / "mindthegap")
   discard existsOrCreateDir(userLevelPath)
   let path = userLevelPath / world.levelname & ".lvl"
   try:
@@ -301,6 +300,7 @@ proc reload*(world: var World) =
   world.load()
   if world.history.len > 1:
     world.rewindTo({HistoryKind.start})
+  world.finished = false
   world.history.setLen(0)
   world.saveHistoryStep(start)
   world.player = Player.init(world.getPos(world.playerSpawn.int))
@@ -504,7 +504,6 @@ proc setupEditorGui*(world: var World) =
           fontsize = 50
           backgroundColor = vec4(0, 0, 0, 0.5)
           vAlign = MiddleAlign
-          visibleCond = proc: bool = not inspectingTile.hasStacked and inspectingTile.kind in {TileKind.floor, pickup}
           onTextChange = proc(s: string) =
             let pos = ivec2(int32 wrld.inspecting mod wrld.width, int32 wrld.inspecting div wrld.width)
             for sign in wrld.signs.mitems:
@@ -665,7 +664,7 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
   # Top down game dev
   let playerStartPos = world.player.mapPos
   world.playerStart = world.player
-  world.player.update(world.playerSafeDirections(), cam, dt, moveDir)
+  world.player.update(world.playerSafeDirections(), cam, dt, moveDir, world.finished)
   if world.player.doPlace():
     world.placeBlock(cam)
     world.saveHistoryStep(placed)
