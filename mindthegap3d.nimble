@@ -13,7 +13,6 @@ bin           = @["mindthegap3d"]
 requires "nim >= 1.6.0"
 requires "https://github.com/beef331/truss3D >= 0.1.1"
 requires "constructor"
-requires "easings" # Odd library that could be pure Nim
 requires "https://github.com/disruptek/frosty" # For level editor bridge
 
 

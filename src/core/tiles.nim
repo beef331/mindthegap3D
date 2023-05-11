@@ -130,9 +130,9 @@ proc calcYPos*(tile: Tile): float32 =
   ## Calculates drop pos for boxes
   assert tile.kind == box
   if tile.steppedOn:
-    mix(0f, SinkHeight, easingsOutBounce(tile.progress / FallTime))
+    mix(0f, SinkHeight, outBounce(tile.progress / FallTime))
   else:
-    mix(StartHeight, 0, easingsOutBounce(tile.progress / FallTime))
+    mix(StartHeight, 0, outBounce(tile.progress / FallTime))
 
 proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =
   case tile.kind
@@ -158,7 +158,7 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.hasStacked():
     let
       stacked = tile.stacked.get
-      pos = lerp(stacked.startPos, stacked.toPos, clamp(easingsOutBounce(stacked.moveTime / MoveTime), 0f, 1f))
+      pos = lerp(stacked.startPos, stacked.toPos, clamp(outBounce(stacked.moveTime / MoveTime), 0f, 1f))
     case tile.stacked.get.kind
     of box:
       renderBlock(Tile(kind: box), cam, shader, shader, pos, true)
@@ -206,7 +206,7 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
   if tile.hasStacked:
     let
       stacked = tile.stacked.unsafeget
-      pos = lerp(stacked.startPos, stacked.toPos, clamp(easingsOutBounce(stacked.moveTime / MoveTime), 0f, 1f))
+      pos = lerp(stacked.startPos, stacked.toPos, clamp(outBounce(stacked.moveTime / MoveTime), 0f, 1f))
     case stacked.kind
     of turret:
       let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
