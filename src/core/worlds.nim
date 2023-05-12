@@ -102,26 +102,26 @@ iterator tilesInDir(world: World, index: int, dir: Direction, isLast: var bool):
   assert index in 0..<world.tiles.len
   case dir
   of Direction.up:
-    isLast = index div world.height == world.height - 1
+    isLast = index div world.width >= world.height - 1
     for index in countUp(index + world.width.int, world.tiles.high, world.width):
       yield world.tiles[index]
-      isLast = isLast or (index div world.height == world.height - 1)
+      isLast = index div world.width >= world.height - 1
 
   of down:
-    isLast = index div world.height == 0
+    isLast = index div world.width == 0
     for index in countDown(index - world.width.int, 0, world.width):
       yield world.tiles[index]
-      isLast = index div world.height == 0
+      isLast = index div world.width == 0
 
   of left:
-    isLast = index mod world.width == world.width - 1
-    for index in countUp((index mod world.width) + 1, world.width):
+    isLast = index mod world.width >= world.width - 1
+    for index in countUp(index, index + (world.width - index mod world.width)):
       yield world.tiles[index]
-      isLast = index mod world.width == world.width
+      isLast = index mod world.width >= world.width - 1
 
   of right:
     isLast = index mod world.width == 0
-    for index in countDown(index mod world.width, 0):
+    for index in countDown(index, index - index mod world.width):
       yield world.tiles[index]
       isLast = index mod world.width == 0
 
@@ -138,12 +138,12 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
       yield (index, index - world.width.int)
 
   of left:
-    for index in countUp(int start mod world.width, world.width):
-      yield (index, index + 1)
+    for i, _ in enumerate countUp(int start mod world.width, world.width - 1):
+      yield (start + i, start + i + 1)
 
   of right:
-    for index in countDown(int start mod world.width, 0):
-      yield (index, index - 1)
+    for i, _ in enumerate countDown(int start mod world.width, 0):
+      yield (start - i, start - i - 1)
 
 proc isFinished*(world: World): bool =
   result = true
