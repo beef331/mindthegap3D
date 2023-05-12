@@ -9,6 +9,8 @@ const
   SinkHeight* = -0.6
   MovesBetweenShots* = 4
   LevelCompleteAnimationTime* = 1f
+  PlayerSoundDelay* = 1f
+
 
 let
   gameDir* = getConfigDir() / "mindthegap"
@@ -18,3 +20,4 @@ let
 
 discard existsOrCreateDir(gameDir)
 discard existsOrCreateDir(campaignLevelPath)
+

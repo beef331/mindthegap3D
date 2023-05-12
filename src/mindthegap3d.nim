@@ -68,7 +68,7 @@ proc makeScreenQuad(): Model =
   data.appendUv([vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items)
   result = data.uploadData()
 
-addResourceProc do:
+addResourceProc do():
   camera.pos = vec3(0, 8, 0)
   camera.forward = normalize(vec3(5, 0, 5) - camera.pos)
   camera.pos = camera.pos - camera.forward * 20
@@ -482,13 +482,9 @@ proc draw =
       waterShader.setUniform("waterTex", waterTex)
       watershader.setUniform("time", getTime())
       waterShader.setUniform("mvp", camera.orthoView * waterMatrix)
-      glEnable GlDepthTest
       glDepthMask false
       render(waterQuad)
       glDepthMask true
-      glColorMask false, false, false, false
-      render(waterQuad)
-      glColorMask true, true, true, true
     renderWaterSplashes(camera)
 
 

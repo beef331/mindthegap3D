@@ -1,6 +1,6 @@
 import truss3D/[shaders, models, textures, inputs, audio]
 import std/[options, decls]
-import resources, cameras, directions, pickups, shadows, consts
+import resources, cameras, directions, pickups, shadows, consts, serializers
 import vmath, pixie, opengl
 
 
@@ -30,6 +30,13 @@ type
     presentPickup: Option[PickupType]
     pickupRotation: Direction
     rotation: float32
+    soundTimer {.unserialized.}: float32
+
+proc serialize*[S](output: var S; player: Player) =
+  output.saveSkippingFields(player)
+
+proc deserialize*[S](input: var S; player: var Player) =
+  input.loadSkippingFields(player)
 
 var
   playerModel, dirModel: Model
@@ -85,7 +92,9 @@ proc move(player: var Player, direction: Direction): bool =
     player.fromPos = player.pos
     player.toPos = direction.toVec + player.pos
     player.moveProgress = 0
-    playerJump.play()
+    if player.soundTimer <= 0:
+      playerJump.play()
+      player.soundTimer = PlayerSoundDelay
     result = true
 
 func isMoving*(player: Player): bool = player.moveProgress < 1
@@ -123,6 +132,7 @@ proc movementUpdate(player: var Player, dt: float32) =
       sineOffset = vec3(0, sin(progress * Pi) * Height, 0)
     player.pos = player.frompos + player.direction.toVec * progress + sineOffset
     player.moveProgress += dt
+  player.soundTimer -= dt
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 

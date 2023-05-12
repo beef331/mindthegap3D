@@ -1,10 +1,8 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
 import pixie, opengl, vmath, easings, frosty
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances, serializers
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams, macros]
-
-template unserialized {.pragma.}
 
 type
   WorldState* = enum
@@ -229,14 +227,10 @@ proc load*(world: var World) =
 
 
 proc serialize*[S](output: var S; world: World) =
-  for field in world.fields:
-    when not field.hasCustomPragma(unserialized):
-      serialize(output, field)
+  output.saveSkippingFields(world)
 
 proc deserialize*[S](input: var S; world: var World) =
-  for field in world.fields:
-    when not field.hasCustomPragma(unserialized):
-      deserialize(input, field)
+  input.loadSkippingFields(world)
   world.unload()
   world.load()
 
