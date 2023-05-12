@@ -370,7 +370,9 @@ proc cameraMovement =
     cameraStartPos {.global.}: Vec3
     mouseStartPos {.global.}: IVec2
     mouseOffset {.global.} : IVec2
-
+  if world.finished:
+    setMouseMode(MouseAbsolute)
+    releaseWindow()
   case middleMb.state()
   of pressed:
     cameraDragPos = camera.raycast(getMousePos())
