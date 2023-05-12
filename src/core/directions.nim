@@ -13,13 +13,13 @@ proc nextDirection*(d: var Direction, val: -1..1) =
 proc asRot*(dir: Direction): float32 =
   case dir
   of up: 0f32
-  of right: Tau * (0.75)
+  of right: Tau / 4
   of down: Tau / 2
-  of left: Tau / 4
+  of left: Tau * (0.75)
 
 proc asVec3*(dir: Direction): Vec3 =
   case dir:
   of up: vec3(0, 0, 1)
-  of right: vec3(1, 0, 0)
+  of right: vec3(-1, 0, 0)
   of down: vec3(0, 0, -1)
-  of left: vec3(-1, 0, 0)
+  of left: vec3(1, 0, 0)

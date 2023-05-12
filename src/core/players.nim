@@ -72,25 +72,18 @@ proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.moveProgress = MoveTime
   result.rotation = up.targetRotation
 
-proc toVec*(d: Direction): Vec3 =
-  case d
-  of Direction.up: vec3(0, 0, 1)
-  of right: vec3(1, 0, 0)
-  of down: vec3(0, 0, -1)
-  of left: vec3(-1, 0, 0)
-
 proc targetRotation*(d: Direction): float32 =
   case d
-  of right: 0f
+  of right: Tau / 2f
   of Direction.up: Tau / 4f
-  of left: Tau / 2f
+  of left: 0f
   of down: 3f / 4f * Tau
 
 proc move(player: var Player, direction: Direction): bool =
   if player.moveProgress >= MoveTime:
     player.direction = direction
     player.fromPos = player.pos
-    player.toPos = direction.toVec + player.pos
+    player.toPos = direction.asVec3 + player.pos
     player.moveProgress = 0
     if player.soundTimer <= 0:
       playerJump.play()
@@ -130,7 +123,7 @@ proc movementUpdate(player: var Player, dt: float32) =
     let
       progress = player.moveProgress / MoveTime
       sineOffset = vec3(0, sin(progress * Pi) * Height, 0)
-    player.pos = player.frompos + player.direction.toVec * progress + sineOffset
+    player.pos = player.frompos + player.direction.asVec3 * progress + sineOffset
     player.moveProgress += dt
   player.soundTimer -= dt
 
@@ -150,14 +143,14 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
           moveDir = some(dir)
 
   move({KeyCodeW, KeyCodeUp}, Direction.up)
-  move({KeyCodeD, KeyCodeRight}, left)
+  move({KeyCodeD, KeyCodeRight}, right)
   move({KeyCodeS, KeyCodeDown}, down)
-  move({KeyCodeA, KeyCodeLeft}, right)
+  move({KeyCodeA, KeyCodeLeft}, left)
 
   if rightMb.isPressed():
     let hit = vec3 ivec3 camera.raycast(getMousePos())
     for dir in Direction:
-      if dir in safeDirs and distSq(hit, player.pos + dir.toVec) < 0.1:
+      if dir in safeDirs and distSq(hit, player.pos + dir.asVec3) < 0.1:
         if player.move(dir):
           moveDir = some(dir)
 
@@ -186,7 +179,7 @@ proc render*(player: Player, camera: Camera, safeDirs: set[Direction]) =
         glDisable(GlDepthTest)
         for x in Direction:
           if x in safeDirs:
-            let modelMatrix = (translate(player.pos + vec3(0, 1.3, 0) + x.toVec) * rotateY(90.toRadians))
+            let modelMatrix = (translate(player.pos + vec3(0, 1.3, 0) + x.asVec3) * rotateY(90.toRadians))
             alphaClipShader.setUniform("mvp", camera.orthoView * modelMatrix)
             alphaClipShader.setUniform("tex", dirTex[x])
             render(dirModel)

@@ -91,8 +91,6 @@ addResourceProc:
     particleUpdate
   )
 
-
-
 iterator tileKindCoords(world: World): (Tile, Vec3) =
   for i, tile in world.tiles:
     let
@@ -100,56 +98,52 @@ iterator tileKindCoords(world: World): (Tile, Vec3) =
       z = i div world.width
     yield (tile, vec3(x.float, 0, z.float))
 
-iterator tilesInDir(world: World, startIndex: int, dir: Direction): Tile =
-  assert startIndex in 0..<world.tiles.len
-  var index = startIndex
+iterator tilesInDir(world: World, index: int, dir: Direction, isLast: var bool): Tile =
+  assert index in 0..<world.tiles.len
   case dir
   of Direction.up:
-    index += world.width.int
-    while index < world.tiles.len:
+    isLast = index div world.width >= world.height - 1
+    for index in countUp(index + world.width.int, world.tiles.high, world.width):
       yield world.tiles[index]
-      index += world.width.int
+      isLast = index div world.width >= world.height - 1
 
   of down:
-    index -= world.width.int
-    while index >= 0:
+    isLast = index div world.width == 0
+    for index in countDown(index - world.width.int, 0, world.width):
       yield world.tiles[index]
-      index -= world.width.int
+      isLast = index div world.width == 0
 
   of left:
-    while (index mod world.width) > 0:
-      index -= 1
+    isLast = index mod world.width >= world.width - 1
+    for index in countUp(index, index + (world.width - index mod world.width)):
       yield world.tiles[index]
+      isLast = index mod world.width >= world.width - 1
 
   of right:
-    while (index mod world.width) < world.width - 1:
-      index += 1
+    isLast = index mod world.width == 0
+    for index in countDown(index, index - index mod world.width):
       yield world.tiles[index]
+      isLast = index mod world.width == 0
 
 iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
   ## Yields present and next index
   assert start in 0..<world.tiles.len
-  var index = start
   case dir
   of Direction.up:
-    while index + world.width.int < world.tiles.len:
+    for index in countUp(start, world.tiles.high, world.width):
       yield (index, index + world.width.int)
-      index += world.width.int
 
   of down:
-    while index - world.width.int >= 0:
+    for index in countDown(start, 0, world.width):
       yield (index, index - world.width.int)
-      index -= world.width.int
 
   of left:
-    while ((index - 1) mod world.width) >= 0:
-      yield (index, index - 1)
-      dec index
+    for i, _ in enumerate countUp(int start mod world.width, world.width - 1):
+      yield (start + i, start + i + 1)
 
   of right:
-    while ((index + 1) mod world.width) < world.width:
-      yield (index, index + 1)
-      index += 1
+    for i, _ in enumerate countDown(int start mod world.width, 0):
+      yield (start - i, start - i - 1)
 
 proc isFinished*(world: World): bool =
   result = true
@@ -564,7 +558,10 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
 
 proc canPush(world: World, index: int, dir: Direction): bool =
   result = false
-  for tile in world.tilesInDir(index, dir):
+  var isLast = false
+  for tile in world.tilesInDir(index, dir, isLast):
+    if isLast:
+      return false
     case tile.kind
     of Walkable:
       if not tile.hasStacked():
@@ -584,10 +581,11 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
     result.incl down
   if index + world.width < world.tiles.len and world.canWalk(index + world.width.int, up):
     result.incl up
-  if index mod world.width > 0 and world.canWalk(index - 1, left):
+  if index mod world.width < world.width - 1 and world.canWalk(index + 1, left):
     result.incl left
-  if index mod world.width < world.width - 1 and world.canWalk(index + 1, right):
+  if index mod world.width > 0 and world.canWalk(index - 1, right):
     result.incl right
+
 
 proc pushBlock(world: var World, direction: Direction) =
   let start = world.getPointIndex(world.player.movingToPos())

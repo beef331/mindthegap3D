@@ -81,8 +81,8 @@ type
 
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup}
-  Walkable* = {TileKind.floor, pickup, box}
   AlwaysWalkable* = {TileKind.floor, pickup, checkpoint}
+  Walkable* = {box} + AlwaysWalkable
 
 proc completed*(t: Tile): bool =
   case t.kind:
