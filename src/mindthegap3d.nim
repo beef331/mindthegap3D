@@ -494,7 +494,11 @@ proc draw =
     screenShader.setUniform("tex", mainBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
-    screenShader.setUniform("finishProgress", world.finishTime / LevelCompleteAnimationTime)
+    screenShader.setUniform("finishProgress"):
+      if not world.finished:
+        -1f
+      else:
+        world.finishTime / LevelCompleteAnimationTime
     screenShader.setUniform("isPlayable", int32(canPlayLevel()))
     render(screenQuad)
 

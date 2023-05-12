@@ -51,11 +51,11 @@ void main() {
   }
   col.rgb = aces(col.rgb);
   frag_colour.rgb = uiColor.rgb + col.rgb * (1 - uiColor.a);
-  vec2 texSize = vec2(textureSize(tex, 0));
-  vec2 realPlayerPos = vec2(playerPos) / texSize;
-  realPlayerPos.y = 1 - realPlayerPos.y;
-  vec2 offsetUv = fuv * vec2(1, (texSize.y / texSize.x)) - realPlayerPos * vec2(1, (texSize.y / texSize.x)) ;
-  if(finishProgress > 0){
+  if(finishProgress > 0.1){
+    vec2 texSize = vec2(textureSize(tex, 0));
+    vec2 realPlayerPos = vec2(playerPos) / texSize;
+    realPlayerPos.y = 1 - realPlayerPos.y;
+    vec2 offsetUv = fuv * vec2(1, (texSize.y / texSize.x)) - realPlayerPos * vec2(1, (texSize.y / texSize.x)) ;
     frag_colour.rgb *= float(length(offsetUv) < clamp(finishProgress, 0, 1));
   }
 }
