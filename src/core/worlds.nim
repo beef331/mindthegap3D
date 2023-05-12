@@ -53,6 +53,7 @@ var
   waterParticleShader: Shader
   waterParticleSystem: ParticleSystem
   splashSfx: SoundEffect
+  pushSfx: SoundEffect
 
 
 proc particleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
@@ -79,6 +80,8 @@ addResourceProc:
   splashSfx = loadSound("assets/sounds/blocksplash.wav")
   splashSfx.sound.volume = 0.1
 
+  pushSfx = loadSound("assets/sounds/push.wav")
+  pushSfx.sound.volume = 0.3
 
 
   waterParticleShader = loadShader(ShaderPath"waterparticlevert.glsl", ShaderPath"waterparticlefrag.glsl")
@@ -604,6 +607,7 @@ proc pushBlock(world: var World, direction: Direction) =
         buffer = temp
       if not hadStack:
         break
+    pushSfx.play()
     world.tiles[start].clearStack()
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
