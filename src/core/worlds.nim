@@ -597,14 +597,9 @@ proc pushBlock(world: var World, direction: Direction) =
     for (lastIndex, nextIndex) in world.tilesInDir(start, direction):
       template nextTile: auto = world.tiles[nextIndex]
       let hadStack = nextTile.hasStacked
-      if nextTile.kind == empty:
-        if (buffer.isSome and buffer.get.kind == box):
-          nextTile = Tile(kind: box)
-        break
-      else:
-        let temp = nextTile.stacked
-        nextTile.giveStackedObject(buffer, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
-        buffer = temp
+      let temp = nextTile.stacked
+      nextTile.giveStackedObject(buffer, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
+      buffer = temp
       if not hadStack:
         break
     pushSfx.play()
