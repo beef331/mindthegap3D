@@ -211,7 +211,7 @@ proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = fal
     skipped = true
 
   if ind >= 0:
-    template targetHis: History = world.history[ind]
+    let targetHis {.cursor.} = world.history[ind]
     world.tiles = targetHis.tiles
     world.projectiles = Projectiles.init
     world.projectiles.spawnProjectiles(targetHis.projectiles)
