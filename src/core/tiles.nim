@@ -141,7 +141,7 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
   of empty:
     if tile.hasStacked() and tile.stacked.unsafeGet.moveTime >= MoveTime:
       if tile.stacked.unsafeGet.kind == box:
-        tile = Tile(kind: box, progress: 0.7) # TODO: Replace with invert lerp
+        tile = Tile(kind: box, progress: 0.65) # TODO: Replace with invert lerp
       else:
         tile.stacked = none(StackedObject)
   else: discard

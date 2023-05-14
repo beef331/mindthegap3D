@@ -30,7 +30,7 @@ type
     presentPickup: Option[PickupType]
     pickupRotation: Direction
     rotation: float32
-    soundTimer {.unserialized.}: float32
+    lastSound {.unserialized.}: Sound
 
 proc serialize*[S](output: var S; player: Player) =
   output.saveSkippingFields(player)
@@ -63,7 +63,7 @@ addResourceProc:
   alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
   dirModel = loadModel("pickup_quad.dae")
   playerJump = loadSound("assets/sounds/jump.wav")
-  playerJump.sound.volume = 0.1
+  playerJump.sound.volume = 0.3
 
 proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
@@ -85,9 +85,12 @@ proc move(player: var Player, direction: Direction): bool =
     player.fromPos = player.pos
     player.toPos = direction.asVec3 + player.pos
     player.moveProgress = 0
-    if player.soundTimer <= 0:
-      playerJump.play()
-      player.soundTimer = PlayerSoundDelay
+    playerJump.sound.volume =
+      if player.lastSound != nil and not bool(atEnd(player.lastSound)):
+        0.1f
+      else:
+        0.3f
+    player.lastSound = playerJump.play()
     result = true
 
 func isMoving*(player: Player): bool = player.moveProgress < 1
@@ -125,7 +128,6 @@ proc movementUpdate(player: var Player, dt: float32) =
       sineOffset = vec3(0, sin(progress * Pi) * Height, 0)
     player.pos = player.frompos + player.direction.asVec3 * progress + sineOffset
     player.moveProgress += dt
-  player.soundTimer -= dt
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 
