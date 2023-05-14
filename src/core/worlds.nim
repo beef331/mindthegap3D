@@ -570,7 +570,7 @@ proc canPush(world: World, index: int, dir: Direction): bool =
       if not tile.hasStacked():
         return tile.isWalkable()
     of empty:
-      return true
+      return not tile.hasStacked()
     else: discard
 
 proc canWalk(world: World, index: int, dir: Direction): bool =

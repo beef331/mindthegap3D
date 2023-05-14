@@ -127,7 +127,7 @@ proc loadSelectedLevel(path: string) =
   if gui.len > 0:
     world.editorGui = gui
 
-proc nextLevel() =
+proc nextLevel(dir: int = 1) =
   let
     isBuiltin = menuState == previewingBuiltinLevels
     start = selectedLevel
@@ -136,29 +136,10 @@ proc nextLevel() =
         builtinLevels.len
       else:
         userLevels.len
-    newLevel = (start + 1 + len) mod len
+    newLevel = (start + dir + len) mod len
   if newLevel != start:
     selectedLevel = newLevel
     if menuState == previewingBuiltinLevels:
-      loadSelectedLevel(builtinLevels[selectedLevel])
-    else:
-      loadSelectedLevel(userLevels[selectedLevel])
-
-
-
-proc prevLevel() =
-  let
-    isBuiltin = menuState == previewingBuiltinLevels
-    start = selectedLevel
-    len =
-      if isBuiltin:
-        builtinLevels.len
-      else:
-        userLevels.len
-    newLevel = (start - 1 + len) mod len
-  if newLevel != start:
-    selectedLevel = newLevel
-    if isBuiltin:
       loadSelectedLevel(builtinLevels[selectedLevel])
     else:
       loadSelectedLevel(userLevels[selectedLevel])
@@ -346,7 +327,7 @@ proc gameInit() =
       backgroundTex = nineSliceTex
       visibleCond = proc(): bool =
         menuState in previewingLevels
-      onClick = nextLevel
+      onClick = proc() = nextLevel()
 
   mainMenu.add:
     makeUi(Button):
@@ -359,7 +340,7 @@ proc gameInit() =
       color = vec4(0)
       fontColor = vec4(1)
       visibleCond = proc(): bool = menuState in previewingLevels
-      onClick = nextLevel
+      onClick = proc() = nextLevel(-1)
 
 var
   lastScreenSize: IVec2
