@@ -14,12 +14,13 @@ type
     playerSpawn*: int64
     state*: set[WorldState]
     player*: Player
-    playerStart: Player ## Player stats before moving, meant for history
     projectiles*: Projectiles
     pastProjectiles: seq[Projectile]
     history: seq[History]
     levelName*: string
 
+
+    playerStart {.unserialized.}: Player ## Player stats before moving, meant for history
 
     finished* {.unserialized.}: bool
     finishTime* {.unserialized.}: float32
@@ -170,14 +171,22 @@ proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, 
 
 proc resize*(world: var World, newSize: IVec2) =
   var newTileData = newSeq[Tile](newSize.x * newSize.y)
-  for x in 0..<newSize.x:
-    if x < world.width:
-      for y in 0..<newSize.y:
-        if y < world.height:
-          newTileData[x + y * newSize.x] = world.tiles[x + y * world.width]
+  for i, tile in world.tiles.pairs:
+    let (x, y) = (i mod world.width, i div world.width)
+    if x < newSize.x and y < newSize.y:
+      newTileData[x + y * newSize.x] = tile
+  let (playerX, playerY) = (world.playerSpawn mod world.width, world.playerSpawn div world.width)
+  world.playerSpawn =
+    if playerX in 0..<newSize.x and playerY in 0..<newSize.y:
+      playerX + playerY * newSize.x
+    else:
+      0
+
+
   world.width = newSize.x
   world.height = newSize.y
   world.tiles = newTileData
+  world.history.setLen(0)
 
 # History Procs
 proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
