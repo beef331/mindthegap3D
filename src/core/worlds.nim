@@ -51,8 +51,8 @@ const projectilesAlwaysCollide = {wall}
 var
   pickupQuadModel, signModel, flagModel: Model
   levelShader, cursorShader, alphaClipShader, flagShader, boxShader, signBuffShader: Shader
-  waterParticleShader: Shader
-  waterParticleSystem: ParticleSystem
+  particleShader: Shader
+  waterParticleSystem, dirtParticleSystem: ParticleSystem # Need to abstract these
   splashSfx: SoundEffect
   pushSfx: SoundEffect
 
@@ -85,11 +85,20 @@ addResourceProc:
   pushSfx.sound.volume = 0.3
 
 
-  waterParticleShader = loadShader(ShaderPath"waterparticlevert.glsl", ShaderPath"waterparticlefrag.glsl")
+  particleShader = loadShader(ShaderPath"waterparticlevert.glsl", ShaderPath"waterparticlefrag.glsl")
   waterParticleSystem = initParticleSystem(
     "cube.glb",
     vec3(5, 0, 5),
     vec4(1)..vec4(0, 0.4, 0.6, 0.0),
+    0.5,
+    vec3(0.1)..vec3(0.003),
+    particleUpdate
+  )
+
+  dirtParticleSystem = initParticleSystem(
+    "cube.glb",
+    vec3(5, 0, 5),
+    vec4(0.52,0.52,0.31,1),
     0.5,
     vec3(0.1)..vec3(0.003),
     particleUpdate
@@ -684,10 +693,15 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
         0f32
     tile.update(world.projectiles, dt, moveDir.isSome)
 
-    if tile.kind == box:
+    case tile.kind
+    of box:
       if startY > 1 and tile.calcYPos() <= 1:
         splashSfx.play()
         waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
+    else:
+      if tile.hasStacked() and tile.shouldSpawnParticle:
+        dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
+
 
 
 proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
@@ -791,6 +805,8 @@ proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var Ren
     world.editorUpdate(cam, dt)
 
   waterParticleSystem.update(dt)
+  dirtParticleSystem.update(dt)
+
 
 # RENDER LOGIC BELOW
 
@@ -892,10 +908,14 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
 
 
 proc renderWaterSplashes*(cam: Camera) =
-  with waterParticleShader:
+  with particleShader:
     glEnable GlDepthTest
-    waterParticleShader.setUniform("VP", cam.orthoView)
+    particleShader.setUniform("VP", cam.orthoView)
     waterParticleSystem.render()
+
+    particleShader.setUniform("VP", cam.orthoView)
+    dirtParticleSystem.render()
+
 
 proc renderUI*(world: World) =
   if world.state == {editing}:

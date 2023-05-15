@@ -87,7 +87,7 @@ proc move(player: var Player, direction: Direction): bool =
     player.moveProgress = 0
     playerJump.sound.volume =
       if player.lastSound != nil and not bool(atEnd(player.lastSound)):
-        0.1f
+        0.05f
       else:
         0.3f
     player.lastSound = playerJump.play()

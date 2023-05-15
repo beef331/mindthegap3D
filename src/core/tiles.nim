@@ -1,4 +1,4 @@
-import directions, pickups, cameras, resources, projectiles, consts, renderinstances
+import directions, pickups, cameras, resources, projectiles, consts, renderinstances, serializers
 import vmath, easings, opengl, pixie
 import truss3D/[shaders, models, textures, instancemodels]
 import std/[options, decls]
@@ -49,10 +49,14 @@ type
     turret = "Turret"
     box = "Box"
 
+  StackedFlag = enum
+    spawnedParticle
+
   StackedObject* = object
     startPos: Vec3
     toPos: Vec3
     moveTime: float32
+    flags: set[StackedFlag]
     case kind*: StackedObjectKind
     of turret:
       direction*: Direction
@@ -63,14 +67,18 @@ type
       discard
     of none: discard
 
+
   ProjectileKind* = enum
     hitScan, dynamicProjectile
 
+  TileFlags = enum
+    reserved
 
   Tile* = object
     stacked*: Option[StackedObject]
     direction*: Direction
     steppedOn*: bool
+    flags: set[TileFlags]
     case kind*: TileKind
     of pickup:
       pickupKind*: PickupType
@@ -78,6 +86,7 @@ type
     of box:
       progress*: float32
     else: discard
+
 
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup}
@@ -92,11 +101,28 @@ proc completed*(t: Tile): bool =
     true
 
 
+proc clampedProgress(progress: float32): float32 = clamp(outBounce(progress), 0f, 1f)
+
 proc hasStacked*(tile: Tile): bool = tile.stacked.isSome()
+proc fullyStacked*(tile: Tile): bool =
+  assert tile.hasStacked
+  tile.stacked.unsafeGet.moveTime >= MoveTime
+
+proc shouldSpawnParticle*(tile: var Tile): bool =
+  assert tile.hasStacked()
+
+  let
+    stacked {.cursor.} = tile.stacked.unsafeGet
+    y = stacked.startPos.y.lerp(stacked.toPos.y, clampedProgress(stacked.moveTime / MoveTime))
+
+  result = abs(1f - y) < 0.1 and (spawnedParticle notin tile.stacked.get.flags)
+  if result:
+    tile.stacked.get.flags.incl spawnedParticle
+
 
 proc isWalkable*(tile: Tile): bool =
   if tile.hasStacked():
-    (tile.stacked.get.moveTime >= MoveTime)
+    (tile.stacked.unsafeget.moveTime >= MoveTime)
   else:
     (tile.kind in AlwaysWalkable) or
     (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
@@ -164,7 +190,7 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.hasStacked():
     let
       stacked = tile.stacked.get
-      pos = lerp(stacked.startPos, stacked.toPos, clamp(outBounce(stacked.moveTime / MoveTime), 0f, 1f))
+      pos = lerp(stacked.startPos, stacked.toPos, clampedProgress(stacked.moveTime / MoveTime))
     case tile.stacked.get.kind
     of box:
       renderBlock(Tile(kind: box), cam, shader, shader, pos, true)
@@ -175,7 +201,7 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       render(crossbowmodel)
 
       let
-        progress = clamp(float32 (stacked.movesToNextShot - 1) / MovesBetweenShots, 0f..1f)
+        progress = clampedProgress(float32 (stacked.movesToNextShot - 1) / MovesBetweenShots)
         pos = pos + vec3(0, 1, 0)
         targetUp = cam.up
         targetRot = fromTwoVectors(vec3(0, 0, 1), cam.forward)
