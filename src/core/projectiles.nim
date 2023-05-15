@@ -33,6 +33,7 @@ iterator idProj*(projs: Projectiles): (int, Projectile) =
     yield (x, projs.projectiles[x])
 
 proc pos*(projectile: Projectile): Vec3 = mix(projectile.fromPos, projectile.toPos, clamp(projectile.moveTime / MoveTime, 0f..1f))
+proc toPos*(projectile: Projectile): Vec3 = projectile.toPos
 
 proc getNextId(projs: var Projectiles): int =
   for x in projs.inactive:

@@ -54,6 +54,7 @@ var
   waterParticleSystem, dirtParticleSystem: ParticleSystem # Need to abstract these
   splashSfx: SoundEffect
   pushSfx: SoundEffect
+  fallSfx: SoundEffect
 
 
 proc waterParticleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
@@ -88,6 +89,9 @@ addResourceProc:
 
   pushSfx = loadSound("assets/sounds/push.wav")
   pushSfx.sound.volume = 0.3
+
+  fallSfx = loadSound("assets/sounds/blockfall.wav")
+  fallSfx.sound.volume = 0.3
 
 
   particleShader = loadShader(ShaderPath"waterparticlevert.glsl", ShaderPath"waterparticlefrag.glsl")
@@ -658,8 +662,8 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
 
   var projRemoveBuffer: seq[int]
   for id, proj in world.projectiles.idProj:
-    let pos = ivec3(proj.pos + vec3(0.5))
-    if pos.xz == world.player.mapPos().ivec3.xz or ivec2(proj.pos.xz) == ivec2(world.player.mapPos.xz):
+    let pos = ivec3(proj.toPos.floor)
+    if pos.xz.ivec2 == world.player.mapPos().xz.ivec2:
       world.rewindTo({HistoryKind.checkpoint, start})
       break
 
@@ -690,6 +694,9 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
   if KeycodeP.isDown:
     world.reload()
 
+  if KeycodeZ.isDown:
+    world.rewindTo({start, checkpoint})
+
   for i, tile in enumerate world.tiles.mitems:
     let startY =
       if tile.kind == box:
@@ -705,6 +712,7 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
         waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
     else:
       if tile.hasStacked() and tile.shouldSpawnParticle:
+        fallSfx.play()
         dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
 
@@ -794,6 +802,7 @@ proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var Ren
       sign.update(dt)
 
     var moveDir = none(Direction)
+
 
     world.playerMovementUpdate(cam, dt, moveDir)
     world.projectileUpdate(dt, moveDir.isSome)
