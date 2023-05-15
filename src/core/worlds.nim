@@ -57,10 +57,16 @@ var
   pushSfx: SoundEffect
 
 
-proc particleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
+proc waterParticleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
   particle.pos += dt * particle.velocity * 10 * ((particle.lifeTime / ps.lifeTime))
   particle.velocity.y -= dt * 3
 
+proc dirtParticleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem) {.nimcall.} =
+  particle.pos += dt * particle.velocity * 5
+  if particle.lifeTime > ps.lifeTime / 2:
+    particle.velocity.y -= dt * 3
+  else:
+    particle.velocity.y += dt * 3
 
 addResourceProc:
   pickupQuadModel = loadModel("pickup_quad.dae")
@@ -88,20 +94,20 @@ addResourceProc:
   particleShader = loadShader(ShaderPath"waterparticlevert.glsl", ShaderPath"waterparticlefrag.glsl")
   waterParticleSystem = initParticleSystem(
     "cube.glb",
-    vec3(5, 0, 5),
+    vec3(0),
     vec4(1)..vec4(0, 0.4, 0.6, 0.0),
     0.5,
     vec3(0.1)..vec3(0.003),
-    particleUpdate
+    waterParticleUpdate
   )
 
   dirtParticleSystem = initParticleSystem(
     "cube.glb",
-    vec3(5, 0, 5),
-    vec4(0.52,0.52,0.31,1),
-    0.5,
-    vec3(0.1)..vec3(0.003),
-    particleUpdate
+    vec3(0),
+    vec4(0.52,0.52,0.31,1) .. vec4(0.52,0.52,0.31,1) / 3,
+    0.4,
+    vec3(0.15)..vec3(0.003),
+    dirtParticleUpdate
   )
 
 iterator tileKindCoords(world: World): (Tile, Vec3) =

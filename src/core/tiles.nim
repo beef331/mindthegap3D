@@ -115,7 +115,7 @@ proc shouldSpawnParticle*(tile: var Tile): bool =
     stacked {.cursor.} = tile.stacked.unsafeGet
     y = stacked.startPos.y.lerp(stacked.toPos.y, clampedProgress(stacked.moveTime / MoveTime))
 
-  result = abs(1f - y) < 0.1 and (spawnedParticle notin tile.stacked.get.flags)
+  result = abs(1f - y) < 0.05 and (spawnedParticle notin tile.stacked.get.flags)
   if result:
     tile.stacked.get.flags.incl spawnedParticle
 
