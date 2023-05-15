@@ -136,6 +136,8 @@ proc stackBox*(tile: var Tile, pos: Vec3) = tile.stacked =
 proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromPos, toPos: Vec3) =
   tile.stacked = stackedObj
   if tile.hasStacked():
+    if fromPos == toPos:
+      tile.stacked.get.flags.incl spawnedParticle
     tile.stacked.get.moveTime = 0
     tile.stacked.get.startPos = fromPos
     tile.stacked.get.toPos = toPos

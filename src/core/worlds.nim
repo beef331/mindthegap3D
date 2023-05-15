@@ -17,8 +17,6 @@ type
     projectiles*: Projectiles
     pastProjectiles: seq[Projectile]
     history: seq[History]
-    levelName*: string
-
 
     playerStart {.unserialized.}: Player ## Player stats before moving, meant for history
 
@@ -30,6 +28,7 @@ type
     paintKind {.unserialized.}: TileKind
     editorGui* {.unserialized.}: seq[UIElement]
     nameInput* {.unserialized.}: TextArea
+    levelName* {.unserialized.}: string
 
   HistoryKind* = enum
     nothing, start, checkpoint, ontoBox, pushed, placed
