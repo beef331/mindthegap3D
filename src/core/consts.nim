@@ -7,7 +7,6 @@ const
   StartHeight* = 10f
   FallTime* = 1f
   SinkHeight* = -0.6
-  MovesBetweenShots* = 7
   LevelCompleteAnimationTime* = 1f
   PlayerSoundDelay* = 1f
 

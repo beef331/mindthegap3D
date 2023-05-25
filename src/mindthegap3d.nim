@@ -1,4 +1,4 @@
-import truss3D, vmath, chroma, pixie, frosty
+import truss3D, vmath, chroma, pixie, frosty, gooey
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio, instancemodels]
 import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances, saves]
@@ -33,17 +33,15 @@ let builtinLevels = loadBuiltinLevels()
 var
   camera: Camera
   world: World
-  mainBuffer, signBuffer, uiBuffer, shadowMap: FrameBuffer
-  depthShader, waterShader, screenShader: Shader
+  mainBuffer, signBuffer, uiBuffer: FrameBuffer
+  waterShader, screenShader: Shader
   waterQuad, screenQuad: Model
   waterTex: Texture
-  mainMenu: seq[UiElement]
   menuState = inMain
   userLevels: seq[string]
   selectedLevel: int
   playingUserLevel = false
-  shadowCamera = Camera.init(vec3(0, 0, 0), normalize vec3(-1, -1, 0), 20)
-  renderInstance = RenderInstance()
+  renderInstance = renderInstances.RenderInstance()
   saveData = loadSaveData()
 
 proc canPlayLevel: bool =
@@ -78,15 +76,12 @@ addResourceProc do():
   signBuffer = genFrameBuffer(screenSize(), tfR, {FrameBufferKind.Color, Depth})
   waterQuad = makeRect(300, 300)
   screenQuad = makeScreenQuad()
-  depthShader = loadShader(ShaderPath "vert.glsl", ShaderPath"depthfrag.glsl")
   waterShader = loadShader(ShaderPath"watervert.glsl", ShaderPath"waterfrag.glsl")
   screenShader = loadShader(ShaderPath"screenvert.glsl", ShaderPath"screenfrag.glsl")
   waterTex = genTexture()
   readImage("assets/water.png").copyTo(waterTex)
   mainBuffer.clearColor = color(0, 0, 0, 0)
   uiBuffer.clearColor = color(0, 0, 0, 0)
-  shadowMap = genFrameBuffer(ivec2(1024, 1024),  tfR, {Depth})
-  shadowMap.clearColor = color(0, 0, 0, 0)
 
   world = World.init(10, 10)
 
@@ -98,7 +93,6 @@ proc loadLastPlayed() =
       let myFs = newFileStream(lastLevelPath, fmRead)
       defer: myFs.close()
       thaw(myFs, world)
-      world.setupEditorGui()
       menuState = noMenu
   except CatchableError as e:
     echo "Debug level could not be loaded: ", e.msg
@@ -113,19 +107,11 @@ proc saveLastPlayed() =
 proc loadSelectedLevel(path: string) =
   var fs = newFileStream(path)
   defer: fs.close
-  let
-    gui = world.editorGui # Bit of a hack
-    nameInput = world.nameInput
   world = World()
   unload(world)
   fs.thaw world
   world.state.incl previewing
   load(world)
-  if nameInput != nil:
-    world.nameInput = nameInput
-  world.nameInput.setMessage(world.levelName)
-  if gui.len > 0:
-    world.editorGui = gui
 
 proc nextLevel(dir: int = 1) =
   let
@@ -145,10 +131,36 @@ proc nextLevel(dir: int = 1) =
       loadSelectedLevel(userLevels[selectedLevel])
 
 
+proc makeMenu(): auto =
+    (
+      Button(
+        color: vec4(1),
+        anchor: {top, left},
+        pos: vec3(10, 10, 0),
+        size: vec2(100, 50),
+        label: Label(text: "Edit", color: vec4(1, 0, 0, 1)),
+        clickCb: proc() =
+          menuState = noMenu
+          world = World.init(10, 10)
+          world.state = {editing}
+      ),
+    )
+
+
+var
+  mainMenu: typeof(makeMenu())
+  uiState = MyUiState(scaling: 1)
+  renderTarget: UiRenderTarget
+  modelData: MeshData[Vec2]
+modelData.appendVerts [vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items
+modelData.append [0u32, 1, 2, 0, 2, 3].items
+modelData.appendUv [vec2(0, 1), vec2(0, 0), vec2(1, 0), vec2(1, 1)].items
+
+
+
 proc gameInit() =
-  gui.fontPath = "assets/fonts/MarradaRegular-Yj0O.ttf"
+  fontPath = "assets/fonts/SigmarOne-Regular.ttf"
   audio.init()
-  gui.init()
   invokeResourceProcs()
 
   const
@@ -184,166 +196,12 @@ proc gameInit() =
   renderInstance.buffer[crossbows] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
 
+  mainMenu = makeMenu()
 
-  mainMenu.add:
-    makeUi(Label):
-      visibleCond = proc(): bool = menuState != noMenu
-      pos = ivec2(0, 30)
+  renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
+  renderTarget.shader = loadShader(guiVert, guiFrag)
 
-      size = ivec2(300, 100)
-      text = "Mind the Gap"
-      fontSize = 100
-      anchor = {top}
-
-  mainMenu.add:
-    makeUi(LayoutGroup):
-      visibleCond = proc(): bool = menuState == inMain
-      pos = ivec2(0, 30)
-      size = ivec2(500, 300)
-      layoutDirection = vertical
-      anchor = {bottom}
-      margin = 10
-      children:
-        makeUi(Button):
-          size = labelSize
-          text = "Continue"
-          backgroundColor = vec4(1)
-          nineSliceSize = nineSliceSize
-          fontColor = vec4(1)
-          backgroundTex = nineSliceTex
-          visibleCond = proc(): bool = fileExists(lastLevelPath)
-          onClick = proc() = loadLastPlayed()
-        makeUi(Button):
-          size = labelSize
-          text = "Play Campaign"
-          nineSliceSize = nineSliceSize
-          backgroundColor = vec4(1)
-          backgroundTex = nineSliceTex
-          onClick = proc() =
-            menuState = previewingBuiltinLevels
-            playingUserLevel = false
-            selectedLevel = saveData.highestPlayableLevel()
-            if builtinLevels.len > 0:
-              loadSelectedLevel(builtinLevels[selectedLevel])
-
-        makeUi(Button):
-          size = labelSize
-          text = "Play User Levels"
-          nineSliceSize = nineSliceSize
-          backgroundColor = vec4(1)
-          backgroundTex = nineSliceTex
-          onClick = proc() =
-            userLevels = fetchUserLevelNames()
-            selectedLevel = 0
-            playingUserLevel = true
-            if userLevels.len > 0:
-              loadSelectedLevel(userLevels[0])
-            menuState = previewingUserLevels
-
-        makeUi(Button):
-          size = labelSize
-          text = "Edit"
-          nineSliceSize = nineSliceSize
-          backgroundColor = vec4(1)
-          backgroundTex = nineSliceTex
-          onClick = proc() =
-            menuState = noMenu
-            world = World.init(10, 10)
-            world.setupEditorGui()
-            world.state = {editing}
-        makeUi(Button):
-          size = labelSize
-          text = "Options"
-          nineSliceSize = nineSliceSize
-          backgroundColor = vec4(1)
-          backgroundTex = nineSliceTex
-        makeUi(Button):
-          size = labelSize
-          text = "Quit"
-          nineSliceSize = nineSliceSize
-          backgroundColor = vec4(1)
-          backgroundTex = nineSliceTex
-          onClick = proc() = quitTruss()
-
-  let worldAddr = world.addr
-
-  mainMenu.add:
-    makeUi(LayoutGroup):
-      pos = ivec2(0, 15)
-      size = ivec2(800, 150)
-      layoutDirection = vertical
-      anchor = {bottom}
-      margin = 10
-      visibleCond =  proc(): bool = menuState in previewingLevels
-      children:
-        makeUi(Button):
-          size = labelSize
-          text = "Play"
-          backgroundColor = vec4(1)
-          nineSliceSize = 16f32
-          fontColor = vec4(1)
-          backgroundTex = nineSliceTex
-          onClick = proc() =
-            if canPlayLevel():
-              world.state = {playing}
-              menuState = noMenu
-
-        makeUi(Button):
-          size = labelSize
-          text = "Edit"
-          visibleCond =  proc(): bool = menuState == previewingUserLevels
-          backgroundColor = vec4(1)
-          nineSliceSize = 16f32
-          fontColor = vec4(1)
-          backgroundTex = nineSliceTex
-          onClick = proc() =
-            world.state = {editing}
-            world.setupEditorGui()
-            menuState = noMenu
-
-        makeUi(Button):
-          size = labelSize
-          text = "Back"
-          backgroundColor = vec4(1)
-          nineSliceSize = 16f32
-          fontColor = vec4(1)
-          backgroundTex = nineSliceTex
-          onClick = proc() = menuState = inMain
-
-  const
-    arrowSize = iVec2(50, 100)
-    arrowPos = ivec2(150, 75)
-
-  mainMenu.add:
-    makeUi(Button):
-      pos = arrowPos
-      size = arrowSize
-      anchor = {bottom}
-      text = ">"
-      fontSize = 100f32
-      fontColor = vec4(1)
-      color = vec4(0)
-      backgroundColor = vec4(0)
-      backgroundTex = nineSliceTex
-      visibleCond = proc(): bool =
-        menuState in previewingLevels
-      onClick = proc() = nextLevel()
-
-  mainMenu.add:
-    makeUi(Button):
-      pos = ivec2(-arrowPos.x, arrowPos.y)
-      size = arrowSize
-      anchor = {bottom}
-      text = "<"
-      fontSize = 100f32
-      backgroundColor = vec4(0)
-      color = vec4(0)
-      fontColor = vec4(1)
-      visibleCond = proc(): bool = menuState in previewingLevels
-      onClick = proc() = nextLevel(-1)
-
-var
-  lastScreenSize: IVec2
+var lastScreenSize: IVec2
 
 proc cameraMovement =
   var
@@ -393,7 +251,6 @@ proc update(dt: float32) =
       if KeycodeLCtrl.isPressed and not middleMb.isPressed:
         camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
 
-
     with signBuffer:
       let
         mousePos = getMousePos()
@@ -425,13 +282,18 @@ proc update(dt: float32) =
   world.update(camera, dt, renderInstance)
 
   if menuState != noMenu:
-    for element in mainMenu:
-      element.update(dt)
+    uiState.screenSize = vec2 screenSize()
+    uiState.inputPos = vec2 getMousePos()
+    if leftMb.isDown:
+      uiState.input = UiInput(kind: leftClick)
+    elif leftMb.isPressed:
+      uiState.input = UiInput(kind: leftClick, isHeld: true)
+    else:
+      uiState.input = UiInput()
+    mainMenu.interact(uiState)
+    mainMenu.layout(vec3(0), uiState)
 
   audio.update()
-  guiState = nothing
-  shadowCamera.pos = vec3(float32(world.width), 0, float32(world.height)) - shadowCamera.forward * 10
-  shadowCamera.changeSize sqrt(float32(world.width div 2) ^ 2 + float32(world.height div 2) ^ 2) * 2
 
 proc draw =
   glEnable(GlDepthTest)
@@ -441,15 +303,13 @@ proc draw =
 
   with uiBuffer:
     uiBuffer.clear()
-    for element in mainMenu:
-      element.draw()
-    if menuState == noMenu:
-      world.renderUi()
-
-
-  with shadowMap:
-    shadowMap.clear()
-    world.render(shadowCamera, renderInstance)
+    renderTarget.model.clear()
+    mainMenu.upload(uiState, renderTarget)
+    renderTarget.model.reuploadSsbo()
+    with renderTarget.shader:
+      glDisable(GlBlend)
+      glDisable(GlDepthTest)
+      renderTarget.model.render()
 
   glEnable(GlDepthTest)
   with mainBuffer:

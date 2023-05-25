@@ -50,7 +50,7 @@ type
     box = "Box"
 
   StackedFlag = enum
-    spawnedParticle
+    spawnedParticle, toggled
 
   StackedObject* = object
     startPos: Vec3
@@ -60,8 +60,8 @@ type
     case kind*: StackedObjectKind
     of turret:
       direction*: Direction
-      toggledOn*: bool
-      movesToNextShot: int
+      movesToNextShot*: 0i8..10i8
+      turnsPerShot*: 0i8..10i8
       projectileKind*: ProjectileKind
     of box:
       discard
@@ -180,10 +180,11 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
     case tile.stacked.get.kind
     of turret:
       if playerMoved:
-        dec stacked.movesToNextShot
-        if stacked.movesToNextShot <= 0:
-          stacked.movesToNextShot = MovesBetweenShots
+        if stacked.movesToNextShot == 0:
+          stacked.movesToNextShot = stacked.turnsPerShot
           projectiles.spawnProjectile(stacked.toPos + vec3(0, 0.5, 0), stacked.direction)
+        else:
+          dec stacked.movesToNextShot
     else: discard
 
 proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false)
@@ -201,21 +202,6 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
       shader.setUniform("m", modelMatrix)
       render(crossbowmodel)
-
-      let
-        progress = clampedProgress(float32 (stacked.movesToNextShot - 1) / MovesBetweenShots)
-        pos = pos + vec3(0, 1, 0)
-        targetUp = cam.up
-        targetRot = fromTwoVectors(vec3(0, 0, 1), cam.forward)
-        upRot = fromTwoVectors(mat4(targetRot) * vec3(0, 1, 0), targetUp)
-        mat = mat4() * translate(pos) * (mat4(upRot) * mat4(targetRot))
-      progressShader.setUniform("mvp", cam.orthoView * mat)
-      progressShader.setUniform("tex", progressTex)
-      progressShader.setUniform("progress", progress)
-      with progressShader:
-        render(quadModel)
-
-
 
       ##renderBlock(Tile(kind: shooter), cam)
     of none:

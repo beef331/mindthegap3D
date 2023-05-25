@@ -1,8 +1,9 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
-import pixie, opengl, vmath, easings, frosty
+import pixie, opengl, vmath, easings, frosty, gooey
 import frosty/streams as froststreams
 import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances, serializers
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams, macros]
+
 
 type
   WorldState* = enum
@@ -26,8 +27,7 @@ type
     # Editor fields
     inspecting {.unserialized.}: int
     paintKind {.unserialized.}: TileKind
-    editorGui* {.unserialized.}: seq[UIElement]
-    nameInput* {.unserialized.}: TextArea
+    #nameInput* {.unserialized.}: TextArea
     levelName* {.unserialized.}: string
 
   HistoryKind* = enum
@@ -327,27 +327,49 @@ proc reload*(world: var World) =
   world.steppedOn(world.player.pos)
   world.givePickupIfCan()
 
-emitDropDownMethods(PickupType)
-emitDropDownMethods(StackedObjectKind)
-emitDropDownMethods(Direction)
-
 proc lerp(a, b: int, c: float32): int = (a.float32 + (b - a).float32 * c).int
-emitScrollbarMethods(int)
 
-proc setupEditorGui*(world: var World) =
-  world.editorGui.setLen(0)
-  let
-    wrld = world.addr
-    nineSliceTex = genTexture()
-  readImage("assets/uiframe.png").copyTo nineSliceTex
+proc setupEditorGui*(world: World): auto =
+  let wrld = world.addr
 
+  #[
   world.nameInput = makeUi(TextArea):
     size = ivec2(200, 50)
     fontsize = 50
     backgroundColor = vec4(0, 0, 0, 0.5)
     vAlign = MiddleAlign
     onTextChange = proc(s: string) = wrld[].levelName = s
+  ]#
 
+  let
+    topLeft = (
+      VGroup[(
+        DropDown[TileKind],
+        HGroup[(Label, HSlider[int])],
+        HGroup[(Label, HSlider[int])],
+        )](
+        anchor: {top, left},
+        pos: vec3(10, 10, 0),
+        entries:
+        (
+          DropDown[TileKind](size: vec2(100, 50)),
+          HGroup[(Label, HSlider[int])](
+            entries:(
+              Label(text: "Width: ", size: vec2(100, 50)),
+              HSlider[int](size: vec2(100, 50))
+            )
+          ),
+          HGroup[(Label, HSlider[int])](
+            entries:(
+              Label(text: "Height: ", size: vec2(100, 50)),
+              HSlider[int](size: vec2(100, 50))
+            )
+          )
+        )
+      ),
+    )
+  topLeft
+  #[
   world.editorGui.add:
     makeUi(LayoutGroup):
       pos = ivec2(10)
@@ -517,6 +539,34 @@ proc setupEditorGui*(world: var World) =
                 inspectingTile.stacked.get.direction
               onValueChange = proc(dir: Direction) =
                 inspectingTile.stacked.get.direction = dir
+        makeUi(LayoutGroup): # TurnsPerShot selector
+          size = ivec2(200, 50)
+          centre = false
+          margin = 0
+          visibleCond = proc: bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret
+          children:
+            makeUi(Label):
+              size = labelSize
+              text = "Turns per Shot:"
+              horizontalAlignment = RightAlign
+            makeUi(Label):
+              size = ivec2(10, 30)
+              text =
+                if wrld.inspecting > 0:
+                  $inspectingTile.stacked.get.turnsPerShot
+                else:
+                  ""
+            makeUi(ScrollBar[int]):
+              pos = ivec2(0, 15)
+              size = ivec2(100, 20)
+              minMax = 1..10
+              color = vec4(1)
+              backgroundColor = vec4(0.1, 0.1, 0.1, 1)
+              startPercentage = (world.width - 3).float32 / (30 - 3).float32
+              onValueChange =  proc(i: int) =
+                inspectingTile.stacked.get.turnsPerShot = range[1i8..10i8](i)
+
+
         makeUI(TextArea):
           size = ivec2(200, 100)
           fontsize = 50
@@ -532,6 +582,7 @@ proc setupEditorGui*(world: var World) =
             var newSign = Sign.init(vec3(float32 pos.x, 0, float32 pos.y), s)
             newSign.load()
             wrld.signs.add newSign
+  ]#
 
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 
@@ -546,7 +597,6 @@ proc init*(_: typedesc[World], width, height: int): World =
     finishTime : LevelCompleteAnimationTime,
     finished : false,
   )
-  result.setupEditorGui()
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
   if pos in world and world.getPointIndex(pos) != world.getPointIndex(world.player.mapPos):
@@ -716,13 +766,39 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
         dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
 
+var
+  uiState: MyUiState
+  ui: typeof(setupEditorGui(default(World)))
+  renderTarget = UiRenderTarget()
+
+var modelData: MeshData[Vec2]
+modelData.appendVerts [vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items
+modelData.append [0u32, 1, 2, 0, 2, 3].items
+modelData.appendUv [vec2(0, 1), vec2(0, 0), vec2(1, 0), vec2(1, 1)].items
+
 
 proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
   ## Update for world editor logic
-  for element in world.editorGui:
-      element.update(dt)
+  if ui[0].isNil:
+    ui = setupEditorGui(world)
+    renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
+    renderTarget.shader = loadShader(guiVert, guiFrag)
+  else:
+    uiState.scaling = 1
+    uiState.inputPos = vec2 getMousePos()
+    uiState.screenSize = vec2 screenSize()
 
-  if guiState == nothing:
+    if leftMb.isDown:
+      uiState.input = UiInput(kind: leftClick)
+    elif leftMb.isPressed:
+      uiState.input = UiInput(kind: leftClick, isHeld: true)
+    else:
+      uiState.input = UiInput()
+
+    ui.interact(uiState)
+    ui.layout(vec3(0), uiState)
+
+  if uiState.currentElement.isNil:
     let
       pos = world.cursorPos(cam)
       ind = world.getPointIndex(pos)
@@ -759,7 +835,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
       world.reload()
 
 
-proc updateModels(world: World, instance: var RenderInstance) =
+proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
   for buffer in instance.buffer.mitems:
     buffer.clear()
 
@@ -793,7 +869,7 @@ proc updateModels(world: World, instance: var RenderInstance) =
     buff.reuploadSsbo
 
 
-proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var RenderInstance) = # Maybe make camera var...?
+proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var renderInstances.RenderInstance) = # Maybe make camera var...?
   updateModels(world, renderInstance)
 
 
@@ -867,7 +943,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         renderBlock(Tile(kind: box), cam, cursorShader, alphaClipShader, pos, true)
         glEnable(GlDepthTest)
 
-proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
+proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance) =
   for kind in RenderedModel:
     with renderInstance.shaders[kind]:
       setUniform("vp", cam.orthoView)
@@ -904,7 +980,7 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
       flagShader.setUniform("mvp", cam.orthoView * modelMatrix)
       flagShader.setUniform("m", modelMatrix)
       render(flagModel)
-    if guiState == nothing:
+    if uiState.currentElement.isNil:
       with cursorShader:
         cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
         if KeycodeLShift.isPressed:
@@ -920,7 +996,6 @@ proc render*(world: World, cam: Camera, renderInstance: RenderInstance) =
   world.projectiles.render(cam, levelShader)
 
 
-
 proc renderWaterSplashes*(cam: Camera) =
   with particleShader:
     glEnable GlDepthTest
@@ -933,8 +1008,11 @@ proc renderWaterSplashes*(cam: Camera) =
 
 proc renderUI*(world: World) =
   if world.state == {editing}:
-    for element in world.editorGui:
-      element.draw()
+    renderTarget.model.clear()
+    ui.upload(uiState, renderTarget)
+    with renderTarget.shader:
+      renderTarget.model.render()
+
 
 iterator tiles*(world: World): (int, int, Tile) =
   for i, tile in world.tiles:
