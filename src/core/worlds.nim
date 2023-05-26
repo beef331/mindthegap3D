@@ -332,6 +332,8 @@ proc reverseLerp(f: SomeOrdinal, rng: Slice[SomeOrdinal]): float32 =
   (f - rng.a) / (rng.b - rng.a)
 
 proc setupEditorGui*(world: var World): auto =
+  const entrySize = vec2(125, 30)
+
   let world = world.addr
 
   let topLeft = VGroup[(
@@ -341,12 +343,12 @@ proc setupEditorGui*(world: var World): auto =
         )](
         anchor: {top, left},
         pos: vec3(10, 10, 0),
-        size: vec2(125, 30),
+        size: entrySize,
         margin: 10,
         entries:
         (
           DropDown[NonEmpty](
-            size: vec2(125, 30),
+            size: entrySize,
             active: succ(TileKind.empty),
             color: vec4(0, 0, 0, 0.3),
             onChange: proc(kind: NonEmpty) =
@@ -354,13 +356,13 @@ proc setupEditorGui*(world: var World): auto =
           ),
           HGroup[(Label, HSlider[int])](
             entries:(
-              Label(text: "Width: ", size: vec2(125, 30)),
+              Label(text: "Width: ", size: entrySize),
               HSlider[int](
                 color: vec4(0.5),
                 hoveredColor: vec4(0.3),
                 value: world.width,
                 rng: 3..10,
-                size: vec2(125, 30),
+                size: entrySize,
                 slideBar: MyUiElement(color: vec4(1)),
                 onChange: proc(i: int) =
                   world[].resize(iVec2(i, int world.height))
@@ -369,13 +371,13 @@ proc setupEditorGui*(world: var World): auto =
           ),
           HGroup[(Label, HSlider[int])](
             entries:(
-              Label(text: "Height: ", size: vec2(125, 30)),
+              Label(text: "Height: ", size: entrySize),
               HSlider[int](
                 color: vec4(0.5),
                 hoveredColor: vec4(0.3),
                 value: world.height,
                 rng: 3..10,
-                size: vec2(125, 30),
+                size: entrySize,
                 slideBar: MyUiElement(color: vec4(1)),
                 onChange: proc(i: int) =
                   world[].resize(iVec2(int world.width, i))
@@ -386,44 +388,68 @@ proc setupEditorGui*(world: var World): auto =
       )
 
   template inspectingTile: Tile = world[].tiles[world[].inspecting]
+  proc isInspecting: bool = world[].inspecting in 0..<world[].tiles.high
 
   let topRight = VGroup[
-    (DropDown[PickupType],
-     DropDown[StackedObjectKind],
-     DropDown[Direction])
-    ](
+    (HGroup[(Label, DropDown[PickupType])],
+     HGroup[(Label, DropDown[StackedObjectKind])],
+     HGroup[(Label, DropDown[Direction])]
+    )](
       anchor: {top, right},
       pos: vec3(10, 10, 0),
       margin: 10,
-      visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high),
+      visible: isInspecting,
       entries:(
-        DropDown[PickupType](
-          size: vec2(125, 30),
-          margin: 10,
-          color: vec4(0, 0, 0, 0.3),
-          visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high and inspectingTile().kind == pickup),
-          onChange: proc(kind: PickupType) =
-            inspectingTile().pickupKind = kind
+        HGroup[(Label, DropDown[PickupType])](
+          visible: (proc(): bool = isInspecting() and inspectingTile().kind == pickup),
+          entries:(
+            Label(size: entrySize, text: "Pickup Type: "),
+            DropDown[PickupType](
+              size: entrySize,
+              margin: 10,
+              color: vec4(0, 0, 0, 0.3),
+              watchValue: (proc(): PickupType = inspectingTile().pickupKind),
+              onChange: proc(kind: PickupType) =
+                inspectingTile().pickupKind = kind
+            )
+          )
         ),
-        DropDown[StackedObjectKind](
-          size: vec2(125, 30),
-          margin: 10,
-          color: vec4(0, 0, 0, 0.3),
-          visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high and inspectingTile().kind in Walkable),
-          onChange: proc(kind: StackedObjectKind) =
-            if kind != none:
-              let pos = world[].getPos(world[].inspecting) + vec3(0, 1, 0)
-              inspectingTile.giveStackedObject(some(StackedObject(kind: kind)), pos, pos)
-            else:
-              inspectingTile.clearStack()
+        HGroup[(Label, DropDown[StackedObjectKind])](
+          visible: (proc(): bool = isInspecting() and inspectingTile().kind in Walkable),
+          entries:(
+            Label(size: entrySize, text: "Stacked Kind:"),
+            DropDown[StackedObjectKind](
+              size: entrySize,
+              margin: 10,
+              color: vec4(0, 0, 0, 0.3),
+              watchValue: (proc(): StackedObjectKind =
+                if isInspecting() and inspectingTile.hasStacked:
+                  inspectingTile.stacked.get.kind
+                else:
+                  none
+              ),
+              onChange: proc(kind: StackedObjectKind) =
+                if kind != none:
+                  let pos = world[].getPos(world[].inspecting) + vec3(0, 1, 0)
+                  inspectingTile.giveStackedObject(some(StackedObject(kind: kind)), pos, pos)
+                else:
+                  inspectingTile.clearStack()
+            )
+          )
         ),
-        DropDown[Direction](
-          size: vec2(125, 30),
-          margin: 10,
-          color: vec4(0, 0, 0, 0.3),
-          visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high and inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret),
-          onChange: proc(dir: Direction) = inspectingTile.stacked.get.direction = dir
-        ),
+        HGroup[(Label, DropDown[Direction])](
+          visible: (proc(): bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret),
+          entries:(
+            Label(size: entrySize, text: "Stacked Direction:"),
+            DropDown[Direction](
+              size: entrySize,
+              margin: 10,
+              color: vec4(0, 0, 0, 0.3),
+              watchValue: (proc(): Direction = inspectingTile.stacked.get.direction),
+              onChange: (proc(dir: Direction) = inspectingTile.stacked.get.direction = dir)
+            )
+          )
+        )
       )
     )
 
