@@ -350,7 +350,8 @@ proc setupEditorGui*(world: var World): auto =
           DropDown[NonEmpty](
             size: entrySize,
             active: succ(TileKind.empty),
-            color: vec4(0, 0, 0, 0.3),
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
             onChange: proc(kind: NonEmpty) =
               world.paintKind = kind
           ),

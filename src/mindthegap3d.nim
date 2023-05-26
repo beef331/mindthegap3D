@@ -292,13 +292,9 @@ proc update(dt: float32) =
 
     if playing in world.state and world.playedTransition():
       if playingUserLevel:
-        saveData.save(userLevels[selectedLevel], 0)
-        menuState = previewingUserLevels
+        discard
       else:
-        saveData.save(selectedLevel, 0)
-        selectedLevel = min(selectedLevel + 1, builtinLevels.high)
-        menuState = previewingBuiltinLevels
-        loadSelectedLevel(builtinLevels[selectedLevel])
+        discard
       world.reload()
 
 
