@@ -133,16 +133,38 @@ proc nextLevel(dir: int = 1) =
 
 proc makeMenu(): auto =
     (
-      Button(
-        color: vec4(1),
-        anchor: {top, left},
-        pos: vec3(10, 10, 0),
-        size: vec2(100, 50),
-        label: Label(text: "Edit", color: vec4(1, 0, 0, 1)),
-        clickCb: proc() =
-          menuState = noMenu
-          world = World.init(10, 10)
-          world.state = {editing}
+      VGroup[(Button, Button, Button)](
+        margin: 10,
+        anchor: {bottom},
+        entries:(
+          Button(
+            color: vec4(1),
+            anchor: {top, left},
+            pos: vec3(10, 10, 0),
+            size: vec2(100, 50),
+            label: Label(text: "Play", color: vec4(1, 0, 0, 1)),
+            clickCb: proc() = discard
+          ),
+          Button(
+            color: vec4(1),
+            anchor: {top, left},
+            pos: vec3(10, 10, 0),
+            size: vec2(100, 50),
+            label: Label(text: "Edit", color: vec4(1, 0, 0, 1)),
+            clickCb: proc() =
+              menuState = noMenu
+              world = World.init(10, 10)
+              world.state = {editing}
+          ),
+          Button(
+            color: vec4(1),
+            anchor: {top, left},
+            pos: vec3(10, 10, 0),
+            size: vec2(100, 50),
+            label: Label(text: "Quit", color: vec4(1, 0, 0, 1)),
+            clickCb: proc() = quit()
+          ),
+        )
       ),
     )
 
@@ -277,9 +299,7 @@ proc update(dt: float32) =
       world.reload()
 
 
-
-
-  world.update(camera, dt, renderInstance)
+  world.update(camera, dt, renderInstance, uiState, renderTarget)
 
   if menuState != noMenu:
     uiState.screenSize = vec2 screenSize()
@@ -303,19 +323,25 @@ proc draw =
 
   with uiBuffer:
     uiBuffer.clear()
-    renderTarget.model.clear()
-    mainMenu.upload(uiState, renderTarget)
-    renderTarget.model.reuploadSsbo()
+    if menuState == inMain:
+      mainMenu.upload(uiState, renderTarget)
+    if renderTarget.model.drawCount > 0:
+      renderTarget.model.reuploadSsbo()
+    glEnable(GlDepthTest)
     with renderTarget.shader:
-      glDisable(GlBlend)
-      glDisable(GlDepthTest)
+      glEnable(GlBlend)
+      glBlendFunc(GlOne, GlOneMinusSrcAlpha)
       renderTarget.model.render()
+      glDisable(GlBlend)
+      renderTarget.model.clear()
+
+
 
   glEnable(GlDepthTest)
   with mainBuffer:
     mainBuffer.clear()
     if menuState == noMenu or previewing in world.state:
-      world.render(camera, renderInstance)
+      world.render(camera, renderInstance, uiState)
     with waterShader:
       let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
       waterShader.setUniform("modelMatrix", waterMatrix)

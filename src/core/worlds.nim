@@ -329,8 +329,8 @@ proc reload*(world: var World) =
 
 proc lerp(a, b: int, c: float32): int = (a.float32 + (b - a).float32 * c).int
 
-proc setupEditorGui*(world: World): auto =
-  let wrld = world.addr
+proc setupEditorGui*(world: var World): auto =
+  let world = world.addr
 
   #[
   world.nameInput = makeUi(TextArea):
@@ -350,19 +350,31 @@ proc setupEditorGui*(world: World): auto =
         )](
         anchor: {top, left},
         pos: vec3(10, 10, 0),
+        size: vec2(100, 50),
+        margin: 10,
         entries:
         (
-          DropDown[TileKind](size: vec2(100, 50)),
+          DropDown[TileKind](size: vec2(100, 25)),
           HGroup[(Label, HSlider[int])](
             entries:(
-              Label(text: "Width: ", size: vec2(100, 50)),
-              HSlider[int](size: vec2(100, 50))
+              Label(text: "Width: ", size: vec2(100, 25)),
+              HSlider[int](
+                rng: 3..10,
+                size: vec2(100, 25),
+                slideBar: MyUiElement(color: vec4(1, 0, 0, 1)),
+                onChange: proc(i: int) = echo i
+              )
             )
           ),
           HGroup[(Label, HSlider[int])](
             entries:(
-              Label(text: "Height: ", size: vec2(100, 50)),
-              HSlider[int](size: vec2(100, 50))
+              Label(text: "Height: ", size: vec2(100, 25)),
+              HSlider[int](
+                rng: 3..10,
+                size: vec2(100, 25),
+                slideBar: MyUiElement(color: vec4(1, 0, 0, 1)),
+                onChange: proc(i: int) = echo i
+              )
             )
           )
         )
@@ -766,39 +778,17 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
         dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
 
-var
-  uiState: MyUiState
-  ui: typeof(setupEditorGui(default(World)))
-  renderTarget = UiRenderTarget()
+var ui: typeof(setupEditorGui((var wrld = default(World); wrld)))
 
-var modelData: MeshData[Vec2]
-modelData.appendVerts [vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)].items
-modelData.append [0u32, 1, 2, 0, 2, 3].items
-modelData.appendUv [vec2(0, 1), vec2(0, 0), vec2(1, 0), vec2(1, 1)].items
-
-
-proc editorUpdate*(world: var World, cam: Camera, dt: float32) =
+proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiState, renderTarget: var UiRenderTarget) =
   ## Update for world editor logic
   if ui[0].isNil:
     ui = setupEditorGui(world)
-    renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
-    renderTarget.shader = loadShader(guiVert, guiFrag)
-  else:
-    uiState.scaling = 1
-    uiState.inputPos = vec2 getMousePos()
-    uiState.screenSize = vec2 screenSize()
+  ui.layout(vec3(0), state)
+  ui.interact(state)
+  ui.upload(state, renderTarget)
 
-    if leftMb.isDown:
-      uiState.input = UiInput(kind: leftClick)
-    elif leftMb.isPressed:
-      uiState.input = UiInput(kind: leftClick, isHeld: true)
-    else:
-      uiState.input = UiInput()
-
-    ui.interact(uiState)
-    ui.layout(vec3(0), uiState)
-
-  if uiState.currentElement.isNil:
+  if state.currentElement.isNil:
     let
       pos = world.cursorPos(cam)
       ind = world.getPointIndex(pos)
@@ -869,7 +859,14 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     buff.reuploadSsbo
 
 
-proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var renderInstances.RenderInstance) = # Maybe make camera var...?
+proc update*(
+  world: var World;
+  cam: Camera;
+  dt: float32;
+  renderInstance: var renderInstances.RenderInstance;
+  uiState: var UiState;
+  target: var UiRenderTarget
+  ) = # Maybe make camera var...?
   updateModels(world, renderInstance)
 
 
@@ -877,7 +874,7 @@ proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var ren
     for sign in world.signs.mitems:
       sign.update(dt)
 
-    var moveDir = none(Direction)
+    var moveDir = options.none(Direction)
 
 
     world.playerMovementUpdate(cam, dt, moveDir)
@@ -892,7 +889,7 @@ proc update*(world: var World, cam: Camera, dt: float32, renderInstance: var ren
   elif previewing in world.state:
     discard
   elif {editing} == world.state:
-    world.editorUpdate(cam, dt)
+    world.editorUpdate(cam, dt, uiState, target)
 
   waterParticleSystem.update(dt)
   dirtParticleSystem.update(dt)
@@ -943,7 +940,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         renderBlock(Tile(kind: box), cam, cursorShader, alphaClipShader, pos, true)
         glEnable(GlDepthTest)
 
-proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance) =
+proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance, state: UiState) =
   for kind in RenderedModel:
     with renderInstance.shaders[kind]:
       setUniform("vp", cam.orthoView)
@@ -980,7 +977,7 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
       flagShader.setUniform("mvp", cam.orthoView * modelMatrix)
       flagShader.setUniform("m", modelMatrix)
       render(flagModel)
-    if uiState.currentElement.isNil:
+    if state.currentElement.isNil:
       with cursorShader:
         cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
         if KeycodeLShift.isPressed:
@@ -1004,14 +1001,6 @@ proc renderWaterSplashes*(cam: Camera) =
 
     particleShader.setUniform("VP", cam.orthoView)
     dirtParticleSystem.render()
-
-
-proc renderUI*(world: World) =
-  if world.state == {editing}:
-    renderTarget.model.clear()
-    ui.upload(uiState, renderTarget)
-    with renderTarget.shader:
-      renderTarget.model.render()
 
 
 iterator tiles*(world: World): (int, int, Tile) =
