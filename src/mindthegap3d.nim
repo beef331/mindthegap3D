@@ -157,6 +157,7 @@ proc makeMenu(): auto =
               menuState = noMenu
               world = World.init(10, 10)
               world.state = {editing}
+              setupEditorGui(world)
           ),
           Button(
             color: vec4(0, 0, 0, 0.5),
@@ -286,9 +287,13 @@ proc update(dt: float32) =
         world.hoverSign(selected)
 
     if KeyCodeQ.isDown:
+      world.state.excl editing
+      world.state.excl playing
+      mainMenu = makeMenu()
+      uiState.action = nothing
+      uiState.currentElement = nil
       saveLastPlayed()
       menuState = inMain
-      world = World.init(10, 10)
 
     if playing in world.state and world.playedTransition():
       if playingUserLevel:
@@ -308,6 +313,9 @@ proc update(dt: float32) =
     uiState.input = UiInput(kind: leftClick, isHeld: true)
   else:
     uiState.input = UiInput()
+
+  if uiState.currentElement != nil and not uiState.currentElement.isVisible:
+    uiState.currentElement = nil
 
   mainMenu.interact(uiState)
   mainMenu.layout(vec3(0), uiState)

@@ -331,7 +331,7 @@ proc lerp(a, b: SomeOrdinal, c: float32): SomeOrdinal = (a.ord.float32 + (b.ord 
 proc reverseLerp(f: SomeOrdinal, rng: Slice[SomeOrdinal]): float32 =
   (f - rng.a) / (rng.b - rng.a)
 
-proc setupEditorGui*(world: var World): auto =
+proc makeEditorGui(world: var World): auto =
   const entrySize = vec2(125, 30)
 
   let world = world.addr
@@ -362,6 +362,7 @@ proc setupEditorGui*(world: var World): auto =
                 color: vec4(0.5),
                 hoveredColor: vec4(0.3),
                 value: world.width,
+                watchValue: (proc(): int = int world.width),
                 rng: 3..10,
                 size: entrySize,
                 slideBar: MyUiElement(color: vec4(1)),
@@ -377,6 +378,7 @@ proc setupEditorGui*(world: var World): auto =
                 color: vec4(0.5),
                 hoveredColor: vec4(0.3),
                 value: world.height,
+                watchValue: (proc(): int = int world.height),
                 rng: 3..10,
                 size: entrySize,
                 slideBar: MyUiElement(color: vec4(1)),
@@ -389,7 +391,7 @@ proc setupEditorGui*(world: var World): auto =
       )
 
   template inspectingTile: Tile = world[].tiles[world[].inspecting]
-  proc isInspecting: bool = world[].inspecting in 0..<world[].tiles.high
+  proc isInspecting: bool = editing in world.state and world[].inspecting in 0..world[].tiles.high
 
   let topRight = VGroup[
     (HGroup[(Label, DropDown[PickupType])],
@@ -644,12 +646,14 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
         dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
 
-var ui: typeof(setupEditorGui((var wrld = default(World); wrld)))
+var ui: typeof(makeEditorGui((var wrld = default(World); wrld)))
+
+proc setupEditorGui*(world: var World) = ui = makeEditorGui(world)
+
 
 proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiState, renderTarget: var UiRenderTarget) =
   ## Update for world editor logic
-  if ui[0].isNil:
-    ui = setupEditorGui(world)
+
   ui.layout(vec3(0), state)
   ui.interact(state)
   ui.upload(state, renderTarget)
