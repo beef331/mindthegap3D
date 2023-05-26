@@ -327,274 +327,113 @@ proc reload*(world: var World) =
   world.steppedOn(world.player.pos)
   world.givePickupIfCan()
 
-proc lerp(a, b: int, c: float32): int = (a.float32 + (b - a).float32 * c).int
+proc lerp(a, b: SomeOrdinal, c: float32): SomeOrdinal = (a.ord.float32 + (b.ord - a.ord).float32 * c).int
+proc reverseLerp(f: SomeOrdinal, rng: Slice[SomeOrdinal]): float32 =
+  (f - rng.a) / (rng.b - rng.a)
 
 proc setupEditorGui*(world: var World): auto =
   let world = world.addr
 
-  #[
-  world.nameInput = makeUi(TextArea):
-    size = ivec2(200, 50)
-    fontsize = 50
-    backgroundColor = vec4(0, 0, 0, 0.5)
-    vAlign = MiddleAlign
-    onTextChange = proc(s: string) = wrld[].levelName = s
-  ]#
-
-  let
-    topLeft = (
-      VGroup[(
-        DropDown[TileKind],
+  let topLeft = VGroup[(
+        DropDown[NonEmpty],
         HGroup[(Label, HSlider[int])],
         HGroup[(Label, HSlider[int])],
         )](
         anchor: {top, left},
         pos: vec3(10, 10, 0),
-        size: vec2(100, 50),
+        size: vec2(125, 30),
         margin: 10,
         entries:
         (
-          DropDown[TileKind](size: vec2(100, 25)),
+          DropDown[NonEmpty](
+            size: vec2(125, 30),
+            active: succ(TileKind.empty),
+            color: vec4(0, 0, 0, 0.3),
+            onChange: proc(kind: NonEmpty) =
+              world.paintKind = kind
+          ),
           HGroup[(Label, HSlider[int])](
             entries:(
-              Label(text: "Width: ", size: vec2(100, 25)),
+              Label(text: "Width: ", size: vec2(125, 30)),
               HSlider[int](
+                color: vec4(0.5),
+                hoveredColor: vec4(0.3),
+                value: world.width,
                 rng: 3..10,
-                size: vec2(100, 25),
-                slideBar: MyUiElement(color: vec4(1, 0, 0, 1)),
-                onChange: proc(i: int) = echo i
+                size: vec2(125, 30),
+                slideBar: MyUiElement(color: vec4(1)),
+                onChange: proc(i: int) =
+                  world[].resize(iVec2(i, int world.height))
               )
             )
           ),
           HGroup[(Label, HSlider[int])](
             entries:(
-              Label(text: "Height: ", size: vec2(100, 25)),
+              Label(text: "Height: ", size: vec2(125, 30)),
               HSlider[int](
+                color: vec4(0.5),
+                hoveredColor: vec4(0.3),
+                value: world.height,
                 rng: 3..10,
-                size: vec2(100, 25),
-                slideBar: MyUiElement(color: vec4(1, 0, 0, 1)),
-                onChange: proc(i: int) = echo i
+                size: vec2(125, 30),
+                slideBar: MyUiElement(color: vec4(1)),
+                onChange: proc(i: int) =
+                  world[].resize(iVec2(int world.width, i))
               )
             )
           )
         )
-      ),
+      )
+
+  template inspectingTile: Tile = world[].tiles[world[].inspecting]
+
+  let topRight = VGroup[
+    (DropDown[PickupType],
+     DropDown[StackedObjectKind],
+     DropDown[Direction])
+    ](
+      anchor: {top, right},
+      pos: vec3(10, 10, 0),
+      margin: 10,
+      visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high),
+      entries:(
+        DropDown[PickupType](
+          size: vec2(125, 30),
+          margin: 10,
+          color: vec4(0, 0, 0, 0.3),
+          visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high and inspectingTile().kind == pickup),
+          onChange: proc(kind: PickupType) =
+            inspectingTile().pickupKind = kind
+        ),
+        DropDown[StackedObjectKind](
+          size: vec2(125, 30),
+          margin: 10,
+          color: vec4(0, 0, 0, 0.3),
+          visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high and inspectingTile().kind in Walkable),
+          onChange: proc(kind: StackedObjectKind) =
+            if kind != none:
+              let pos = world[].getPos(world[].inspecting) + vec3(0, 1, 0)
+              inspectingTile.giveStackedObject(some(StackedObject(kind: kind)), pos, pos)
+            else:
+              inspectingTile.clearStack()
+        ),
+        DropDown[Direction](
+          size: vec2(125, 30),
+          margin: 10,
+          color: vec4(0, 0, 0, 0.3),
+          visible: (proc(): bool = world[].inspecting in 0..world[].tiles.high and inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret),
+          onChange: proc(dir: Direction) = inspectingTile.stacked.get.direction = dir
+        ),
+      )
     )
-  topLeft
-  #[
-  world.editorGui.add:
-    makeUi(LayoutGroup):
-      pos = ivec2(10)
-      size = ivec2(400, 500)
-      centre = false
-      layoutDirection = vertical
-      children:
-        makeUi(LayoutGroup):
-          size = ivec2(400, 50)
-          centre = false
-          margin = 5
-          children:
-            collect:
-              for placeable in succ(empty) .. TileKind.high:
-                capture(placeable):
-                  makeUi(Button):
-                    pos = ivec2(10)
-                    size = ivec2(70, 55)
-                    text = $placeable
-                    backgroundColor = vec4(1)
-                    nineSliceSize = 16f32
-                    backgroundTex = nineSliceTex
-                    fontColor = vec4(1)
-                    onClick = proc() =
-                      wrld.paintKind = placeable
-        makeUi(LayoutGroup):
-          size = ivec2(400, 40)
-          centre = false
-          children:
-            makeUi(Label):
-              size = ivec2(60, 50)
-              text = "Width: "
-            makeUi(ScrollBar[int]):
-              pos = ivec2(0, 15)
-              size = ivec2(100, 20)
-              minMax = 3..30
-              color = vec4(1)
-              backgroundColor = vec4(0.1, 0.1, 0.1, 1)
-              startPercentage = (world.width - 3).float32 / (30 - 3).float32
-              onValueChange =  proc(i: int) =
-                wrld[].resize(ivec2(i, wrld.height.int))
-                wrld[].reload()
-        makeUi(LayoutGroup):
-          size = ivec2(400, 40)
-          centre = false
-          children:
-            makeUi(Label):
-              size = ivec2(60, 50)
-              text = "Height: "
-            makeUi(ScrollBar[int]):
-              size = ivec2(100, 20)
-              minMax = 3..30
-              color = vec4(1)
-              backgroundColor = vec4(0.1, 0.1, 0.1, 1)
-              startPercentage = (world.height - 3).float32 / (30 - 3).float32
-              onValueChange = proc(i: int) =
-                wrld[].resize(ivec2(wrld.width.int, i))
-        makeUi(LayoutGroup):
-          size = ivec2(400, 50)
-          centre = false
-          margin = 5
-          children:
-            makeUi(Label):
-              size = ivec2(100, 50)
-              text = "Level Name: "
-            world.nameInput
-
-        makeUi(LayoutGroup):
-          size = ivec2(400, 50)
-          centre = false
-          margin = 5
-          children:
-            makeUI(Button):
-              size = ivec2(100, 50)
-              text = "Save"
-              backgroundColor = vec4(1)
-              nineSliceSize = 16f32
-              backgroundTex = nineSliceTex
-              onClick = proc() =
-                reset wrld[].history
-                wrld[].save()
 
 
-  template inspectingTile: Tile = wrld.tiles[wrld.inspecting]
-
-  const
-    labelSize = ivec2(150, 40)
-    buttonSize = ivec2(75, 40)
-
-  world.editorGui.add: ## Inspector
-    makeUi(LayoutGroup):
-      pos = ivec2(10)
-      size = ivec2(200, 500)
-      layoutDirection = vertical
-      margin = 0
-      centre = false
-      anchor = {top, right}
-      visibleCond = proc: bool = wrld.inspecting in 0..wrld.tiles.high
-      children:
-        makeUi(LayoutGroup): # Pickup selector
-          size = ivec2(200, 50)
-          centre = false
-          margin = 0
-          visibleCond = proc: bool = inspectingTile.kind == pickup
-          children:
-            makeUi(Label):
-              size = labelSize
-              text = "Pickup:"
-              horizontalAlignment = RightAlign
-            makeUi(Dropdown[PickupType]):
-              size = buttonSize
-              margin = 1
-              nineSliceSize = 16f32
-              backgroundTex = nineSliceTex
-              values = PickupType.toSeq
-              backgroundColor = vec4(1)
-              watchValue = proc: PickupType = inspectingTile.pickupKind
-              onValueChange = proc(p: PickupType) = inspectingTile.pickupKind = p
-
-        makeUi(LayoutGroup): # Stacked selector
-          size = ivec2(200, 50)
-          centre = false
-          margin = 0
-          visibleCond = proc: bool = inspectingTile.kind in Walkable
-          children:
-            makeUi(Label):
-              size = labelSize
-              text = "Stacked:"
-              horizontalAlignment = RightAlign
-            makeUi(Dropdown[StackedObjectKind]):
-              size = buttonSize
-              margin = 1
-              values = StackedObjectKind.toSeq
-              nineSliceSize = 16f32
-              backgroundTex = nineSliceTex
-              backgroundColor = vec4(1)
-              watchValue = proc: StackedObjectKind =
-                if inspectingTile.hasStacked:
-                  inspectingTile.stacked.get.kind
-                else:
-                  none
-              onValueChange = proc(p: StackedObjectKind) =
-                if p != none:
-                  let pos = wrld[].getPos(wrld.inspecting) + vec3(0, 1, 0)
-                  inspectingTile.giveStackedObject(some(StackedObject(kind: p)), pos, pos)
-                else:
-                  inspectingTile.clearStack()
-
-        makeUi(LayoutGroup): # Direction selector
-          size = ivec2(200, 50)
-          centre = false
-          margin = 0
-          visibleCond = proc: bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret
-          children:
-            makeUi(Label):
-              size = labelSize
-              text = "Stacked Direction:"
-              horizontalAlignment = RightAlign
-            makeUi(Dropdown[Direction]):
-              size = buttonSize
-              margin = 1
-              backgroundColor = vec4(1)
-              nineSliceSize = 16f32
-              backgroundTex = nineSliceTex
-              values = Direction.toSeq
-              watchValue = proc: Direction =
-                inspectingTile.stacked.get.direction
-              onValueChange = proc(dir: Direction) =
-                inspectingTile.stacked.get.direction = dir
-        makeUi(LayoutGroup): # TurnsPerShot selector
-          size = ivec2(200, 50)
-          centre = false
-          margin = 0
-          visibleCond = proc: bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret
-          children:
-            makeUi(Label):
-              size = labelSize
-              text = "Turns per Shot:"
-              horizontalAlignment = RightAlign
-            makeUi(Label):
-              size = ivec2(10, 30)
-              text =
-                if wrld.inspecting > 0:
-                  $inspectingTile.stacked.get.turnsPerShot
-                else:
-                  ""
-            makeUi(ScrollBar[int]):
-              pos = ivec2(0, 15)
-              size = ivec2(100, 20)
-              minMax = 1..10
-              color = vec4(1)
-              backgroundColor = vec4(0.1, 0.1, 0.1, 1)
-              startPercentage = (world.width - 3).float32 / (30 - 3).float32
-              onValueChange =  proc(i: int) =
-                inspectingTile.stacked.get.turnsPerShot = range[1i8..10i8](i)
 
 
-        makeUI(TextArea):
-          size = ivec2(200, 100)
-          fontsize = 50
-          backgroundColor = vec4(0, 0, 0, 0.5)
-          vAlign = MiddleAlign
-          onTextChange = proc(s: string) =
-            let pos = ivec2(int32 wrld.inspecting mod wrld.width, int32 wrld.inspecting div wrld.width)
-            for sign in wrld.signs.mitems:
-              if ivec2(sign.pos.xz) == pos:
-                sign.message = s
-                sign.load()
-                return # Exit if we already have a sign
-            var newSign = Sign.init(vec3(float32 pos.x, 0, float32 pos.y), s)
-            newSign.load()
-            wrld.signs.add newSign
-  ]#
+  (
+    topLeft,
+    topRight,
+  )
 
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
 

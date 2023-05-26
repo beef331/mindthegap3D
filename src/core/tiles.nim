@@ -87,6 +87,7 @@ type
       progress*: float32
     else: discard
 
+  NonEmpty* = range[succ(TileKind.empty)..TileKind.high]
 
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup}
@@ -246,7 +247,6 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
     render(wallModel)
   of pickup:
     with transparentShader:
-      transparentShader.setUniform("tex", getPickupTexture(tile.pickupKind))
       transparentShader.setUniform("mvp", cam.orthoView * (mat4() * translate(pos + vec3(0, 1.1, 0))))
       render(pickupQuadModel)
     with shader:
@@ -262,13 +262,11 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
         let modelMatrix = mat4() * translate(pos)
         shader.setUniform("m", modelMatrix)
         shader.setUniform("mvp", cam.orthoView * modelMatrix)
-        shader.setUniform("isWalkable", (tile.isWalkable and not tile.steppedOn).ord)
         render(boxModel)
 
   of checkpoint:
     with shader:
       let modelMatrix = mat4() * translate(pos)
-      shader.setUniform("isWalkable", tile.steppedOn.ord) # Stupid name uniform now
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
       shader.setUniform("m", modelMatrix)
       render(checkpointModel)

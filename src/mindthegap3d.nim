@@ -138,30 +138,33 @@ proc makeMenu(): auto =
         anchor: {bottom},
         entries:(
           Button(
-            color: vec4(1),
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
             anchor: {top, left},
             pos: vec3(10, 10, 0),
             size: vec2(100, 50),
-            label: Label(text: "Play", color: vec4(1, 0, 0, 1)),
+            label: Label(text: "Play", color: vec4(1)),
             clickCb: proc() = discard
           ),
           Button(
-            color: vec4(1),
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
             anchor: {top, left},
             pos: vec3(10, 10, 0),
             size: vec2(100, 50),
-            label: Label(text: "Edit", color: vec4(1, 0, 0, 1)),
+            label: Label(text: "Edit", color: vec4(1)),
             clickCb: proc() =
               menuState = noMenu
               world = World.init(10, 10)
               world.state = {editing}
           ),
           Button(
-            color: vec4(1),
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
             anchor: {top, left},
             pos: vec3(10, 10, 0),
             size: vec2(100, 50),
-            label: Label(text: "Quit", color: vec4(1, 0, 0, 1)),
+            label: Label(text: "Quit", color: vec4(1)),
             clickCb: proc() = quit()
           ),
         )
@@ -301,17 +304,17 @@ proc update(dt: float32) =
 
   world.update(camera, dt, renderInstance, uiState, renderTarget)
 
-  if menuState != noMenu:
-    uiState.screenSize = vec2 screenSize()
-    uiState.inputPos = vec2 getMousePos()
-    if leftMb.isDown:
-      uiState.input = UiInput(kind: leftClick)
-    elif leftMb.isPressed:
-      uiState.input = UiInput(kind: leftClick, isHeld: true)
-    else:
-      uiState.input = UiInput()
-    mainMenu.interact(uiState)
-    mainMenu.layout(vec3(0), uiState)
+  uiState.screenSize = vec2 screenSize()
+  uiState.inputPos = vec2 getMousePos()
+  if leftMb.isDown:
+    uiState.input = UiInput(kind: leftClick)
+  elif leftMb.isPressed:
+    uiState.input = UiInput(kind: leftClick, isHeld: true)
+  else:
+    uiState.input = UiInput()
+
+  mainMenu.interact(uiState)
+  mainMenu.layout(vec3(0), uiState)
 
   audio.update()
 
