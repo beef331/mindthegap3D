@@ -289,9 +289,6 @@ proc update(dt: float32) =
     if KeyCodeQ.isDown:
       world.state.excl editing
       world.state.excl playing
-      mainMenu = makeMenu()
-      uiState.action = nothing
-      uiState.currentElement = nil
       saveLastPlayed()
       menuState = inMain
 
@@ -302,9 +299,6 @@ proc update(dt: float32) =
         discard
       world.reload()
 
-
-  world.update(camera, dt, renderInstance, uiState, renderTarget)
-
   uiState.screenSize = vec2 screenSize()
   uiState.inputPos = vec2 getMousePos()
   if leftMb.isDown:
@@ -313,12 +307,16 @@ proc update(dt: float32) =
     uiState.input = UiInput(kind: leftClick, isHeld: true)
   else:
     uiState.input = UiInput()
+  uiState.interactedWithCurrentElement = false
 
-  if uiState.currentElement != nil and not uiState.currentElement.isVisible:
-    uiState.currentElement = nil
+  world.update(camera, dt, renderInstance, uiState, renderTarget)
 
-  mainMenu.interact(uiState)
-  mainMenu.layout(vec3(0), uiState)
+
+
+
+  if menuState == inMain:
+    mainMenu.interact(uiState)
+    mainMenu.layout(vec3(0), uiState)
 
   audio.update()
 
@@ -334,6 +332,15 @@ proc draw =
       mainMenu.upload(uiState, renderTarget)
     if renderTarget.model.drawCount > 0:
       renderTarget.model.reuploadSsbo()
+
+    if not uiState.interactedWithCurrentElement and uiState.currentElement != nil:
+      uiState.currentElement.flags = {}
+      reset uiState.input
+      reset uiState.action
+      uiState.currentElement = nil
+      if isTextInputActive():
+        stopTextInput()
+
     glEnable(GlDepthTest)
     with renderTarget.shader:
       glEnable(GlBlend)
