@@ -340,6 +340,7 @@ proc makeEditorGui(world: var World): auto =
         DropDown[NonEmpty],
         HGroup[(Label, HSlider[int])],
         HGroup[(Label, HSlider[int])],
+        HGroup[(Label, TextInput)],
         )](
         anchor: {top, left},
         pos: vec3(10, 10, 0),
@@ -386,6 +387,15 @@ proc makeEditorGui(world: var World): auto =
                   world[].resize(iVec2(int world.width, i))
               )
             )
+          ),
+          HGroup[(Label, TextInput)](
+            entries:(
+              Label(size: entrySize, text: "World Name:"),
+              TextInput(
+                size: entrySize,
+                color: vec4(0, 0, 0, 0.3),
+              )
+            )
           )
         )
       )
@@ -396,7 +406,7 @@ proc makeEditorGui(world: var World): auto =
   let topRight = VGroup[
     (HGroup[(Label, DropDown[PickupType])],
      HGroup[(Label, DropDown[StackedObjectKind])],
-     HGroup[(Label, DropDown[Direction])]
+     HGroup[(Label, DropDown[Direction])],
     )](
       anchor: {top, right},
       pos: vec3(10, 10, 0),

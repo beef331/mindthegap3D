@@ -305,8 +305,18 @@ proc update(dt: float32) =
     uiState.input = UiInput(kind: leftClick)
   elif leftMb.isPressed:
     uiState.input = UiInput(kind: leftClick, isHeld: true)
+  elif isTextInputActive():
+    if inputText() != "":
+      uiState.input = UiInput(kind: textInput, str: inputText())
+    elif KeyCodeBackspace.isDownRepeating:
+      uiState.input = UiInput(kind: textDelete)
+    elif KeyCodeReturn.isDownRepeating:
+      uiState.input = UiInput(kind: textNewline)
+    else:
+      reset uiState.input
   else:
-    uiState.input = UiInput()
+    reset uiState.input
+  setInputText("")
   uiState.interactedWithCurrentElement = false
 
   world.update(camera, dt, renderInstance, uiState, renderTarget)
