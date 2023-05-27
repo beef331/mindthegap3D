@@ -133,8 +133,9 @@ proc nextLevel(dir: int = 1) =
 
 proc makeMenu(): auto =
     (
-      VGroup[(Button, Button, Button)](
+      VGroup[(Button, Button, Button, Button)](
         margin: 10,
+        visible: (proc(): bool = menuState == inMain),
         anchor: {bottom},
         entries:(
           Button(
@@ -154,10 +155,26 @@ proc makeMenu(): auto =
             size: vec2(100, 50),
             label: Label(text: "Edit", color: vec4(1)),
             clickCb: proc() =
+              world.setupEditorGui()
               menuState = noMenu
               world = World.init(10, 10)
               world.state = {editing}
-              setupEditorGui(world)
+          ),
+          Button(
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
+            anchor: {top, left},
+            pos: vec3(10, 10, 0),
+            size: vec2(100, 50),
+            label: Label(text: "Play User Levels", color: vec4(1)),
+            clickCb: proc() =
+              userLevels = fetchUserLevelNames()
+              selectedLevel = 0
+              playingUserLevel = true
+              if userLevels.len > 0:
+                loadSelectedLevel(userLevels[selectedLevel])
+                menuState = previewingUserLevels
+
           ),
           Button(
             color: vec4(0, 0, 0, 0.5),
@@ -167,6 +184,45 @@ proc makeMenu(): auto =
             size: vec2(100, 50),
             label: Label(text: "Quit", color: vec4(1)),
             clickCb: proc() = quit()
+          ),
+        )
+      ),
+      VGroup[(Button, Button, Button)](
+        margin: 10,
+        visible: (proc(): bool = result = menuState == previewingUserLevels),
+        anchor: {bottom},
+        entries:(
+          Button(
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
+            pos: vec3(10, 10, 0),
+            size: vec2(100, 50),
+            label: Label(text: "Play", color: vec4(1)),
+            clickCb: proc() =
+              menuState = noMenu
+              world.state.incl playing
+              world.state.excl previewing
+
+          ),
+          Button(
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
+            pos: vec3(10, 10, 0),
+            size: vec2(100, 50),
+            label: Label(text: "Edit", color: vec4(1)),
+            clickCb: proc() =
+              menuState = noMenu
+              world.state = {editing}
+              world.setupEditorGui()
+          ),
+          Button(
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
+            pos: vec3(10, 10, 0),
+            size: vec2(100, 50),
+            label: Label(text: "Back", color: vec4(1)),
+            clickCb: proc() =
+              menuState = inMain
           ),
         )
       ),
@@ -322,9 +378,7 @@ proc update(dt: float32) =
   world.update(camera, dt, renderInstance, uiState, renderTarget)
 
 
-
-
-  if menuState == inMain:
+  if menuState != noMenu:
     mainMenu.interact(uiState)
     mainMenu.layout(vec3(0), uiState)
 
@@ -338,7 +392,7 @@ proc draw =
 
   with uiBuffer:
     uiBuffer.clear()
-    if menuState == inMain:
+    if menuState != noMenu:
       mainMenu.upload(uiState, renderTarget)
     if renderTarget.model.drawCount > 0:
       renderTarget.model.reuploadSsbo()

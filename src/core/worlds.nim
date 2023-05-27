@@ -341,6 +341,7 @@ proc makeEditorGui(world: var World): auto =
         HGroup[(Label, HSlider[int])],
         HGroup[(Label, HSlider[int])],
         HGroup[(Label, TextInput)],
+        Button,
         )](
         anchor: {top, left},
         pos: vec3(10, 10, 0),
@@ -394,8 +395,22 @@ proc makeEditorGui(world: var World): auto =
               TextInput(
                 size: entrySize,
                 color: vec4(0, 0, 0, 0.3),
+                onChange: (proc(s: string) = world[].levelName = s),
+                watchValue: (proc(): string = world[].levelName),
               )
             )
+          ),
+          Button(
+            color: vec4(0, 0, 0, 0.5),
+            hoveredColor: vec4(0, 0, 0, 0.3),
+            size: entrySize, label: Label(text: "Save"),
+            clickCb: (proc() =
+              try:
+                world[].save()
+              except:
+                echo "Failed to save: ", world.levelname
+            ),
+
           )
         )
       )
