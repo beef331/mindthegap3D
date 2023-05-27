@@ -137,24 +137,21 @@ proc makeMenu(): auto =
       VGroup[(Button, Button, Button, Button)](
         margin: 10,
         visible: (proc(): bool = menuState == inMain),
+        pos: vec3(0, 20, 0),
         anchor: {bottom},
         color: vec4(0),
         entries:(
           Button(
             color: vec4(0, 0, 0, 0.5),
             hoveredColor: vec4(0, 0, 0, 0.3),
-            anchor: {top, left},
-            pos: vec3(10, 10, 0),
-            size: vec2(100, 50),
+            size: vec2(125, 50),
             label: Label(text: "Play", color: vec4(1)),
             clickCb: proc() = discard
           ),
           Button(
             color: vec4(0, 0, 0, 0.5),
             hoveredColor: vec4(0, 0, 0, 0.3),
-            anchor: {top, left},
-            pos: vec3(10, 10, 0),
-            size: vec2(100, 50),
+            size: vec2(125, 50),
             label: Label(text: "Edit", color: vec4(1)),
             clickCb: proc() =
               world.setupEditorGui()
@@ -165,9 +162,7 @@ proc makeMenu(): auto =
           Button(
             color: vec4(0, 0, 0, 0.5),
             hoveredColor: vec4(0, 0, 0, 0.3),
-            anchor: {top, left},
-            pos: vec3(10, 10, 0),
-            size: vec2(100, 50),
+            size: vec2(125, 50),
             label: Label(text: "Play User Levels", color: vec4(1)),
             clickCb: proc() =
               userLevels = fetchUserLevelNames()
@@ -181,37 +176,57 @@ proc makeMenu(): auto =
           Button(
             color: vec4(0, 0, 0, 0.5),
             hoveredColor: vec4(0, 0, 0, 0.3),
-            anchor: {top, left},
-            pos: vec3(10, 10, 0),
-            size: vec2(100, 50),
+            size: vec2(125, 50),
             label: Label(text: "Quit", color: vec4(1)),
             clickCb: proc() = quit()
           ),
         )
       ),
-      VGroup[(Button, Button, Button)](
+      VGroup[(HGroup[(Button, Button, Button)], Button, Button)](
         margin: 10,
-        color: vec4(0),
+        pos: vec3(0, 30, 0),
         visible: (proc(): bool = result = menuState == previewingUserLevels),
+        color: vec4(0),
         anchor: {bottom},
+        alignment: Right,
         entries:(
-          Button(
-            color: vec4(0, 0, 0, 0.5),
-            hoveredColor: vec4(0, 0, 0, 0.3),
-            pos: vec3(10, 10, 0),
-            size: vec2(100, 50),
-            label: Label(text: "Play", color: vec4(1)),
-            clickCb: proc() =
-              menuState = noMenu
-              world.state.incl playing
-              world.state.excl previewing
-
+          HGroup[(Button, Button, Button)](
+            color: vec4(0),
+            margin: 10,
+            entries:(
+              Button(
+                color: vec4(0, 0, 0, 0.5),
+                hoveredColor: vec4(0, 0, 0, 0.3),
+                size: vec2(30, 30),
+                label: Label(text: "<", color: vec4(1)),
+                clickCb: proc() =
+                  nextLevel(-1)
+              ),
+              Button(
+                color: vec4(0, 0, 0, 0.5),
+                hoveredColor: vec4(0, 0, 0, 0.3),
+                size: vec2(125, 50),
+                label: Label(text: "Play", color: vec4(1)),
+                clickCb: proc() =
+                  menuState = noMenu
+                  world.state.incl playing
+                  world.state.excl previewing
+              ),
+              Button(
+                color: vec4(0, 0, 0, 0.5),
+                hoveredColor: vec4(0, 0, 0, 0.3),
+                size: vec2(30, 30),
+                label: Label(text: ">", color: vec4(1)),
+                clickCb: proc() =
+                  nextLevel(1)
+              ),
+            )
           ),
           Button(
             color: vec4(0, 0, 0, 0.5),
             hoveredColor: vec4(0, 0, 0, 0.3),
             pos: vec3(10, 10, 0),
-            size: vec2(100, 50),
+            size: vec2(125, 50),
             label: Label(text: "Edit", color: vec4(1)),
             clickCb: proc() =
               menuState = noMenu
@@ -222,13 +237,14 @@ proc makeMenu(): auto =
             color: vec4(0, 0, 0, 0.5),
             hoveredColor: vec4(0, 0, 0, 0.3),
             pos: vec3(10, 10, 0),
-            size: vec2(100, 50),
+            size: vec2(125, 50),
             label: Label(text: "Back", color: vec4(1)),
             clickCb: proc() =
               menuState = inMain
           ),
         )
       ),
+
     )
 
 
