@@ -138,6 +138,7 @@ proc makeMenu(): auto =
         margin: 10,
         visible: (proc(): bool = menuState == inMain),
         anchor: {bottom},
+        color: vec4(0),
         entries:(
           Button(
             color: vec4(0, 0, 0, 0.5),
@@ -190,6 +191,7 @@ proc makeMenu(): auto =
       ),
       VGroup[(Button, Button, Button)](
         margin: 10,
+        color: vec4(0),
         visible: (proc(): bool = result = menuState == previewingUserLevels),
         anchor: {bottom},
         entries:(
@@ -406,7 +408,7 @@ proc draw =
       if isTextInputActive():
         stopTextInput()
 
-    glEnable(GlDepthTest)
+    glDisable(GlDepthTest)
     with renderTarget.shader:
       glEnable(GlBlend)
       glBlendFunc(GlOne, GlOneMinusSrcAlpha)

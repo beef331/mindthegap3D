@@ -347,6 +347,8 @@ proc makeEditorGui(world: var World): auto =
         pos: vec3(10, 10, 0),
         size: entrySize,
         margin: 10,
+        color: vec4(0),
+        backgroundColor: vec4(0, 0, 0, 0.3),
         entries:
         (
           DropDown[NonEmpty](
@@ -358,6 +360,7 @@ proc makeEditorGui(world: var World): auto =
               world.paintKind = kind
           ),
           HGroup[(Label, HSlider[int])](
+            color: vec4(0),
             entries:(
               Label(text: "Width: ", size: entrySize),
               HSlider[int](
@@ -374,6 +377,7 @@ proc makeEditorGui(world: var World): auto =
             )
           ),
           HGroup[(Label, HSlider[int])](
+            color: vec4(0),
             entries:(
               Label(text: "Height: ", size: entrySize),
               HSlider[int](
@@ -390,11 +394,14 @@ proc makeEditorGui(world: var World): auto =
             )
           ),
           HGroup[(Label, TextInput)](
+            color: vec4(0),
             entries:(
-              Label(size: entrySize, text: "World Name:"),
-              TextInput(
+              Label(
                 size: entrySize,
-                color: vec4(0, 0, 0, 0.3),
+                text: "World Name:"),
+              TextInput(
+                color: vec4(0),
+                size: entrySize,
                 onChange: (proc(s: string) = world[].levelName = s),
                 watchValue: (proc(): string = world[].levelName),
               )
@@ -426,10 +433,13 @@ proc makeEditorGui(world: var World): auto =
       anchor: {top, right},
       pos: vec3(10, 10, 0),
       margin: 10,
+      color: vec4(0),
+      backgroundColor: vec4(0, 0, 0, 0.3),
       visible: isInspecting,
       entries:(
         HGroup[(Label, DropDown[PickupType])](
           visible: (proc(): bool = isInspecting() and inspectingTile().kind == pickup),
+          color: vec4(0),
           entries:(
             Label(size: entrySize, text: "Pickup Type: "),
             DropDown[PickupType](
@@ -444,6 +454,7 @@ proc makeEditorGui(world: var World): auto =
         ),
         HGroup[(Label, DropDown[StackedObjectKind])](
           visible: (proc(): bool = isInspecting() and inspectingTile().kind in Walkable),
+          color: vec4(0),
           entries:(
             Label(size: entrySize, text: "Stacked Kind:"),
             DropDown[StackedObjectKind](
@@ -467,6 +478,7 @@ proc makeEditorGui(world: var World): auto =
         ),
         HGroup[(Label, DropDown[Direction])](
           visible: (proc(): bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret),
+          color: vec4(0),
           entries:(
             Label(size: entrySize, text: "Stacked Direction:"),
             DropDown[Direction](
