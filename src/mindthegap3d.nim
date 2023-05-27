@@ -188,7 +188,7 @@ proc makeMenu(): auto =
         visible: (proc(): bool = result = menuState == previewingUserLevels),
         color: vec4(0),
         anchor: {bottom},
-        alignment: Right,
+        alignment: Center,
         entries:(
           HGroup[(Button, Button, Button)](
             color: vec4(0),
