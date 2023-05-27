@@ -260,7 +260,7 @@ modelData.appendUv [vec2(0, 1), vec2(0, 0), vec2(1, 0), vec2(1, 1)].items
 
 
 proc gameInit() =
-  fontPath = "assets/fonts/SigmarOne-Regular.ttf"
+  fontPath = "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
   invokeResourceProcs()
 
