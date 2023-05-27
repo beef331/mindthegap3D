@@ -105,9 +105,10 @@ proc saveLastPlayed() =
 
 
 proc loadSelectedLevel(path: string) =
+  let name = path.splitFile.name
   var fs = newFileStream(path)
   defer: fs.close
-  world = World()
+  world = World(levelName: name)
   unload(world)
   fs.thaw world
   world.state.incl previewing
