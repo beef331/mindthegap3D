@@ -41,8 +41,8 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
     rectHeight = height.float - border.float * 2
   ctx.fillStyle = color(1, 1, 1, 1)
   ctx.fillRoundedRect(rect(border.float, border.float, rectWidth, rectHeight), 20, 20, 20, 20)
-  font.size = 120
-  img.fillText(font.typeset(sign.message, vec2(rectWidth, rectHeight), hAlign = CenterAlign, vAlign = MiddleAlign), translate(vec2(border.float)))
+  font.size = 80
+  img.fillText(font.typeset(sign.message, vec2(rectWidth, rectHeight)), transform = translate(vec2(border.float + 10)))
   if Gluint(sign.messageTexture) == 0:
     sign.messageTexture = genTexture()
   img.copyTo(sign.messageTexture)
@@ -65,7 +65,7 @@ proc render*(sign: Sign, cam: Camera) =
     with messageShader:
       let
         progress = (sign.progress / messageTime) * (sign.progress / messageTime)
-        scale = vec3(progress)
+        scale = mix(vec3(0), vec3(2), progress)
         pos = mix(sign.pos, sign.pos + vec3(0, 3, 0), progress)
         targetUp = cam.up
         targetRot = fromTwoVectors(vec3(0, 0, 1), cam.forward)
