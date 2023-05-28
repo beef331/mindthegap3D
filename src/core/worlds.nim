@@ -27,7 +27,6 @@ type
     # Editor fields
     inspecting {.unserialized.}: int
     paintKind {.unserialized.}: TileKind
-    #nameInput* {.unserialized.}: TextArea
     levelName* {.unserialized.}: string
 
   HistoryKind* = enum
@@ -45,7 +44,11 @@ type
 
 const projectilesAlwaysCollide = {wall}
 
-
+iterator activeSign(world: var World): var Sign =
+  let pos = ivec2(int32 world.inspecting mod world.width, int32 world.inspecting div world.width)
+  for sign in world.signs.mitems:
+    if ivec2(sign.pos.xz) == pos:
+      yield sign
 
 var
   pickupQuadModel, signModel, flagModel: Model
@@ -417,7 +420,6 @@ proc makeEditorGui(world: var World): auto =
               except:
                 echo "Failed to save: ", world.levelname
             ),
-
           )
         )
       )
@@ -429,6 +431,7 @@ proc makeEditorGui(world: var World): auto =
     (HGroup[(Label, DropDown[PickupType])],
      HGroup[(Label, DropDown[StackedObjectKind])],
      HGroup[(Label, DropDown[Direction])],
+     HGroup[(Label, TextInput),],
     )](
       anchor: {top, right},
       pos: vec3(10, 10, 0),
@@ -487,6 +490,33 @@ proc makeEditorGui(world: var World): auto =
               color: vec4(0, 0, 0, 0.3),
               watchValue: (proc(): Direction = inspectingTile.stacked.get.direction),
               onChange: (proc(dir: Direction) = inspectingTile.stacked.get.direction = dir)
+            )
+          )
+        ),
+        HGroup[(Label, TextInput)](
+          visible: (proc(): bool =  inspectingTile.isWalkable),
+          color: vec4(0),
+          entries:(
+            Label(size: entrySize, text: "SignMessage"),
+            TextInput(
+              size: entrySize * 2,
+              color: vec4(0, 0, 0, 0.3),
+              watchValue: (proc(): string =
+                for sign in world[].activeSign:
+                  return sign.message
+                ""
+              ),
+              onChange: (proc(str: string) =
+                for sign in world[].activeSign:
+                  sign.message = str
+                  return
+
+                let pos = ivec2(int32 world[].inspecting mod world[].width, int32 world[].inspecting div world[].width)
+                var newSign = Sign.init(vec3(float32 pos.x, 0, float32 pos.y), str)
+                newSign.load()
+                world[].signs.add newSign
+              )
+
             )
           )
         )
