@@ -2,7 +2,7 @@ import truss3D, vmath, chroma, pixie, frosty, gooey
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio, instancemodels]
 import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances, saves]
-import std/[os, sugar, streams]
+import std/[os, sugar, streams, algorithm]
 
 shaderPath = "assets/shaders"
 modelPath = "assets/models"
@@ -414,6 +414,7 @@ proc draw =
     if menuState != noMenu:
       mainMenu.upload(uiState, renderTarget)
     if renderTarget.model.drawCount > 0:
+      renderTarget.model.ssboData.sort(proc(a, b: UiRenderObj): int = (if b.matrix[3, 2] - a.matrix[3, 2] <= 0: -1 else: 1))
       renderTarget.model.reuploadSsbo()
 
     if not uiState.interactedWithCurrentElement and uiState.currentElement != nil:

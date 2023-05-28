@@ -358,7 +358,7 @@ proc makeEditorGui(world: var World): auto =
             size: entrySize,
             active: succ(TileKind.empty),
             color: vec4(0, 0, 0, 0.5),
-            hoveredColor: vec4(0, 0, 0, 0.3),
+            hoveredColor: vec4(0, 0, 0, 0.7),
             onChange: proc(kind: NonEmpty) =
               world.paintKind = kind
           ),
@@ -447,7 +447,6 @@ proc makeEditorGui(world: var World): auto =
             Label(size: entrySize, text: "Pickup Type: "),
             DropDown[PickupType](
               size: entrySize,
-              margin: 10,
               color: vec4(0, 0, 0, 0.3),
               watchValue: (proc(): PickupType = inspectingTile().pickupKind),
               onChange: proc(kind: PickupType) =
@@ -462,7 +461,6 @@ proc makeEditorGui(world: var World): auto =
             Label(size: entrySize, text: "Stacked Kind:"),
             DropDown[StackedObjectKind](
               size: entrySize,
-              margin: 10,
               color: vec4(0, 0, 0, 0.3),
               watchValue: (proc(): StackedObjectKind =
                 if isInspecting() and inspectingTile.hasStacked:
@@ -486,7 +484,6 @@ proc makeEditorGui(world: var World): auto =
             Label(size: entrySize, text: "Stacked Direction:"),
             DropDown[Direction](
               size: entrySize,
-              margin: 10,
               color: vec4(0, 0, 0, 0.3),
               watchValue: (proc(): Direction = inspectingTile.stacked.get.direction),
               onChange: (proc(dir: Direction) = inspectingTile.stacked.get.direction = dir)
@@ -496,10 +493,11 @@ proc makeEditorGui(world: var World): auto =
         HGroup[(Label, TextInput)](
           visible: (proc(): bool =  inspectingTile.isWalkable),
           color: vec4(0),
+          backgroundColor: vec4(0),
           entries:(
             Label(size: entrySize, text: "SignMessage"),
             TextInput(
-              size: entrySize * 2,
+              size: entrySize * vec2(2, 3),
               color: vec4(0, 0, 0, 0.3),
               watchValue: (proc(): string =
                 for sign in world[].activeSign:
