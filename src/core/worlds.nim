@@ -416,6 +416,8 @@ proc makeEditorGui(world: var World): auto =
             size: entrySize, label: Label(text: "Save"),
             clickCb: (proc() =
               try:
+                world[].rewindTo({start})
+                reset world.history
                 world[].save()
               except:
                 echo "Failed to save: ", world.levelname
