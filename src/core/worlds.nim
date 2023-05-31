@@ -480,7 +480,7 @@ proc makeEditorGui(world: var World): auto =
           )
         ),
         HGroup[(Label, DropDown[Direction])](
-          visible: (proc(): bool = inspectingTile.hasStacked() and inspectingTile.stacked.get.kind == turret),
+          visible: (proc(): bool = isInspecting() and inspectingTile().hasStacked and inspectingTile.stacked.get.kind == turret),
           color: vec4(0),
           entries:(
             Label(size: entrySize, text: "Stacked Direction:"),
@@ -497,7 +497,7 @@ proc makeEditorGui(world: var World): auto =
           color: vec4(0),
           backgroundColor: vec4(0),
           entries:(
-            Label(size: entrySize, text: "SignMessage"),
+            Label(size: entrySize, text: "Sign Message: "),
             TextInput(
               size: entrySize * vec2(2, 3),
               color: vec4(0, 0, 0, 0.3),
@@ -725,7 +725,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
   ui.interact(state)
   ui.upload(state, renderTarget)
 
-  if state.currentElement.isNil:
+  if state.currentElement.isNil: 
     let
       pos = world.cursorPos(cam)
       ind = world.getPointIndex(pos)

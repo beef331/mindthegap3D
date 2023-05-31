@@ -426,7 +426,9 @@ proc draw =
         stopTextInput()
 
     glDisable(GlDepthTest)
+    atlas.ssbo.bindBuffer(1)
     with renderTarget.shader:
+      setUniform("fontTex", atlas.texture)
       glEnable(GlBlend)
       glBlendFunc(GlOne, GlOneMinusSrcAlpha)
       renderTarget.model.render()
