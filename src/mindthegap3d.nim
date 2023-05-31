@@ -373,7 +373,7 @@ proc update(dt: float32) =
       else:
         discard
       world.reload()
-
+  uiState.dt = dt
   uiState.screenSize = vec2 screenSize()
   uiState.inputPos = vec2 getMousePos()
   if leftMb.isDown:

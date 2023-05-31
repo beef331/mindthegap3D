@@ -339,6 +339,14 @@ proc makeEditorGui(world: var World): auto =
 
   let world = world.addr
 
+  let saveLabel = TimedLabel(
+    color: vec4(1),
+    backgroundColor: vec4(0, 0, 0, 0.5),
+    pos: vec3(0, 30, 0),
+    size: vec2(300, 60),
+    anchor: {bottom},
+    time: 1)
+
   let topLeft = VGroup[(
         DropDown[NonEmpty],
         HGroup[(Label, HSlider[int])],
@@ -419,8 +427,9 @@ proc makeEditorGui(world: var World): auto =
                 world[].rewindTo({start})
                 reset world.history
                 world[].save()
-              except:
-                echo "Failed to save: ", world.levelname
+                saveLabel.show("Successfully Saved the Level.")
+              except CatchableError as e:
+                saveLabel.show("Could not save Level. Error: " & e.msg)
             ),
           )
         )
@@ -529,6 +538,7 @@ proc makeEditorGui(world: var World): auto =
   (
     topLeft,
     topRight,
+    saveLabel
   )
 
 proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
