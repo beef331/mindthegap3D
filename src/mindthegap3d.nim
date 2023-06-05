@@ -442,6 +442,7 @@ proc draw =
     mainBuffer.clear()
     if menuState == noMenu or previewing in world.state:
       world.render(camera, renderInstance, uiState)
+
     with waterShader:
       let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
       waterShader.setUniform("modelMatrix", waterMatrix)
@@ -454,9 +455,8 @@ proc draw =
       glDepthMask false
       render(waterQuad)
       glDepthMask true
+
     renderWaterSplashes(camera)
-
-
 
   with screenShader:
     screenShader.setUniform("matrix", scale(vec3(2)) * translate(vec3(-0.5, -0.5, 0f)))

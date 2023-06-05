@@ -330,8 +330,8 @@ proc reload*(world: var World) =
   world.steppedOn(world.player.pos)
   world.givePickupIfCan()
 
-proc lerp(a, b: SomeOrdinal, c: float32): SomeOrdinal = (a.ord.float32 + (b.ord - a.ord).float32 * c).int
-proc reverseLerp(f: SomeOrdinal, rng: Slice[SomeOrdinal]): float32 =
+proc lerp[T](a, b: T, c: float32): T = T(a.ord.float32 + (b.ord - a.ord).float32 * c)
+proc reverseLerp[T](f: T, rng: Slice[T]): float32 =
   (f - rng.a) / (rng.b - rng.a)
 
 proc makeEditorGui(world: var World): auto =
@@ -438,19 +438,10 @@ proc makeEditorGui(world: var World): auto =
   template inspectingTile: Tile = world[].tiles[world[].inspecting]
   proc isInspecting: bool = editing in world.state and world[].inspecting in 0..world[].tiles.high
 
-  let topRight = VGroup[
-    (HGroup[(Label, DropDown[PickupType])],
-     HGroup[(Label, DropDown[StackedObjectKind])],
-     HGroup[(Label, DropDown[Direction])],
-     HGroup[(Label, TextInput),],
-    )](
-      anchor: {top, right},
-      pos: vec3(10, 10, 0),
-      margin: 10,
-      color: vec4(0),
-      backgroundColor: vec4(0, 0, 0, 0.3),
-      visible: isInspecting,
-      entries:(
+  let
+    movesPerLabel = Label(size: entrySize, text: "Moves Per Shot: ") 
+    movesTilLabel = Label(size: entrySize, text: "Moves Until Next Shot: ")
+    topRightEntries = (
         HGroup[(Label, DropDown[PickupType])](
           visible: (proc(): bool = isInspecting() and inspectingTile().kind == pickup),
           color: vec4(0),
@@ -458,7 +449,8 @@ proc makeEditorGui(world: var World): auto =
             Label(size: entrySize, text: "Pickup Type: "),
             DropDown[PickupType](
               size: entrySize,
-              color: vec4(0, 0, 0, 0.3),
+              color: vec4(0, 0, 0, 0.5),
+              hoveredColor: vec4(0, 0, 0, 0.7),
               watchValue: (proc(): PickupType = inspectingTile().pickupKind),
               onChange: proc(kind: PickupType) =
                 inspectingTile().pickupKind = kind
@@ -472,7 +464,8 @@ proc makeEditorGui(world: var World): auto =
             Label(size: entrySize, text: "Stacked Kind:"),
             DropDown[StackedObjectKind](
               size: entrySize,
-              color: vec4(0, 0, 0, 0.3),
+              color: vec4(0, 0, 0, 0.5),
+              hoveredColor: vec4(0, 0, 0, 0.7),
               watchValue: (proc(): StackedObjectKind =
                 if isInspecting() and inspectingTile.hasStacked:
                   inspectingTile.stacked.get.kind
@@ -495,7 +488,8 @@ proc makeEditorGui(world: var World): auto =
             Label(size: entrySize, text: "Stacked Direction:"),
             DropDown[Direction](
               size: entrySize,
-              color: vec4(0, 0, 0, 0.3),
+              color: vec4(0, 0, 0, 0.5),
+              hoveredColor: vec4(0, 0, 0, 0.7),
               watchValue: (proc(): Direction = inspectingTile.stacked.get.direction),
               onChange: (proc(dir: Direction) = inspectingTile.stacked.get.direction = dir)
             )
@@ -528,11 +522,57 @@ proc makeEditorGui(world: var World): auto =
 
             )
           )
+        ),
+        HGroup[(Label, HSlider[ShotRange])](
+          visible: (proc(): bool = isInspecting() and inspectingTile().hasStacked and inspectingTile.stacked.get.kind == turret),
+          color: vec4(0),
+          backgroundColor: vec4(0),
+          entries: (
+            movesPerLabel,
+            HSlider[ShotRange](
+              size: entrySize,
+              rng: ShotRange.low..ShotRange.high,
+              color: vec4(0.5),
+              hoveredColor: vec4(0.3),
+              slideBar: MyUiElement(color: vec4(1)),
+              watchValue: (proc(): ShotRange = inspectingTile.stacked.get.turnsPerShot),
+              onChange: proc(val: ShotRange) =
+                inspectingTile.stacked.get.turnsPerShot = val
+                movesPerLabel.text = "Moves Per Shot: " & $val
+            )
+          )
+        ),
+        HGroup[(Label, HSlider[ShotRange])](
+          visible: (proc(): bool = isInspecting() and inspectingTile().hasStacked and inspectingTile.stacked.get.kind == turret),
+          color: vec4(0),
+          backgroundColor: vec4(0),
+          entries: (
+            movesTilLabel,
+            HSlider[ShotRange](
+              size: entrySize,
+              rng: ShotRange.low..ShotRange.high,
+              color: vec4(0.5),
+              hoveredColor: vec4(0.3),
+              slideBar: MyUiElement(color: vec4(1)),
+              watchValue: (proc(): ShotRange = inspectingTile.stacked.get.turnsToNextShot),
+              onChange: proc(val: ShotRange) =
+                inspectingTile.stacked.get.turnsToNextShot = val
+                movesTilLabel.text = "Moves Until Next Shot: " & $val
+            )
+          )
         )
+
       )
+
+    topRight = VGroup[typeof(topRightEntries)](
+      anchor: {top, right},
+      pos: vec3(10, 10, 0),
+      margin: 10,
+      color: vec4(0),
+      backgroundColor: vec4(0, 0, 0, 0.3),
+      visible: isInspecting,
+      entries: topRightEntries
     )
-
-
 
 
   (
@@ -942,12 +982,15 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
 proc renderWaterSplashes*(cam: Camera) =
   with particleShader:
-    glEnable GlDepthTest
+    glDisable GlDepthTest
+    glEnable(GlBlend)
+    glBlendFunc(GlSrcAlpha, GlOneMinusSrcAlpha)
     particleShader.setUniform("VP", cam.orthoView)
     waterParticleSystem.render()
 
     particleShader.setUniform("VP", cam.orthoView)
     dirtParticleSystem.render()
+    glDisable(GlBlend)
 
 
 iterator tiles*(world: World): (int, int, Tile) =

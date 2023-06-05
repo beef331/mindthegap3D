@@ -52,6 +52,8 @@ type
   StackedFlag = enum
     spawnedParticle, toggled
 
+  ShotRange* = 0i8..10i8
+
   StackedObject* = object
     startPos: Vec3
     toPos: Vec3
@@ -60,8 +62,8 @@ type
     case kind*: StackedObjectKind
     of turret:
       direction*: Direction
-      movesToNextShot*: 0i8..10i8
-      turnsPerShot*: 0i8..10i8
+      turnsToNextShot*: ShotRange
+      turnsPerShot*: ShotRange
       projectileKind*: ProjectileKind
     of box:
       discard
@@ -181,11 +183,11 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
     case tile.stacked.get.kind
     of turret:
       if playerMoved:
-        if stacked.movesToNextShot == 0:
-          stacked.movesToNextShot = stacked.turnsPerShot
+        if stacked.turnsToNextShot == 0:
+          stacked.turnsToNextShot = stacked.turnsPerShot
           projectiles.spawnProjectile(stacked.toPos + vec3(0, 0.5, 0), stacked.direction)
         else:
-          dec stacked.movesToNextShot
+          dec stacked.turnsToNextShot
     else: discard
 
 proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false)
