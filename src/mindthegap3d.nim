@@ -33,7 +33,7 @@ let builtinLevels = loadBuiltinLevels()
 var
   camera: Camera
   world: World
-  mainBuffer, signBuffer, uiBuffer: FrameBuffer
+  mainBuffer, signBuffer, uiBuffer, waterBuffer: FrameBuffer
   waterShader, screenShader: Shader
   waterQuad, screenQuad: Model
   waterTex: Texture
@@ -74,6 +74,7 @@ addResourceProc do():
   mainBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color, Depth})
   uiBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color})
   signBuffer = genFrameBuffer(screenSize(), tfR, {FrameBufferKind.Color, Depth})
+  waterBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color, Depth})
   waterQuad = makeRect(300, 300)
   screenQuad = makeScreenQuad()
   waterShader = loadShader(ShaderPath"watervert.glsl", ShaderPath"waterfrag.glsl")
@@ -344,6 +345,7 @@ proc update(dt: float32) =
     mainBuffer.resize(scrSize)
     signBuffer.resize(scrSize)
     uiBuffer.resize(scrSize)
+    waterBuffer.resize(scrSize)
 
   if previewing notin world.state:
     cameraMovement()
@@ -442,7 +444,10 @@ proc draw =
     mainBuffer.clear()
     if menuState == noMenu or previewing in world.state:
       world.render(camera, renderInstance, uiState)
+    renderWaterSplashes(camera)
 
+  with waterBuffer:
+    waterBuffer.clear()
     with waterShader:
       let waterMatrix = mat4() * translate(vec3(-150, 0.9, -150))
       waterShader.setUniform("modelMatrix", waterMatrix)
@@ -452,15 +457,11 @@ proc draw =
       waterShader.setUniform("waterTex", waterTex)
       watershader.setUniform("time", getTime())
       waterShader.setUniform("mvp", camera.orthoView * waterMatrix)
-      glDepthMask false
       render(waterQuad)
-      glDepthMask true
-
-    renderWaterSplashes(camera)
 
   with screenShader:
     screenShader.setUniform("matrix", scale(vec3(2)) * translate(vec3(-0.5, -0.5, 0f)))
-    screenShader.setUniform("tex", mainBuffer.colourTexture)
+    screenShader.setUniform("tex", waterBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
     screenShader.setUniform("finishProgress"):

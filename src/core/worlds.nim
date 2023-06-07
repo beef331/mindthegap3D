@@ -982,9 +982,7 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
 proc renderWaterSplashes*(cam: Camera) =
   with particleShader:
-    glDisable GlDepthTest
-    glEnable(GlBlend)
-    glBlendFunc(GlSrcAlpha, GlOneMinusSrcAlpha)
+    glEnable GlDepthTest
     particleShader.setUniform("VP", cam.orthoView)
     waterParticleSystem.render()
 
