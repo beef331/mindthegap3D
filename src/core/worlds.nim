@@ -424,8 +424,11 @@ proc makeEditorGui(world: var World): auto =
             size: entrySize, label: Label(text: "Save"),
             clickCb: (proc() =
               try:
-                world[].rewindTo({start})
-                reset world.history
+                world[].history.setLen(0)
+                world[].saveHistoryStep(start)
+                world[].state.incl playing
+                world[].reload()
+
                 world[].save()
                 saveLabel.show("Successfully Saved the Level.")
               except CatchableError as e:

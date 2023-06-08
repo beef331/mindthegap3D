@@ -147,7 +147,13 @@ proc makeMenu(): auto =
             hoveredColor: vec4(0, 0, 0, 0.3),
             size: vec2(125, 50),
             label: Label(text: "Play", color: vec4(1)),
-            clickCb: proc() = discard
+            clickCb: (proc() =
+              selectedLevel = 0
+              playingUserLevel = false
+              if builtinLevels.len > 0:
+                loadSelectedLevel(builtinLevels[selectedLevel])
+                menuState = previewingBuiltinLevels
+            )
           ),
           Button(
             color: vec4(0, 0, 0, 0.5),
@@ -186,7 +192,7 @@ proc makeMenu(): auto =
       VGroup[(HGroup[(Button, Button, Button)], Button, Button)](
         margin: 10,
         pos: vec3(0, 30, 0),
-        visible: (proc(): bool = result = menuState == previewingUserLevels),
+        visible: (proc(): bool = menuState in {previewingUserLevels, previewingBuiltinLevels}),
         color: vec4(0),
         anchor: {bottom},
         alignment: Center,
@@ -207,6 +213,12 @@ proc makeMenu(): auto =
                 color: vec4(0, 0, 0, 0.5),
                 hoveredColor: vec4(0, 0, 0, 0.3),
                 size: vec2(125, 50),
+                visible: (proc(): bool =
+                  if menuState == previewingUserLevels:
+                    true
+                  else:
+                    canPlayLevel()
+                ),
                 label: Label(text: "Play", color: vec4(1)),
                 clickCb: proc() =
                   menuState = noMenu
@@ -226,6 +238,7 @@ proc makeMenu(): auto =
           Button(
             color: vec4(0, 0, 0, 0.5),
             hoveredColor: vec4(0, 0, 0, 0.3),
+            visible: (proc(): bool = menuState == previewingUserLevels),
             pos: vec3(10, 10, 0),
             size: vec2(125, 50),
             label: Label(text: "Edit", color: vec4(1)),
@@ -371,10 +384,16 @@ proc update(dt: float32) =
 
     if playing in world.state and world.playedTransition():
       if playingUserLevel:
-        discard
+        saveData.save(userLevels[selectedLevel], 0)
+        menuState = previewingUserLevels
       else:
-        discard
+        saveData.save(selectedLevel, 0)
+        selectedLevel = min(selectedLevel + 1, builtinLevels.high)
+        menuState = previewingBuiltinLevels
+        loadSelectedLevel(builtinLevels[selectedLevel])
       world.reload()
+
+
   uiState.dt = dt
   uiState.screenSize = vec2 screenSize()
   uiState.inputPos = vec2 getMousePos()
