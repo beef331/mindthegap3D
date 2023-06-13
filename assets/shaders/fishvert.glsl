@@ -26,9 +26,8 @@ void main() {
   mat4 matrix = theData.matrix;
   mat3 normToWorld = mat3(matrix);
   vec3 pos = vertex_position;
-  pos.x += sin(time * theData.velocity + pos.z) / 3.0;
+  pos.x += sin(time * theData.velocity + pos.z) / 2;
   gl_Position =  vp * matrix * vec4(pos.xyz, 1.0);
   fColour = colour;
-
   fNormal = normalize(normToWorld * normal).xyz;
 }

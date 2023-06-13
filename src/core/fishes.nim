@@ -21,10 +21,12 @@ type
     model: InstancedModel[FishRender]
 
 
-const fishArea = 10f
+const 
+  fishArea = 15f
+  fishAmount = 100
 
 var 
-  fishSpawner = FishSpawner(fishes: newSeq[Fish](1000))
+  fishSpawner = FishSpawner(fishes: newSeq[Fish](fishAmount))
   shader: Shader
 
 proc relocate(fish: var Fish) =
