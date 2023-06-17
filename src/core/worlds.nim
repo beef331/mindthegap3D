@@ -1,7 +1,7 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
 import pixie, opengl, vmath, easings, frosty, gooey
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances, serializers
+import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances, serializers, fishes
 import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams, macros]
 
 
@@ -859,6 +859,7 @@ proc update*(
   ) = # Maybe make camera var...?
   updateModels(world, renderInstance)
 
+  fishes.update(dt)
 
   if playing in world.state:
     for sign in world.signs.mitems:
@@ -952,6 +953,8 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
 
       renderInstance.buffer[kind].render()
+
+  fishes.render(cam)
 
   world.player.render(cam, world.playerSafeDirections)
   renderSigns(world, cam)
