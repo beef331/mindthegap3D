@@ -4,7 +4,7 @@ layout(location = 0) in vec3 vertex_position;
 
 uniform mat4 VP;
 
-layout(std430) struct data{
+struct data{
   vec4 color;
   vec3 pos;
   float lifeTime;
