@@ -51,7 +51,7 @@ iterator activeSign(world: var World): var Sign =
       yield sign
 
 var
-  pickupQuadModel, signModel, flagModel: Model
+  pickupQuadModel, signModel, flagModel, selectionModel: Model
   levelShader, cursorShader, alphaClipShader, flagShader, boxShader, signBuffShader: Shader
   particleShader: Shader
   waterParticleSystem, dirtParticleSystem: ParticleSystem # Need to abstract these
@@ -71,10 +71,11 @@ proc dirtParticleUpdate(particle: var Particle, dt: float32, ps: ParticleSystem)
   else:
     particle.velocity.y += dt * 3
 
-addResourceProc:
+addResourceProc do():
   pickupQuadModel = loadModel("pickup_quad.dae")
   signModel = loadModel("sign.dae")
   flagModel = loadModel("flag.dae")
+  selectionModel = loadModel("selection.glb")
   levelShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
   cursorShader = loadShader(ShaderPath"vert.glsl", ShaderPath"cursorfrag.glsl")
   alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
@@ -967,6 +968,17 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
       flagShader.setUniform("mvp", cam.orthoView * modelMatrix)
       flagShader.setUniform("m", modelMatrix)
       render(flagModel)
+    
+    if world.inspecting >= 0:
+      with cursorShader:
+        var pos = world.getPos(world.inspecting)
+        let modelMatrix = mat4() * translate(pos)
+        cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
+        cursorShader.setUniform("m", modelMatrix)
+        cursorSHader.setUniform("valid", int32 1)
+        render(selectionModel)
+
+
     if state.currentElement.isNil:
       with cursorShader:
         cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
