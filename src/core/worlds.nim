@@ -937,7 +937,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         renderBlock(Tile(kind: box), cam, cursorShader, alphaClipShader, pos, true)
         glEnable(GlDepthTest)
 
-proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance, state: UiState) =
+proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance, state: UiState, fb: FrameBuffer) =
   for kind in RenderedModel:
     with renderInstance.shaders[kind]:
       setUniform("vp", cam.orthoView)
@@ -955,8 +955,9 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
         setUniform("inactiveColour", baseColour)
       of pickupIcons:
         setUniform("textures", textureArray)
+      of iceBlocks:
+        setUniform("screenTex", fb.colourTexture)
       else: discard
-
 
       renderInstance.buffer[kind].render()
 
