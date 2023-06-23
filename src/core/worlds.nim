@@ -283,8 +283,11 @@ proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
     var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
     let hadSteppedOn = tile.steppedOn
-    if tile.kind != box:
+    if tile.kind notin {TileKind.box, ice}:
       tile.steppedOn = true
+    if tile.kind == ice:
+      tile.progress += 0.3
+
     case tile.kind
     of checkpoint:
       if not hadSteppedOn:
@@ -305,6 +308,8 @@ proc steppedOff(world: var World, pos: Vec3) =
     of box:
       tile.progress = 0
       tile.steppedOn = true
+    of ice:
+      tile.progress += 0.3
     else: discard
 
 proc givePickupIfCan(world: var World) =
@@ -750,14 +755,14 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
 
   for i, tile in enumerate world.tiles.mitems:
     let startY =
-      if tile.kind == box:
+      if tile.kind in {TileKind.box, ice}:
         tile.calcYPos()
       else:
         0f32
     tile.update(world.projectiles, dt, moveDir.isSome)
 
     case tile.kind
-    of box:
+    of box, ice:
       if startY > 1 and tile.calcYPos() <= 1:
         splashSfx.play()
         waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
@@ -799,7 +804,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
         else:
           world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
           case world.paintKind:
-          of box:
+          of box, ice:
             world.tiles[ind].progress = FallTime
           of pickup:
             world.tiles[ind].active = true

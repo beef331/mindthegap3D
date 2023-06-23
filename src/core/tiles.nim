@@ -6,7 +6,7 @@ import std/[options, decls]
 
 var
   floorModel, wallModel, pedestalModel, pickupQuadModel: Model
-  checkpointModel, flagModel, boxModel, signModel, crossbowmodel: Model
+  checkpointModel, flagModel, boxModel, iceModel, signModel, crossbowmodel: Model
   quadModel: Model
   progressShader: Shader
   progressTex: Texture
@@ -19,13 +19,14 @@ proc makeQuad(width, height: float32): Model =
   data.append([1u32, 0, 2, 0, 1, 3].items)
   result = data.uploadData()
 
-addResourceProc:
+addResourceProc do():
   floorModel = loadModel("floor.dae")
   wallModel = loadModel("wall.dae")
   pedestalModel = loadModel("pickup_platform.dae")
   pickupQuadModel = loadModel("pickup_quad.dae")
   flagModel = loadModel("flag.dae")
   boxModel = loadModel("box.dae")
+  iceModel = loadModel("ice.glb")
   signModel = loadModel("sign.dae")
   crossbowmodel = loadModel("crossbow.dae")
   checkpointModel = loadModel("checkpoint.dae")
@@ -36,18 +37,20 @@ addResourceProc:
 
 type
   TileKind* = enum
-    empty
-    wall # Insert before wall for non rendered tiles
-    checkpoint
-    floor
-    pickup
-    box
+    empty = "Empty"
+    wall = "Wall"# Insert before wall for non rendered tiles
+    checkpoint = "Checkpoint"
+    floor = "Floor"
+    pickup = "Pickup"
+    box = "Box"
+    ice = "Ice"
   RenderedTile* = TileKind.wall..TileKind.high
 
   StackedObjectKind* = enum
     none = "None"
     turret = "Turret"
     box = "Box"
+    ice = "Ice"
 
   StackedFlag = enum
     spawnedParticle, toggled
@@ -65,7 +68,7 @@ type
       turnsToNextShot*: ShotRange
       turnsPerShot*: ShotRange
       projectileKind*: ProjectileKind
-    of box:
+    of box, ice:
       discard
     of none: discard
 
@@ -85,7 +88,7 @@ type
     of pickup:
       pickupKind*: PickupType
       active*: bool
-    of box:
+    of box, ice:
       progress*: float32
     else: discard
 
@@ -93,8 +96,10 @@ type
 
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup}
-  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint}
+  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice}
   Walkable* = {box} + AlwaysWalkable
+  FallingTiles* = {TileKind.box, ice}
+  FallingStacked* = {StackedObjectKind.box, ice}
 
 proc completed*(t: Tile): bool =
   case t.kind:
@@ -116,7 +121,7 @@ proc shouldSpawnParticle*(tile: var Tile): bool =
 
   let
     stacked {.cursor.} = tile.stacked.unsafeGet
-    y = stacked.startPos.y.lerp(stacked.toPos.y, clampedProgress(stacked.moveTime / MoveTime))
+    y = stacked.startPos.y.mix(stacked.toPos.y, clampedProgress(stacked.moveTime / MoveTime))
 
   result = abs(1f - y) < 0.05 and (spawnedParticle notin tile.stacked.get.flags)
   if result:
@@ -133,8 +138,8 @@ proc isWalkable*(tile: Tile): bool =
 proc canStackOn*(tile: Tile): bool =
   not tile.hasStacked() and tile.isWalkable
 
-proc stackBox*(tile: var Tile, pos: Vec3) = tile.stacked =
-  some(StackedObject(kind: box, startPos: pos + vec3(0, 10, 0), toPos: pos))
+proc stackBox*(tile: var Tile, pos: Vec3) = 
+  tile.stacked = some(StackedObject(kind: box, startPos: pos + vec3(0, 10, 0), toPos: pos))
 
 proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromPos, toPos: Vec3) =
   tile.stacked = stackedObj
@@ -147,32 +152,39 @@ proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromP
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
 
-proc updateBox*(boxTile: var Tile, dt: float32) =
-  assert boxTile.kind == box
-  if boxTile.progress < FallTime:
-    boxTile.progress += dt
-  elif not boxTile.steppedOn:
-    boxTile.progress = FallTime
-  else:
-    boxTile.progress += dt
-  boxTile.progress = clamp(boxTile.progress, 0, FallTime)
+proc updateFalling*(tile: var Tile, dt: float32) =
+  assert tile.kind in FallingTiles
+  tile.progress += dt
 
 proc calcYPos*(tile: Tile): float32 =
   ## Calculates drop pos for boxes
-  assert tile.kind == box
-  if tile.steppedOn:
-    mix(0f, SinkHeight, outBounce(tile.progress / FallTime))
-  else:
-    mix(StartHeight, 0, outBounce(tile.progress / FallTime))
+  assert tile.kind in FallingTiles
+  result = block:
+    let clampedProgress = outBounce(clamp(tile.progress / FallTime, 0f..FallTime))
+    if tile.steppedOn:
+      mix(0f, SinkHeight, clampedProgress)
+    else:
+      mix(StartHeight, 0, clampedProgress)
+  if tile.progress >= FallTime:
+    result += sin(tile.progress * 3) * 0.1
+
 
 proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =
   case tile.kind
-  of box:
-    tile.updateBox(dt)
+  of box, ice:
+    tile.updateFalling(dt)
   of empty:
     if tile.hasStacked() and tile.stacked.unsafeGet.moveTime >= MoveTime:
-      if tile.stacked.unsafeGet.kind == box:
-        tile = Tile(kind: box, progress: 0.65) # TODO: Replace with invert lerp
+      let kind = tile.stacked.unsafeGet.kind
+
+      if kind in FallingStacked:
+        case kind
+        of box:
+          tile = Tile(kind: box, progress: 0.65) # TODO: Replace with invert lerp
+        of ice:
+          tile = Tile(kind: ice, progress: 0.65) # TODO: Replace with invert lerp
+        else: discard
+
       else:
         tile.stacked = none(StackedObject)
   else: discard
@@ -196,10 +208,16 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
   if tile.hasStacked():
     let
       stacked = tile.stacked.get
-      pos = lerp(stacked.startPos, stacked.toPos, clampedProgress(stacked.moveTime / MoveTime))
+      pos = mix(stacked.startPos, stacked.toPos, clampedProgress(stacked.moveTime / MoveTime))
     case tile.stacked.get.kind
-    of box:
-      renderBlock(Tile(kind: box), cam, shader, shader, pos, true)
+    of box, ice:
+      let kind =
+        if tile.stacked.get.kind == box:
+          TileKind.box
+        else:
+          ice
+
+      renderBlock(Tile(kind: kind), cam, shader, shader, pos, true)
     of turret:
       let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
@@ -211,6 +229,12 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       discard
 
 proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
+  let yOffset =
+    if tile.kind in FallingTiles:
+      tile.calcYPos()
+    else:
+      0f
+  
   case tile.kind
   of wall:
     instance.buffer[RenderedModel.walls].push mat4() * translate(pos + vec3(0, 1, 0))
@@ -221,24 +245,30 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
   of box:
     let
       isWalkable = tile.isWalkable
-      blockInstance = BlockInstanceData(state: int32 isWalkable, matrix: mat4() * translate(vec3(pos.x, tile.calcYPos, pos.z)))
+      blockInstance = BlockInstanceData(state: int32 isWalkable, matrix: mat4() * translate(vec3(pos.x, yOffset, pos.z)))
     instance.buffer[RenderedModel.blocks].push blockInstance
+
+  of ice:
+    instance.buffer[RenderedModel.iceBlocks].push mat4() * translate(vec3(pos.x, yOffset, pos.z))
   else:
     discard
 
   if tile.hasStacked:
-    let
-      stacked = tile.stacked.unsafeget
-      pos = lerp(stacked.startPos, stacked.toPos, clamp(outBounce(stacked.moveTime / MoveTime), 0f, 1f))
+    let stacked = tile.stacked.unsafeget
+
+    var pos = mix(stacked.startPos, stacked.toPos, clamp(outBounce(stacked.moveTime / MoveTime), 0f, 1f))
+    if stacked.moveTime > MoveTime:
+      pos.y = yOffset + 1
+
     case stacked.kind
     of turret:
       let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
       instance.buffer[RenderedModel.crossbows].push modelMatrix
     of box:
       instance.buffer[RenderedModel.blocks].push BlockInstanceData(matrix: mat4() * translate(pos))
+    of ice:
+      instance.buffer[RenderedModel.iceBlocks].push mat4() * translate(pos)
     else: discard
-
-
 
 proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false) =
   case tile.kind
@@ -256,15 +286,20 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
       shader.setUniform("m", modelMatrix)
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
       render(pedestalModel)
-  of box:
-      var pos = pos
-      if not drawAtPos:
-        pos.y = tile.calcYPos()
-      with shader:
-        let modelMatrix = mat4() * translate(pos)
-        shader.setUniform("m", modelMatrix)
-        shader.setUniform("mvp", cam.orthoView * modelMatrix)
-        render(boxModel)
+  of box, ice:
+    var pos = pos
+    if not drawAtPos:
+      pos.y = tile.calcYPos()
+    with shader:
+      let modelMatrix = mat4() * translate(pos)
+      shader.setUniform("m", modelMatrix)
+      shader.setUniform("mvp", cam.orthoView * modelMatrix)
+      let model =
+        if tile.kind == box:
+          boxModel
+        else:
+          iceModel
+      render(model)
 
   of checkpoint:
     with shader:

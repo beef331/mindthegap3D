@@ -13,6 +13,7 @@ type
     pickupIcons
     crossbows
     checkpoints
+    iceBlocks
 
   BlockInstanceData* = object
     state*: int32
