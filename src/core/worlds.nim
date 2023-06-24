@@ -962,7 +962,6 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
       renderInstance.buffer[kind].render()
 
   fishes.render(cam)
-
   world.player.render(cam, world.playerSafeDirections)
   renderSigns(world, cam)
 
