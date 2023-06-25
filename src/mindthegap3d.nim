@@ -298,7 +298,6 @@ proc gameInit() =
   renderInstance.buffer[walls] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("wall.dae", walls.ord))
   renderInstance.shaders[walls] = renderInstance.shaders[signs]
 
-
   renderInstance.buffer[pickups] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("pickup_platform.dae", pickups.ord))
   renderInstance.shaders[pickups] = renderInstance.shaders[signs]
 
@@ -307,6 +306,9 @@ proc gameInit() =
 
   renderInstance.buffer[checkpoints] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("checkpoint.dae", checkpoints.ord))
   renderInstance.shaders[checkpoints] = renderInstance.shaders[blocks]
+
+  renderInstance.buffer[iceBlocks] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("ice.glb", iceBlocks.ord))
+  renderInstance.shaders[iceBlocks] = loadShader(ShaderPath"icevert.glsl", ShaderPath"icefrag.glsl")
 
   renderInstance.buffer[crossbows] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
@@ -462,7 +464,7 @@ proc draw =
   with mainBuffer:
     mainBuffer.clear()
     if menuState == noMenu or previewing in world.state:
-      world.render(camera, renderInstance, uiState)
+      world.render(camera, renderInstance, uiState, mainBuffer)
     renderWaterSplashes(camera)
 
   with waterBuffer:

@@ -1,8 +1,8 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
-import pixie, opengl, vmath, easings, frosty, gooey
+import pixie, opengl, vmath, frosty, gooey
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances, serializers, fishes
-import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams, macros]
+import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes
+import std/[options, decls, enumerate, os, streams, macros]
 
 
 type
@@ -283,8 +283,11 @@ proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
     var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
     let hadSteppedOn = tile.steppedOn
-    if tile.kind != box:
+    if tile.kind notin {TileKind.box, ice}:
       tile.steppedOn = true
+    if tile.kind == ice:
+      tile.progress += PI
+
     case tile.kind
     of checkpoint:
       if not hadSteppedOn:
@@ -305,6 +308,8 @@ proc steppedOff(world: var World, pos: Vec3) =
     of box:
       tile.progress = 0
       tile.steppedOn = true
+    of ice:
+      tile.progress += PI
     else: discard
 
 proc givePickupIfCan(world: var World) =
@@ -630,9 +635,6 @@ proc placeBlock(world: var World, cam: Camera) =
   player.clearPickup()
 
 proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
-  let
-    newWidth = max(world.width, pos.x)
-    newHeight = max(world.height, pos.y)
   let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0:
     world.tiles[ind] = tile
@@ -731,17 +733,19 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
 proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: var Option[Direction]) =
   ## Orchestrates player movement and historyWriting for movement
   # Top down game dev
-  let playerStartPos = world.player.mapPos
   world.playerStart = world.player
+  let wasFullyMoved = world.player.fullymoved
   world.player.update(world.playerSafeDirections(), cam, dt, moveDir, world.finished)
   if world.player.doPlace():
     world.placeBlock(cam)
     world.saveHistoryStep(placed)
   if moveDir.isSome:
     world.pushBlock(moveDir.get)
-    world.steppedOff(playerStartPos)
+    world.steppedOff(world.player.startPos())
+  if world.player.fullymoved and not wasFullyMoved:
     world.steppedOn(world.player.movingToPos)
-    world.givePickupIfCan()
+
+  world.givePickupIfCan()
   if KeycodeP.isDown:
     world.reload()
 
@@ -750,14 +754,14 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
 
   for i, tile in enumerate world.tiles.mitems:
     let startY =
-      if tile.kind == box:
+      if tile.kind in {TileKind.box, ice}:
         tile.calcYPos()
       else:
         0f32
     tile.update(world.projectiles, dt, moveDir.isSome)
 
     case tile.kind
-    of box:
+    of box, ice:
       if startY > 1 and tile.calcYPos() <= 1:
         splashSfx.play()
         waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
@@ -799,7 +803,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
         else:
           world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
           case world.paintKind:
-          of box:
+          of box, ice:
             world.tiles[ind].progress = FallTime
           of pickup:
             world.tiles[ind].active = true
@@ -932,7 +936,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         renderBlock(Tile(kind: box), cam, cursorShader, alphaClipShader, pos, true)
         glEnable(GlDepthTest)
 
-proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance, state: UiState) =
+proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance, state: UiState, fb: FrameBuffer) =
   for kind in RenderedModel:
     with renderInstance.shaders[kind]:
       setUniform("vp", cam.orthoView)
@@ -950,14 +954,14 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
         setUniform("inactiveColour", baseColour)
       of pickupIcons:
         setUniform("textures", textureArray)
+      of iceBlocks:
+        setUniform("screenTex", fb.colourTexture)
       else: discard
-
 
       renderInstance.buffer[kind].render()
 
   fishes.render(cam)
-
-  world.player.render(cam, world.playerSafeDirections)
+  world.player.render(cam, world.playerSafeDirections, world.tiles[world.getPointIndex(world.player.movingToPos)])
   renderSigns(world, cam)
 
 
