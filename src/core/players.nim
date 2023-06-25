@@ -31,6 +31,7 @@ type
     pickupRotation: Direction
     rotation: float32
     lastSound {.unserialized.}: Sound
+    isSliding {.unserialized.}: bool
 
 proc serialize*[S](output: var S; player: Player) =
   output.saveSkippingFields(player)
@@ -38,32 +39,25 @@ proc serialize*[S](output: var S; player: Player) =
 proc deserialize*[S](input: var S; player: var Player) =
   input.loadSkippingFields(player)
 
+func fullymoved*(player: Player): bool = player.moveProgress >= MoveTime
+
 var
   playerModel, dirModel: Model
   playerShader, alphaClipShader: Shader
-  dirTex: array[Direction, Texture]
-  playerJump: SoundEffect
+  playerJump, slideSfx: SoundEffect
 
 addResourceProc do():
   playerModel = loadModel("player.dae")
   playerShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
-  let
-    wImage = makeMoveImage("W")
-    aImage = makeMoveImage("D")
-    sImage = makeMoveImage("S")
-    dImage = makeMoveImage("A")
-
-  for x in dirTex.mitems:
-    x = genTexture()
-
-  wImage.copyTo(dirTex[Direction.up])
-  dImage.copyTo(dirTex[right])
-  sImage.copyTo(dirTex[down])
-  aImage.copyTo(dirTex[left])
   alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
   dirModel = loadModel("pickup_quad.dae")
+
   playerJump = loadSound("assets/sounds/jump.wav")
   playerJump.sound.volume = 0.3
+
+
+  slideSfx = loadSound("assets/sounds/push.wav")
+  slideSfx.sound.volume = 0.3
 
 proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
@@ -84,12 +78,18 @@ proc move(player: var Player, direction: Direction): bool =
     player.direction = direction
     player.toPos = direction.asVec3 + player.pos
     player.moveProgress = 0
-    playerJump.sound.volume =
+    let sfx = 
+      if player.isSliding:
+        slideSfx
+      else:
+        playerJump
+        
+    sfx.sound.volume =
       if player.lastSound != nil and not bool(atEnd(player.lastSound)):
         0.05f
       else:
         0.3f
-    player.lastSound = playerJump.play()
+    player.lastSound = sfx.play()
     result = true
 
 func isMoving*(player: Player): bool = player.moveProgress < 1
@@ -122,7 +122,11 @@ proc movementUpdate(player: var Player, dt: float32) =
   if player.moveProgress < MoveTime:
     let
       progress = player.moveProgress / MoveTime
-      sineOffset = vec3(0, sin(progress * Pi) * Height, 0)
+      sineOffset =
+        if player.isSliding:
+          vec3(0)
+        else:
+          vec3(0, sin(progress * Pi) * Height, 0)
     player.pos = player.frompos + player.direction.asVec3 * progress + sineOffset
     player.moveProgress += dt
     if player.moveProgress >= MoveTime:
@@ -161,12 +165,21 @@ proc doPlace*(player: var Player): bool =
 
 proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction], levelFinished: bool) =
   movementUpdate(player, dt)
-  if not levelFinished:
+  if not levelFinished and not player.isSliding and player.fullyMoved:
     player.move(safeDirs, camera, dt, moveDir)
 
     if KeycodeLCtrl.isNothing:
       let scroll = getMouseScroll().sgn
       player.pickupRotation.nextDirection(scroll)
+
+proc startSliding*(player: var Player) =
+  player.isSliding = true
+  discard player.move(player.direction)
+
+proc stopSliding*(player: var Player) =
+  player.isSliding = false
+  player.toPos = player.fromPos
+  player.moveProgress = MoveTime
 
 proc render*(player: Player, camera: Camera, safeDirs: set[Direction], tile: Tile) =
   with playerShader:
@@ -188,5 +201,5 @@ func mapPos*(player: Player): Vec3 =
 
 func movingToPos*(player: Player): Vec3 = player.toPos + vec3(0.5, 0, 0.5)
 func startPos*(player: Player): Vec3 = (player.fromPos + vec3(0.5, 0, 0.5)).floor
+func dir*(player: Player): Direction = player.direction
 
-func fullymoved*(player: Player): bool = player.moveProgress >= MoveTime
