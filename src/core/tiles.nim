@@ -135,6 +135,8 @@ proc isWalkable*(tile: Tile): bool =
     (tile.kind in AlwaysWalkable) or
     (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
 
+proc isSlidable*(tile: Tile): bool = tile.isWalkable and not tile.hasStacked
+
 proc canStackOn*(tile: Tile): bool =
   not tile.hasStacked() and tile.isWalkable
 

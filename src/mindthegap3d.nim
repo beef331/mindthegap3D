@@ -113,6 +113,7 @@ proc loadSelectedLevel(path: string) =
   unload(world)
   fs.thaw world
   world.state.incl previewing
+  world.state.excl playing
   load(world)
 
 proc nextLevel(dir: int = 1) =

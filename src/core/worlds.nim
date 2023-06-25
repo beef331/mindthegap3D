@@ -285,8 +285,18 @@ proc steppedOn(world: var World, pos: Vec3) =
     let hadSteppedOn = tile.steppedOn
     if tile.kind notin {TileKind.box, ice}:
       tile.steppedOn = true
+    let 
+      playerNextPos = world.player.dir.asVec3() + world.player.mapPos
+      nextIndex = world.getPointIndex(playerNextPos)
     if tile.kind == ice:
       tile.progress += PI
+      if playerNextPos in world:
+        world.player.startSliding()
+
+
+    if tile.kind != ice or playerNextPos notin world or not world.tiles[nextIndex].isSlidable:
+      world.player.stopSliding()
+
 
     case tile.kind
     of checkpoint:
@@ -432,7 +442,6 @@ proc makeEditorGui(world: var World): auto =
               try:
                 world[].history.setLen(0)
                 world[].saveHistoryStep(start)
-                world[].state.incl playing
                 world[].reload()
 
                 world[].save()
@@ -736,12 +745,15 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
   world.playerStart = world.player
   let wasFullyMoved = world.player.fullymoved
   world.player.update(world.playerSafeDirections(), cam, dt, moveDir, world.finished)
+
   if world.player.doPlace():
     world.placeBlock(cam)
     world.saveHistoryStep(placed)
+
   if moveDir.isSome:
     world.pushBlock(moveDir.get)
     world.steppedOff(world.player.startPos())
+
   if world.player.fullymoved and not wasFullyMoved:
     world.steppedOn(world.player.movingToPos)
 
