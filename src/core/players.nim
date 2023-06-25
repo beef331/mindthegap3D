@@ -1,6 +1,6 @@
 import truss3D/[shaders, models, textures, inputs, audio]
 import std/[options, decls]
-import resources, cameras, directions, pickups, shadows, consts, serializers
+import resources, cameras, directions, pickups, shadows, consts, serializers, tiles
 import vmath, pixie, opengl
 
 
@@ -44,7 +44,7 @@ var
   dirTex: array[Direction, Texture]
   playerJump: SoundEffect
 
-addResourceProc:
+addResourceProc do():
   playerModel = loadModel("player.dae")
   playerShader = loadShader(ShaderPath"vert.glsl", ShaderPath"frag.glsl")
   let
@@ -82,7 +82,6 @@ proc targetRotation*(d: Direction): float32 =
 proc move(player: var Player, direction: Direction): bool =
   if player.moveProgress >= MoveTime:
     player.direction = direction
-    player.fromPos = player.pos
     player.toPos = direction.asVec3 + player.pos
     player.moveProgress = 0
     playerJump.sound.volume =
@@ -120,14 +119,15 @@ proc movementUpdate(player: var Player, dt: float32) =
   else:
     player.rotation += dt * RotationSpeed * -sgn(rotDiff).float32
 
-  if player.moveProgress >= MoveTime:
-    player.pos = player.toPos
-  else:
+  if player.moveProgress < MoveTime:
     let
       progress = player.moveProgress / MoveTime
       sineOffset = vec3(0, sin(progress * Pi) * Height, 0)
     player.pos = player.frompos + player.direction.asVec3 * progress + sineOffset
     player.moveProgress += dt
+    if player.moveProgress >= MoveTime:
+      player.pos = player.toPos
+      player.fromPos = player.pos
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 
@@ -168,32 +168,25 @@ proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: f
       let scroll = getMouseScroll().sgn
       player.pickupRotation.nextDirection(scroll)
 
-proc render*(player: Player, camera: Camera, safeDirs: set[Direction]) =
+proc render*(player: Player, camera: Camera, safeDirs: set[Direction], tile: Tile) =
   with playerShader:
-    let modelMatrix = (mat4() * translate(player.pos + vec3(0, 1.1, 0)) * rotateY(player.rotation))
+    let modelMatrix = (mat4() * translate(player.pos + vec3(0, tile.calcYPos() + 1.1, 0)) * rotateY(player.rotation))
     playerShader.setUniform("mvp", camera.orthoView * modelMatrix)
     playerShader.setUniform("m", modelMatrix)
     render(playerModel)
 
-  if player.moveProgress >= MoveTime:
-    if false: # TODO: Implement a setting for this
-      with alphaClipShader:
-        glDisable(GlDepthTest)
-        for x in Direction:
-          if x in safeDirs:
-            let modelMatrix = (translate(player.pos + vec3(0, 1.3, 0) + x.asVec3) * rotateY(90.toRadians))
-            alphaClipShader.setUniform("mvp", camera.orthoView * modelMatrix)
-            alphaClipShader.setUniform("tex", dirTex[x])
-            render(dirModel)
-        glEnable(GlDepthTest)
-  else:
-    let
-      scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)
-      pos = vec3(player.pos.x, 1, player.pos.z)
-    renderShadow(camera, pos, scale)
+  let
+    scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)
+    pos = vec3(player.pos.x, tile.calcYPos() + 0.8, player.pos.z)
+  renderShadow(camera, pos, scale)
 
 func pos*(player: Player): Vec3 = player.pos
+
 func mapPos*(player: Player): Vec3 =
   let pos = player.posOffset()
   vec3(pos.x.floor, pos.y.floor, pos.z.floor)
+
 func movingToPos*(player: Player): Vec3 = player.toPos + vec3(0.5, 0, 0.5)
+func startPos*(player: Player): Vec3 = (player.fromPos + vec3(0.5, 0, 0.5)).floor
+
+func fullymoved*(player: Player): bool = player.moveProgress >= MoveTime

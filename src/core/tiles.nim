@@ -158,15 +158,22 @@ proc updateFalling*(tile: var Tile, dt: float32) =
 
 proc calcYPos*(tile: Tile): float32 =
   ## Calculates drop pos for boxes
-  assert tile.kind in FallingTiles
-  result = block:
-    let clampedProgress = outBounce(clamp(tile.progress / FallTime, 0f..FallTime))
-    if tile.steppedOn:
-      mix(0f, SinkHeight, clampedProgress)
-    else:
-      mix(StartHeight, 0, clampedProgress)
-  if tile.progress >= FallTime:
-    result += sin(tile.progress * 3) * 0.1
+  case tile.kind
+  of FallingTiles:
+    result = block:
+      let clampedProgress = outBounce(clamp(tile.progress / FallTime, 0f..FallTime))
+      if tile.steppedOn:
+        mix(0f, SinkHeight, clampedProgress)
+      else:
+        mix(StartHeight, 0, clampedProgress)
+    if tile.progress >= FallTime:
+      result += sin(tile.progress * 3) * 0.1
+  of pickup:
+    result = 0.1
+  else:
+    result = 0
+
+
 
 
 proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =

@@ -1,8 +1,8 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
-import pixie, opengl, vmath, easings, frosty, gooey
+import pixie, opengl, vmath, frosty, gooey
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, enumutils, tiles, players, projectiles, consts, renderinstances, serializers, fishes
-import std/[sequtils, options, decls, options, strformat, sugar, enumerate, os, streams, macros]
+import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes
+import std/[options, decls, enumerate, os, streams, macros]
 
 
 type
@@ -286,7 +286,7 @@ proc steppedOn(world: var World, pos: Vec3) =
     if tile.kind notin {TileKind.box, ice}:
       tile.steppedOn = true
     if tile.kind == ice:
-      tile.progress += 0.3
+      tile.progress += PI
 
     case tile.kind
     of checkpoint:
@@ -309,7 +309,7 @@ proc steppedOff(world: var World, pos: Vec3) =
       tile.progress = 0
       tile.steppedOn = true
     of ice:
-      tile.progress += 0.3
+      tile.progress += PI
     else: discard
 
 proc givePickupIfCan(world: var World) =
@@ -635,9 +635,6 @@ proc placeBlock(world: var World, cam: Camera) =
   player.clearPickup()
 
 proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
-  let
-    newWidth = max(world.width, pos.x)
-    newHeight = max(world.height, pos.y)
   let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0:
     world.tiles[ind] = tile
@@ -736,17 +733,19 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
 proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: var Option[Direction]) =
   ## Orchestrates player movement and historyWriting for movement
   # Top down game dev
-  let playerStartPos = world.player.mapPos
   world.playerStart = world.player
+  let wasFullyMoved = world.player.fullymoved
   world.player.update(world.playerSafeDirections(), cam, dt, moveDir, world.finished)
   if world.player.doPlace():
     world.placeBlock(cam)
     world.saveHistoryStep(placed)
   if moveDir.isSome:
     world.pushBlock(moveDir.get)
-    world.steppedOff(playerStartPos)
+    world.steppedOff(world.player.startPos())
+  if world.player.fullymoved and not wasFullyMoved:
     world.steppedOn(world.player.movingToPos)
-    world.givePickupIfCan()
+
+  world.givePickupIfCan()
   if KeycodeP.isDown:
     world.reload()
 
@@ -962,7 +961,7 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
       renderInstance.buffer[kind].render()
 
   fishes.render(cam)
-  world.player.render(cam, world.playerSafeDirections)
+  world.player.render(cam, world.playerSafeDirections, world.tiles[world.getPointIndex(world.player.movingToPos)])
   renderSigns(world, cam)
 
 
