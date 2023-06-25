@@ -118,7 +118,6 @@ proc movementUpdate(player: var Player, dt: float32) =
     player.rotation = rotTarget
   else:
     player.rotation += dt * RotationSpeed * -sgn(rotDiff).float32
-
   if player.moveProgress < MoveTime:
     let
       progress = player.moveProgress / MoveTime
@@ -129,9 +128,6 @@ proc movementUpdate(player: var Player, dt: float32) =
           vec3(0, sin(progress * Pi) * Height, 0)
     player.pos = player.frompos + player.direction.asVec3 * progress + sineOffset
     player.moveProgress += dt
-    if player.moveProgress >= MoveTime:
-      player.pos = player.toPos
-      player.fromPos = player.pos
 
 proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
 
@@ -164,8 +160,12 @@ proc doPlace*(player: var Player): bool =
   leftMb.isDown and player.hasPickup
 
 proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction], levelFinished: bool) =
+  let wasFullyMoved = player.fullyMoved
   movementUpdate(player, dt)
-  if not levelFinished and not player.isSliding and player.fullyMoved:
+  if not wasFullyMoved and player.fullyMoved:
+    player.pos = player.toPos
+    player.fromPos = player.pos
+  if not levelFinished and not player.isSliding and player.fullyMoved and wasFullyMoved:
     player.move(safeDirs, camera, dt, moveDir)
 
     if KeycodeLCtrl.isNothing:
