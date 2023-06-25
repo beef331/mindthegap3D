@@ -135,7 +135,7 @@ proc nextLevel(dir: int = 1) =
 include core/mainui
 
 var
-  mainMenu: typeof(makeMenu())
+  mainMenu = makeMenu()
   uiState = MyUiState(scaling: 1)
   renderTarget: UiRenderTarget
   modelData: MeshData[Vec2]
@@ -149,14 +149,6 @@ proc gameInit() =
   fontPath = getAppDir() / "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
   invokeResourceProcs()
-
-  const
-    fontSize = 50
-    labelSize = ivec2(140, fontSize)
-
-  let nineSliceTex = genTexture()
-  const nineSliceSize = 16f32
-  readImage("assets/uiframe.png").copyTo nineSliceTex
 
   renderInstance.buffer[floors] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("floor.dae", floors.ord))
   renderInstance.shaders[floors] = loadShader(ShaderPath"instblockvert.glsl", ShaderPath"frag.glsl")
@@ -184,8 +176,6 @@ proc gameInit() =
 
   renderInstance.buffer[crossbows] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
-
-  mainMenu = makeMenu()
 
   renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
   renderTarget.shader = loadShader(guiVert, guiFrag)
@@ -239,7 +229,7 @@ proc update(dt: float32) =
     let scroll = getMouseScroll()
     if scroll != 0:
       if KeycodeLCtrl.isPressed and not middleMb.isPressed:
-        camera.changeSize(clamp(camera.size + -scroll.float * dt * 1000, 3, 20))
+        camera.changeSize(clamp(camera.size + -scroll.float, 3, 20))
 
     with signBuffer:
       let
@@ -358,7 +348,7 @@ proc draw =
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
     screenShader.setUniform("finishProgress"):
-      if not world.finished:
+      if not world.finished or previewing in world.state or world.state == {}:
         -1f
       else:
         world.finishTime / LevelCompleteAnimationTime
