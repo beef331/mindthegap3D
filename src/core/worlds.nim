@@ -331,7 +331,7 @@ proc givePickupIfCan(world: var World) =
       world.tiles[index].active = false
       world.player.givePickup world.tiles[index].pickupKind
 
-proc reload*(world: var World) =
+proc reload*(world: var World, skipStepOn = false) =
   ## Used to reload the world state and reposition player
   world.unload()
   world.load()
@@ -343,8 +343,9 @@ proc reload*(world: var World) =
   world.player = Player.init(world.getPos(world.playerSpawn.int))
   world.playerStart = world.player
   world.projectiles = Projectiles.init()
-  world.steppedOn(world.player.pos)
-  world.givePickupIfCan()
+  if not skipStepOn:
+    world.steppedOn(world.player.pos)
+    world.givePickupIfCan()
 
 proc lerp[T](a, b: T, c: float32): T = T(a.ord.float32 + (b.ord - a.ord).float32 * c)
 proc reverseLerp[T](f: T, rng: Slice[T]): float32 =
@@ -563,7 +564,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
           if pos in world:
             world.playerSpawn = ind
             world.history.setLen(0)
-            world.reload()
+            world.reload(skipStepOn = true)
 
         else:
           world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
@@ -636,7 +637,6 @@ proc update*(
       sign.update(dt)
 
     var moveDir = options.none(Direction)
-
 
     world.playerMovementUpdate(cam, dt, moveDir)
     world.projectileUpdate(dt, moveDir.isSome)
