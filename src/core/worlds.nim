@@ -288,8 +288,8 @@ proc steppedOn(world: var World, pos: Vec3) =
     let 
       playerNextPos = world.player.dir.asVec3() + world.player.mapPos
       nextIndex = world.getPointIndex(playerNextPos)
+
     if tile.kind == ice:
-      tile.progress += PI
       if playerNextPos in world:
         world.player.startSliding()
 
@@ -726,7 +726,10 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
       renderInstance.buffer[kind].render()
 
   fishes.render(cam)
-  world.player.render(cam, world.playerSafeDirections, world.tiles[world.getPointIndex(world.player.movingToPos)])
+  let
+    thisTile = world.tiles[world.getPointIndex(world.player.startPos)]
+    nextTile = world.tiles[world.getPointIndex(world.player.movingToPos)]
+  world.player.render(cam, world.playerSafeDirections, thisTile, nextTile)
   renderSigns(world, cam)
 
 

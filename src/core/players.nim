@@ -157,7 +157,7 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
           moveDir = some(dir)
 
 proc doPlace*(player: var Player): bool =
-  leftMb.isDown and player.hasPickup
+  leftMb.isDown and player.hasPickup and not player.isSliding
 
 proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction], levelFinished: bool) =
   let wasFullyMoved = player.fullyMoved
@@ -181,17 +181,21 @@ proc stopSliding*(player: var Player) =
   player.toPos = player.fromPos
   player.moveProgress = MoveTime
 
-proc render*(player: Player, camera: Camera, safeDirs: set[Direction], tile: Tile) =
+proc render*(player: Player, camera: Camera, safeDirs: set[Direction], thisTile, nextTile: Tile) =
+  let 
+    height = mix(thisTile.calcYPos(), nextTile.calcYPos(), player.moveProgress / MoveTime)
   with playerShader:
-    let modelMatrix = (mat4() * translate(player.pos + vec3(0, tile.calcYPos() + 1.1, 0)) * rotateY(player.rotation))
+    let 
+      modelMatrix = (mat4() * translate(player.pos + vec3(0, height + 1.1, 0)) * rotateY(player.rotation)) * scale(vec3(0.9))
     playerShader.setUniform("mvp", camera.orthoView * modelMatrix)
     playerShader.setUniform("m", modelMatrix)
     render(playerModel)
 
-  let
-    scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)
-    pos = vec3(player.pos.x, tile.calcYPos() + 0.8, player.pos.z)
-  renderShadow(camera, pos, scale)
+  if player.moveProgress < MoveTime and not player.isSliding:
+    let
+      scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)
+      pos = vec3(player.pos.x, height + 0.8, player.pos.z)
+    renderShadow(camera, pos, scale)
 
 func pos*(player: Player): Vec3 = player.pos
 
