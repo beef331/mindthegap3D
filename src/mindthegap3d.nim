@@ -43,6 +43,8 @@ var
   playingUserLevel = false
   renderInstance = renderInstances.RenderInstance()
   saveData = loadSaveData()
+  finishTransition = -1f
+  transitionDir = 0f
 
 proc canPlayLevel: bool =
   menuState != previewingBuiltinLevels or selectedLevel == 0 or saveData.finished(selectedLevel - 1)
@@ -246,7 +248,7 @@ proc update(dt: float32) =
       saveLastPlayed()
       menuState = inMain
 
-    if playing in world.state and world.playedTransition():
+    if playing in world.state and finishTransition >= LevelCompleteAnimationTime:
       if playingUserLevel:
         saveData.save(userLevels[selectedLevel], 0)
         menuState = previewingUserLevels
@@ -279,7 +281,21 @@ proc update(dt: float32) =
   setInputText("")
   uiState.interactedWithCurrentElement = false
 
+  let isFinished = world.finished
   world.update(camera, dt, renderInstance, uiState, renderTarget)
+
+  if not isFinished and world.finished:
+    finishTransition = 0
+    transitionDir = 1
+
+  if finishTransition >= LevelCompleteAnimationTime:
+    transitionDir = -1
+
+  finishTransition += transitionDir * dt
+
+  if finishTransition < 0:
+    finishTransition = 0
+    transitionDir = 0
 
 
   if menuState != noMenu:
@@ -347,11 +363,7 @@ proc draw =
     screenShader.setUniform("tex", waterBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
     screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
-    screenShader.setUniform("finishProgress"):
-      if not world.finished or previewing in world.state or world.state == {}:
-        -1f
-      else:
-        world.finishTime / LevelCompleteAnimationTime
+    screenShader.setUniform("finishProgress", finishTransition / LevelCompleteAnimationTime)
     screenShader.setUniform("isPlayable", int32(canPlayLevel()))
     render(screenQuad)
 

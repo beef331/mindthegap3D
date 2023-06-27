@@ -171,14 +171,12 @@ iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
     for i, _ in enumerate countDown(int start mod world.width, 0):
       yield (start - i, start - i - 1)
 
-proc isFinished*(world: World): bool =
+proc isFinished(world: World): bool =
   result = true
   for x in world.tiles:
     result = x.completed()
     if not result:
       return
-
-proc playedTransition*(world: World): bool = world.isFinished and abs(world.finishTime) <= 0.00001
 
 proc contains*(world: World, vec: Vec3): bool =
   floor(vec.x).int in 0..<world.width and floor(vec.z).int in 0..<world.height
