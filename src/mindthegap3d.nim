@@ -107,6 +107,13 @@ proc saveLastPlayed() =
   freeze(myFs, world)
 
 
+proc positionCamera() =
+  var worldSize = vec2(float32 world.width, float32 world.height) / 2
+  camera.size = max(worldSize.x, worldSize.y).max(6)
+  camera.pos = vec3(worldSize.x, 0, worldSize.y) - camera.forward * 20
+  camera.calculateMatrix()
+  
+
 proc loadSelectedLevel(path: string) =
   let name = path.splitFile.name
   var fs = newFileStream(path)
@@ -116,6 +123,7 @@ proc loadSelectedLevel(path: string) =
   fs.thaw world
   world.state.incl previewing
   load(world)
+  positionCamera()
 
 proc nextLevel(dir: int = 1) =
   let
