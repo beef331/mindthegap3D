@@ -25,7 +25,7 @@ type
 
     # Editor fields
     inspecting {.unserialized.}: int
-    paintKind {.unserialized.}: TileKind
+    paintKind {.unserialized.}: TileKind = succ(TileKind.low)
     levelName* {.unserialized.}: string
 
   HistoryKind* = enum
