@@ -14,6 +14,7 @@ type
     crossbows
     checkpoints
     iceBlocks
+    lazes
 
   BlockInstanceData* = object
     state*: int32

@@ -178,6 +178,9 @@ proc gameInit() =
   renderInstance.buffer[blocks] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("box.dae", blocks.ord))
   renderInstance.shaders[blocks] = loadShader(ShaderPath"instblockvert.glsl", ShaderPath"frag.glsl")
 
+  renderInstance.buffer[lazes] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("laze.glb", blocks.ord))
+  renderInstance.shaders[lazes] = loadShader(ShaderPath"lazevert.glsl", ShaderPath"lazefrag.glsl")
+
   renderInstance.buffer[checkpoints] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("checkpoint.dae", checkpoints.ord))
   renderInstance.shaders[checkpoints] = renderInstance.shaders[blocks]
 

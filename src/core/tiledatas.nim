@@ -39,7 +39,6 @@ proc `[]`*(tileData: TileData, ind: Vec3): Tile =
   let index = getPointIndex(tileData, ind)
   assert index in 0..tileData.high
   tileData[index]
-  
 
 proc `[]`*(tileData: var TileData, ind: int): var Tile = tileData.data[ind]
 
@@ -85,7 +84,7 @@ iterator tilesInDir*(tiles: TileData, index: int, dir: Direction, isLast: var bo
       yield tiles[index]
       isLast = index mod tiles.width == 0
 
-iterator tilesInDir*(tiles: var TileData, start: int, dir: Direction): (int, int) =
+iterator tilesInDir*(tiles: TileData, start: int, dir: Direction): (int, int) =
   ## Yields present and next index
   assert start in 0..<tiles.len
   case dir
@@ -104,3 +103,11 @@ iterator tilesInDir*(tiles: var TileData, start: int, dir: Direction): (int, int
   of right:
     for i, _ in enumerate countDown(int start mod tiles.width, 0):
       yield (start - i, start - i - 1) 
+
+proc firstCollision*(tiles: TileData, start: int, dir: Direction): int =
+  ## Finds first projectile collision along the world
+  ## Returns that index if hit, else `-1`.
+  for x, y in tiles.tilesInDir(start, dir):
+    if tiles[y].collides:
+      return y
+  -1

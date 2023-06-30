@@ -46,7 +46,6 @@ proc height*(world: World): int64 = world.tiles.height
 proc `width=`*(world: var World, newWidth: int64) = world.tiles.width = newWidth
 proc `height=`*(world: var World, newHeight: int64) = world.tiles.height = newHeight
 
-const projectilesAlwaysCollide = {wall}
 
 iterator activeSign(world: var World): var Sign =
   let pos = ivec2(int32 world.inspecting mod world.width, int32 world.inspecting div world.width)
@@ -426,7 +425,7 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
       projRemoveBuffer.add id
     else:
       let tile = world.tiles[vec3 pos]
-      if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
+      if tile.collides():
         projRemoveBuffer.add id
 
   world.projectiles.destroyProjectiles(projRemoveBuffer.items)
@@ -463,7 +462,29 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
         tile.calcYPos()
       else:
         0f32
-    tile.update(world.projectiles, dt, moveDir.isSome)
+    case tile.update(dt, moveDir.isSome)
+    of shootProjectile:
+      let stacked = tile.stacked.unsafeGet()
+      world.projectiles.spawnProjectile(tile.shootPos, stacked.direction)
+    of shootHitscan:
+      let 
+        stacked = tile.stacked.unsafeGet()
+        hitInd = world.tiles.firstCollision(i, stacked.direction)
+        hitPos = 
+          if hitInd == -1:
+            let 
+              thisPos = world.getPos(i)
+              dirVec = stacked.direction.asVec3
+            # Palculate the hit pos
+            vec3(thisPos.x + dirVec.x * abs(thisPos.x - float32 world.tiles.width), 0, thisPos.z + dirVec.z * abs(thisPos.z - float32 world.tiles.height)) 
+          else:
+            world.getPos(i)
+      
+        
+    of nothing:
+      discard
+    of unlock:
+      discard
 
     case tile.kind
     of box, ice:
@@ -578,7 +599,52 @@ proc update*(
     var moveDir = options.none(Direction)
 
     world.playerMovementUpdate(cam, dt, moveDir)
+
+    for i, tile in enumerate world.tiles.mitems:
+      let startY =
+        if tile.kind in {TileKind.box, ice}:
+          tile.calcYPos()
+        else:
+          0f32
+      case tile.update(dt, moveDir.isSome)
+      of shootProjectile:
+        let stacked = tile.stacked.unsafeGet()
+        world.projectiles.spawnProjectile(tile.shootPos, stacked.direction)
+      of shootHitscan:
+        let 
+          stacked = tile.stacked.unsafeGet()
+          hitInd = world.tiles.firstCollision(i, stacked.direction)
+          thisPos = world.getPos(i)
+        var 
+          hitPos = 
+            if hitInd == -1:
+              let dirVec = stacked.direction.asVec3
+              vec3(thisPos.x + dirVec.x * abs(thisPos.x - float32 world.tiles.width), 0, thisPos.z + dirVec.z * abs(thisPos.z - float32 world.tiles.height)) 
+            else:
+              world.getPos(hitInd)
+        let theScale = vec3(max(abs(thisPos.x - hitPos.x), 1), 1, max(abs(thisPos.z - hitPos.z), 1))
+        hitPos = (thisPos + hitPos) / 2
+        hitPos.y = 1.5 + sin(dt * float32 i) * 10
+        renderInstance.buffer[lazes].push mat4() * translate(hitPos) * scale(theScale)
+        renderInstance.buffer[lazes].reuploadSsbo()
+
+      of nothing:
+        discard
+      of unlock:
+        discard
+
+      case tile.kind
+      of box, ice:
+        if startY > 1 and tile.calcYPos() <= 1:
+          splashSfx.play()
+          waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
+      else:
+        if tile.hasStacked() and tile.shouldSpawnParticle:
+          fallSfx.play()
+          dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
+
     world.projectileUpdate(dt, moveDir.isSome)
+
 
     if KeyCodeF11.isDown and world.state == {playing, editing}:
       world.state = {editing}
