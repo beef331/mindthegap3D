@@ -695,16 +695,17 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
     if state.currentElement.isNil:
       with cursorShader:
-        cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
+        var pos = world.cursorPos(cam)
+        pos.y = 0
+        cursorShader.setUniform("valid", ord(pos in world))
         if KeycodeLShift.isPressed:
-          var pos = world.cursorPos(cam)
           pos.y = 1
           let modelMatrix = mat4() * translate(pos)
           cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
           cursorShader.setUniform("m", modelMatrix)
           render(flagModel)
         else:
-          renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, world.cursorPos(cam), true)
+          renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, pos, true)
 
   world.projectiles.render(cam, levelShader)
 
