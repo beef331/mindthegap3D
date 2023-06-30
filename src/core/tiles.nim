@@ -108,7 +108,6 @@ proc completed*(t: Tile): bool =
   else:
     true
 
-
 proc clampedProgress(progress: float32): float32 = clamp(outBounce(progress), 0f, 1f)
 
 proc hasStacked*(tile: Tile): bool = tile.stacked.isSome()
@@ -174,8 +173,6 @@ proc calcYPos*(tile: Tile): float32 =
     result = 0.1
   else:
     result = 0
-
-
 
 
 proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =

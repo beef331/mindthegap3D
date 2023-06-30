@@ -1,7 +1,7 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
 import pixie, opengl, vmath, frosty, gooey
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes
+import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes, tiledatas
 import std/[options, decls, enumerate, os, streams, macros]
 
 
@@ -9,8 +9,7 @@ type
   WorldState* = enum
     playing, previewing, editing
   World* = object
-    width*, height*: int64
-    tiles*: seq[Tile]
+    tiles*: TileData
     signs*: seq[Sign]
     playerSpawn*: int64
     state*: set[WorldState]
@@ -41,6 +40,11 @@ type
     cannotPlace
     placeEmpty
     placeStacked
+
+proc width*(world: World): int64 = world.tiles.width
+proc height*(world: World): int64 = world.tiles.height
+proc `width=`*(world: var World, newWidth: int64) = world.tiles.width = newWidth
+proc `height=`*(world: var World, newHeight: int64) = world.tiles.height = newHeight
 
 const projectilesAlwaysCollide = {wall}
 
@@ -117,60 +121,6 @@ addResourceProc do():
     dirtParticleUpdate
   )
 
-iterator tileKindCoords(world: World): (Tile, Vec3) =
-  for i, tile in world.tiles:
-    let
-      x = i mod world.width
-      z = i div world.width
-    yield (tile, vec3(x.float, 0, z.float))
-
-iterator tilesInDir(world: World, index: int, dir: Direction, isLast: var bool): Tile =
-  assert index in 0..<world.tiles.len
-  case dir
-  of Direction.up:
-    isLast = index div world.width >= world.height - 1
-    for index in countUp(index + world.width.int, world.tiles.high, world.width):
-      yield world.tiles[index]
-      isLast = index div world.width >= world.height - 1
-
-  of down:
-    isLast = index div world.width == 0
-    for index in countDown(index - world.width.int, 0, world.width):
-      yield world.tiles[index]
-      isLast = index div world.width == 0
-
-  of left:
-    isLast = index mod world.width >= world.width - 1
-    for index in countUp(index, index + (world.width - index mod world.width)):
-      yield world.tiles[index]
-      isLast = index mod world.width >= world.width - 1
-
-  of right:
-    isLast = index mod world.width == 0
-    for index in countDown(index, index - index mod world.width):
-      yield world.tiles[index]
-      isLast = index mod world.width == 0
-
-iterator tilesInDir(world: var World, start: int, dir: Direction): (int, int)=
-  ## Yields present and next index
-  assert start in 0..<world.tiles.len
-  case dir
-  of Direction.up:
-    for index in countUp(start, world.tiles.high, world.width):
-      yield (index, index + world.width.int)
-
-  of down:
-    for index in countDown(start, 0, world.width):
-      yield (index, index - world.width.int)
-
-  of left:
-    for i, _ in enumerate countUp(int start mod world.width, world.width - 1):
-      yield (start + i, start + i + 1)
-
-  of right:
-    for i, _ in enumerate countDown(int start mod world.width, 0):
-      yield (start - i, start - i - 1)
-
 proc isFinished(world: World): bool =
   result = true
   for x in world.tiles:
@@ -178,14 +128,7 @@ proc isFinished(world: World): bool =
     if not result:
       return
 
-proc contains*(world: World, vec: Vec3): bool =
-  floor(vec.x).int in 0..<world.width and floor(vec.z).int in 0..<world.height
-
-proc getPointIndex*(world: World, point: Vec3): int =
-  if point in world:
-    int floor(point.x).int + floor(point.z).int * world.width
-  else:
-    -1
+proc contains*(world: World, vec: Vec3): bool = vec in world.tiles
 
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
 
@@ -205,7 +148,7 @@ proc resize*(world: var World, newSize: IVec2) =
 
   world.width = newSize.x
   world.height = newSize.y
-  world.tiles = newTileData
+  world.tiles.data = newTileData
   world.history.setLen(0)
 
 # History Procs
@@ -216,7 +159,7 @@ proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
     player = world.player
   else: discard
 
-  world.history.add History(kind: kind, tiles: world.tiles, projectiles: world.pastProjectiles, player: player)
+  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.pastProjectiles, player: player)
 
 proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = false) =
   var
@@ -232,7 +175,7 @@ proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = fal
 
   if ind >= 0:
     let targetHis {.cursor.} = world.history[ind]
-    world.tiles = targetHis.tiles
+    world.tiles.data = targetHis.tiles
     world.projectiles = Projectiles.init
     world.projectiles.spawnProjectiles(targetHis.projectiles)
     world.player = targetHis.player
@@ -279,13 +222,13 @@ proc fetchUserLevelNames*(): seq[string] =
 
 proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
-    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    var tile {.byaddr.} = world.tiles[pos]
     let hadSteppedOn = tile.steppedOn
     if tile.kind notin {TileKind.box, ice}:
       tile.steppedOn = true
     let 
       playerNextPos = world.player.dir.asVec3() + world.player.mapPos
-      nextIndex = world.getPointIndex(playerNextPos)
+      nextIndex = world.tiles.getPointIndex(playerNextPos)
 
     if tile.kind == ice:
       if playerNextPos in world:
@@ -311,7 +254,7 @@ proc steppedOn(world: var World, pos: Vec3) =
 
 proc steppedOff(world: var World, pos: Vec3) =
   if pos in world:
-    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    var tile {.byaddr.} = world.tiles[pos]
     case tile.kind
     of box:
       tile.progress = 0
@@ -324,7 +267,7 @@ proc givePickupIfCan(world: var World) =
   ## If the player can get the pickup give it to them else do nothing
   let pos = world.player.movingToPos
   if not world.player.hasPickup and pos in world:
-    let index = world.getPointIndex(pos)
+    let index = world.tiles.getPointIndex(pos)
     if world.tiles[index].kind == pickup and world.tiles[index].active:
       world.tiles[index].active = false
       world.player.givePickup world.tiles[index].pickupKind
@@ -355,9 +298,7 @@ proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).flo
 
 proc init*(_: typedesc[World], width, height: int): World =
   result = World(
-    width: width,
-    height: height,
-    tiles: newSeq[Tile](width * height),
+    tiles: TileData(width: width, height: height, data: newSeq[Tile](width * height)),
     projectiles: Projectiles.init(),
     inspecting: -1,
     state: {previewing},
@@ -366,8 +307,8 @@ proc init*(_: typedesc[World], width, height: int): World =
   )
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
-  if pos in world and world.getPointIndex(pos) != world.getPointIndex(world.player.mapPos):
-    let tile = world.tiles[world.getPointIndex(pos)]
+  if pos in world and world.tiles.getPointIndex(pos) != world.tiles.getPointIndex(world.player.mapPos):
+    let tile = world.tiles[pos]
     case tile.kind:
     of empty:
       placeEmpty
@@ -388,7 +329,7 @@ proc placeBlock(world: var World, cam: Camera) =
     if world.placeStateAt(x) == cannotPlace:
       return
   for x in player.getPickup.positions(dir, pos):
-    let index = world.getPointIndex(vec3(x))
+    let index = world.tiles.getPointIndex(vec3(x))
     if world.tiles[index].kind != empty:
       world.tiles[index].stackBox(world.getPos(index) + vec3(0, 1, 0))
     else:
@@ -396,14 +337,14 @@ proc placeBlock(world: var World, cam: Camera) =
   player.clearPickup()
 
 proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
-  let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
+  let ind = world.tiles.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0:
     world.tiles[ind] = tile
 
 proc canPush(world: World, index: int, dir: Direction): bool =
   result = false
   var isLast = false
-  for tile in world.tilesInDir(index, dir, isLast):
+  for tile in world.tiles.tilesInDir(index, dir, isLast):
     if isLast:
       return false
     case tile.kind
@@ -432,10 +373,10 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
 
 
 proc pushBlock(world: var World, direction: Direction) =
-  let start = world.getPointIndex(world.player.movingToPos())
+  let start = world.tiles.getPointIndex(world.player.movingToPos())
   var buffer = world.tiles[start].stacked
   if world.tiles[start].hasStacked():
-    for (lastIndex, nextIndex) in world.tilesInDir(start, direction):
+    for (lastIndex, nextIndex) in world.tiles.tilesInDir(start, direction):
       template nextTile: auto = world.tiles[nextIndex]
       let hadStack = nextTile.hasStacked
       let temp = nextTile.stacked
@@ -448,7 +389,7 @@ proc pushBlock(world: var World, direction: Direction) =
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
   if pos in world:
-    world.getSafeDirections(world.getPointIndex(pos))
+    world.getSafeDirections(world.tiles.getPointIndex(pos))
   else:
     {}
 
@@ -462,9 +403,9 @@ proc getSignColor(index, num: int): float = (index + 1) / num
 proc getSignIndex*(world: World, val: float): int = (val * world.signs.len.float).int - 1
 
 proc getSign*(world: World, pos: Vec3): Sign =
-  let index = world.getPointIndex(pos)
+  let index = world.tiles.getPointIndex(pos)
   for sign in world.signs.items:
-    if world.getPointIndex(sign.pos) == index:
+    if world.tiles.getPointIndex(sign.pos) == index:
       result = sign
       break
 
@@ -484,7 +425,7 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
     if pos.x notin 0..<world.width.int or pos.z notin 0..<world.height.int:
       projRemoveBuffer.add id
     else:
-      let tile = world.tiles[world.getPointIndex(pos.vec3)]
+      let tile = world.tiles[vec3 pos]
       if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
         projRemoveBuffer.add id
 
@@ -550,14 +491,14 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
   if not state.overAnyUi:
     let
       pos = world.cursorPos(cam)
-      ind = world.getPointIndex(pos)
+      ind = world.tiles.getPointIndex(pos)
 
     if pos in world:
       if leftMb.isPressed:
         if KeycodeLCtrl.isPressed:
           let selectedPos = world.cursorPos(cam)
           if selectedPos in world:
-            world.inspecting = world.getPointIndex(selectedPos)
+            world.inspecting = world.tiles.getPointIndex(selectedPos)
         elif KeycodeLShift.isPressed:
           if pos in world:
             world.playerSpawn = ind
@@ -591,7 +532,7 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
   for sign in world.signs:
     instance.buffer[RenderedModel.signs].push translate(sign.pos)
   let safeDirs = world.playerSafeDirections()
-  for i, (tile, pos) in enumerate world.tileKindCoords:
+  for i, (tile, pos) in enumerate world.tiles.tileKindCoords:
     case tile.kind
     of FloorDrawn:
       let
@@ -657,7 +598,7 @@ proc update*(
 # RENDER LOGIC BELOW
 
 proc renderDepth*(world: World, cam: Camera) =
-  for (tile, pos) in world.tileKindCoords:
+  for (tile, pos) in world.tiles.tileKindCoords:
     if tile.kind in RenderedTile.low.TileKind .. RenderedTile.high.TileKind:
       renderBlock(tile, cam, levelShader, alphaClipShader, pos)
 
@@ -725,8 +666,8 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
   fishes.render(cam)
   let
-    thisTile = world.tiles[world.getPointIndex(world.player.startPos)]
-    nextTile = world.tiles[world.getPointIndex(world.player.movingToPos)]
+    thisTile = world.tiles[world.player.startPos]
+    nextTile = world.tiles[world.player.movingToPos]
   world.player.render(cam, world.playerSafeDirections, thisTile, nextTile)
   renderSigns(world, cam)
 
@@ -754,16 +695,17 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
     if not state.overAnyUi:
       with cursorShader:
-        cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
+        var pos = world.cursorPos(cam)
+        pos.y = 0
+        cursorShader.setUniform("valid", ord(pos in world))
         if KeycodeLShift.isPressed:
-          var pos = world.cursorPos(cam)
           pos.y = 1
           let modelMatrix = mat4() * translate(pos)
           cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
           cursorShader.setUniform("m", modelMatrix)
           render(flagModel)
         else:
-          renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, world.cursorPos(cam), true)
+          renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, pos, true)
 
   world.projectiles.render(cam, levelShader)
 
