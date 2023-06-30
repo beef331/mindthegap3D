@@ -8,6 +8,9 @@ type
     height*: int64
     data*: seq[Tile]
 
+proc len*(tileData: TileData): int = tileData.data.len
+proc high*(tileData: TileData): int = tileData.data.high
+
 iterator items*(tileData: TileData): Tile =
   for x in tileData.data:
     yield x
@@ -20,11 +23,32 @@ iterator pairs*(tileData: TileData): (int, Tile) =
   for val in tileData.data.pairs:
     yield val
 
+proc contains*(tiles: TileData, vec: Vec3): bool =
+  floor(vec.x).int in 0..<tiles.width and floor(vec.z).int in 0..<tiles.height
+
+
+proc getPointIndex*(tiles: TileData, point: Vec3): int =
+  if point in tiles:
+    int floor(point.x).int + floor(point.z).int * tiles.width
+  else:
+    -1
+
 proc `[]`*(tileData: TileData, ind: int): Tile = tileData.data[ind]
+
+proc `[]`*(tileData: TileData, ind: Vec3): Tile =
+  let index = getPointIndex(tileData, ind)
+  assert index in 0..tileData.high
+  tileData[index]
+  
+
 proc `[]`*(tileData: var TileData, ind: int): var Tile = tileData.data[ind]
+
+proc `[]`*(tileData: var TileData, ind: Vec3): var Tile =
+  let index = getPointIndex(tileData, ind)
+  assert index in 0..tileData.high
+  tileData[index]
+
 proc `[]=`*(tileData: var TileData, ind: int, val: sink Tile) = tileData.data[ind] = val
-proc len*(tileData: TileData): int = tileData.data.len
-proc high*(tileData: TileData): int = tileData.data.high
 
 
 iterator tileKindCoords*(tiles: TileData): (Tile, Vec3) =

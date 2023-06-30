@@ -128,14 +128,7 @@ proc isFinished(world: World): bool =
     if not result:
       return
 
-proc contains*(world: World, vec: Vec3): bool =
-  floor(vec.x).int in 0..<world.width and floor(vec.z).int in 0..<world.height
-
-proc getPointIndex*(world: World, point: Vec3): int =
-  if point in world:
-    int floor(point.x).int + floor(point.z).int * world.width
-  else:
-    -1
+proc contains*(world: World, vec: Vec3): bool = vec in world.tiles
 
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
 
@@ -229,13 +222,13 @@ proc fetchUserLevelNames*(): seq[string] =
 
 proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
-    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    var tile {.byaddr.} = world.tiles[pos]
     let hadSteppedOn = tile.steppedOn
     if tile.kind notin {TileKind.box, ice}:
       tile.steppedOn = true
     let 
       playerNextPos = world.player.dir.asVec3() + world.player.mapPos
-      nextIndex = world.getPointIndex(playerNextPos)
+      nextIndex = world.tiles.getPointIndex(playerNextPos)
 
     if tile.kind == ice:
       if playerNextPos in world:
@@ -261,7 +254,7 @@ proc steppedOn(world: var World, pos: Vec3) =
 
 proc steppedOff(world: var World, pos: Vec3) =
   if pos in world:
-    var tile {.byaddr.} = world.tiles[world.getPointIndex(pos)]
+    var tile {.byaddr.} = world.tiles[pos]
     case tile.kind
     of box:
       tile.progress = 0
@@ -274,7 +267,7 @@ proc givePickupIfCan(world: var World) =
   ## If the player can get the pickup give it to them else do nothing
   let pos = world.player.movingToPos
   if not world.player.hasPickup and pos in world:
-    let index = world.getPointIndex(pos)
+    let index = world.tiles.getPointIndex(pos)
     if world.tiles[index].kind == pickup and world.tiles[index].active:
       world.tiles[index].active = false
       world.player.givePickup world.tiles[index].pickupKind
@@ -314,8 +307,8 @@ proc init*(_: typedesc[World], width, height: int): World =
   )
 
 proc placeStateAt(world: World, pos: Vec3): PlaceState =
-  if pos in world and world.getPointIndex(pos) != world.getPointIndex(world.player.mapPos):
-    let tile = world.tiles[world.getPointIndex(pos)]
+  if pos in world and world.tiles.getPointIndex(pos) != world.tiles.getPointIndex(world.player.mapPos):
+    let tile = world.tiles[pos]
     case tile.kind:
     of empty:
       placeEmpty
@@ -336,7 +329,7 @@ proc placeBlock(world: var World, cam: Camera) =
     if world.placeStateAt(x) == cannotPlace:
       return
   for x in player.getPickup.positions(dir, pos):
-    let index = world.getPointIndex(vec3(x))
+    let index = world.tiles.getPointIndex(vec3(x))
     if world.tiles[index].kind != empty:
       world.tiles[index].stackBox(world.getPos(index) + vec3(0, 1, 0))
     else:
@@ -344,7 +337,7 @@ proc placeBlock(world: var World, cam: Camera) =
   player.clearPickup()
 
 proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
-  let ind = world.getPointIndex(vec3(float pos.x, 0, float pos.y))
+  let ind = world.tiles.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0:
     world.tiles[ind] = tile
 
@@ -380,7 +373,7 @@ proc getSafeDirections(world: World, index: Natural): set[Direction] =
 
 
 proc pushBlock(world: var World, direction: Direction) =
-  let start = world.getPointIndex(world.player.movingToPos())
+  let start = world.tiles.getPointIndex(world.player.movingToPos())
   var buffer = world.tiles[start].stacked
   if world.tiles[start].hasStacked():
     for (lastIndex, nextIndex) in world.tiles.tilesInDir(start, direction):
@@ -396,7 +389,7 @@ proc pushBlock(world: var World, direction: Direction) =
 
 proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
   if pos in world:
-    world.getSafeDirections(world.getPointIndex(pos))
+    world.getSafeDirections(world.tiles.getPointIndex(pos))
   else:
     {}
 
@@ -410,9 +403,9 @@ proc getSignColor(index, num: int): float = (index + 1) / num
 proc getSignIndex*(world: World, val: float): int = (val * world.signs.len.float).int - 1
 
 proc getSign*(world: World, pos: Vec3): Sign =
-  let index = world.getPointIndex(pos)
+  let index = world.tiles.getPointIndex(pos)
   for sign in world.signs.items:
-    if world.getPointIndex(sign.pos) == index:
+    if world.tiles.getPointIndex(sign.pos) == index:
       result = sign
       break
 
@@ -432,7 +425,7 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
     if pos.x notin 0..<world.width.int or pos.z notin 0..<world.height.int:
       projRemoveBuffer.add id
     else:
-      let tile = world.tiles[world.getPointIndex(pos.vec3)]
+      let tile = world.tiles[vec3 pos]
       if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
         projRemoveBuffer.add id
 
@@ -498,14 +491,14 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
   if state.currentElement.isNil: 
     let
       pos = world.cursorPos(cam)
-      ind = world.getPointIndex(pos)
+      ind = world.tiles.getPointIndex(pos)
 
     if pos in world:
       if leftMb.isPressed:
         if KeycodeLCtrl.isPressed:
           let selectedPos = world.cursorPos(cam)
           if selectedPos in world:
-            world.inspecting = world.getPointIndex(selectedPos)
+            world.inspecting = world.tiles.getPointIndex(selectedPos)
         elif KeycodeLShift.isPressed:
           if pos in world:
             world.playerSpawn = ind
@@ -673,8 +666,8 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
   fishes.render(cam)
   let
-    thisTile = world.tiles[world.getPointIndex(world.player.startPos)]
-    nextTile = world.tiles[world.getPointIndex(world.player.movingToPos)]
+    thisTile = world.tiles[world.player.startPos]
+    nextTile = world.tiles[world.player.movingToPos]
   world.player.render(cam, world.playerSafeDirections, thisTile, nextTile)
   renderSigns(world, cam)
 
