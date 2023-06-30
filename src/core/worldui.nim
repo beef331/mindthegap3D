@@ -41,13 +41,13 @@ proc makeEditorGui(world: var World): auto =
               HSlider[int](
                 color: vec4(0.5),
                 hoveredColor: vec4(0.3),
-                value: world.width,
-                watchValue: (proc(): int = int world.width),
+                value: world[].width,
+                watchValue: (proc(): int = int world[].width),
                 rng: 3..10,
                 size: entrySize,
                 slideBar: MyUiElement(color: vec4(1)),
                 onChange: proc(i: int) =
-                  world[].resize(iVec2(i, int world.height))
+                  world[].resize(iVec2(i, int world[].height))
               )
             )
           ),
@@ -58,13 +58,13 @@ proc makeEditorGui(world: var World): auto =
               HSlider[int](
                 color: vec4(0.5),
                 hoveredColor: vec4(0.3),
-                value: world.height,
-                watchValue: (proc(): int = int world.height),
+                value: world[].height,
+                watchValue: (proc(): int = int world[].height),
                 rng: 3..10,
                 size: entrySize,
                 slideBar: MyUiElement(color: vec4(1)),
                 onChange: proc(i: int) =
-                  world[].resize(iVec2(int world.width, i))
+                  world[].resize(iVec2(int world[].width, i))
               )
             )
           ),
