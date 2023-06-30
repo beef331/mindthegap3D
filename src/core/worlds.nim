@@ -547,7 +547,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
   ui.interact(state)
   ui.upload(state, renderTarget)
 
-  if state.currentElement.isNil: 
+  if not state.overAnyUi:
     let
       pos = world.cursorPos(cam)
       ind = world.getPointIndex(pos)
@@ -752,7 +752,7 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
         render(selectionModel)
 
 
-    if state.currentElement.isNil:
+    if not state.overAnyUi:
       with cursorShader:
         cursorShader.setUniform("valid", ord(world.cursorPos(cam) in world))
         if KeycodeLShift.isPressed:

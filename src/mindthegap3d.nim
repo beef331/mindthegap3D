@@ -288,6 +288,7 @@ proc update(dt: float32) =
     reset uiState.input
   setInputText("")
   uiState.interactedWithCurrentElement = false
+  uiState.overAnyUi = false
 
   let isFinished = world.finished
   world.update(camera, dt, renderInstance, uiState, renderTarget)
