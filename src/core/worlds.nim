@@ -456,46 +456,6 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
   if KeycodeZ.isDown:
     world.rewindTo({start, checkpoint})
 
-  for i, tile in enumerate world.tiles.mitems:
-    let startY =
-      if tile.kind in {TileKind.box, ice}:
-        tile.calcYPos()
-      else:
-        0f32
-    case tile.update(dt, moveDir.isSome)
-    of shootProjectile:
-      let stacked = tile.stacked.unsafeGet()
-      world.projectiles.spawnProjectile(tile.shootPos, stacked.direction)
-    of shootHitscan:
-      let 
-        stacked = tile.stacked.unsafeGet()
-        hitInd = world.tiles.firstCollision(i, stacked.direction)
-        hitPos = 
-          if hitInd == -1:
-            let 
-              thisPos = world.getPos(i)
-              dirVec = stacked.direction.asVec3
-            # Palculate the hit pos
-            vec3(thisPos.x + dirVec.x * abs(thisPos.x - float32 world.tiles.width), 0, thisPos.z + dirVec.z * abs(thisPos.z - float32 world.tiles.height)) 
-          else:
-            world.getPos(i)
-      
-        
-    of nothing:
-      discard
-    of unlock:
-      discard
-
-    case tile.kind
-    of box, ice:
-      if startY > 1 and tile.calcYPos() <= 1:
-        splashSfx.play()
-        waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
-    else:
-      if tile.hasStacked() and tile.shouldSpawnParticle:
-        fallSfx.play()
-        dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
-
 
 var ui: typeof(makeEditorGui((var wrld = default(World); wrld)))
 
@@ -622,10 +582,12 @@ proc update*(
               vec3(thisPos.x + dirVec.x * abs(thisPos.x - float32 world.tiles.width), 0, thisPos.z + dirVec.z * abs(thisPos.z - float32 world.tiles.height)) 
             else:
               world.getPos(hitInd)
-        let theScale = vec3(max(abs(thisPos.x - hitPos.x), 1), 1, max(abs(thisPos.z - hitPos.z), 1))
+        let
+          funnyScale = 1f #abs(sin(dt * float32 i) * 100)
+          theScale = vec3(max(abs(thisPos.x - hitPos.x), funnyScale), funnyScale, max(abs(thisPos.z - hitPos.z), funnyScale))
         hitPos = (thisPos + hitPos) / 2
         hitPos.y = 1.5 + sin(dt * float32 i) * 10
-        renderInstance.buffer[lazes].push mat4() * translate(hitPos) * scale(theScale)
+        renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
         renderInstance.buffer[lazes].reuploadSsbo()
 
       of nothing:

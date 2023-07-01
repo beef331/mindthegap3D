@@ -89,7 +89,7 @@ iterator tilesInDir*(tiles: TileData, start: int, dir: Direction): (int, int) =
   assert start in 0..<tiles.len
   case dir
   of Direction.up:
-    for index in countUp(start, tiles.high, tiles.width):
+    for index in countUp(start, tiles.high, int tiles.width):
       yield (index, index + tiles.width.int)
 
   of down:
@@ -108,6 +108,6 @@ proc firstCollision*(tiles: TileData, start: int, dir: Direction): int =
   ## Finds first projectile collision along the world
   ## Returns that index if hit, else `-1`.
   for x, y in tiles.tilesInDir(start, dir):
-    if tiles[y].collides:
-      return y
+    if x != start and tiles[x].collides:
+      return x
   -1
