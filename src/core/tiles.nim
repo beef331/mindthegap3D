@@ -210,23 +210,23 @@ proc update*(tile: var Tile, dt: float32, playerMoved: bool): TileActionState =
   if tile.hasStacked():
     tile.stacked.get.moveTime += dt
     let stacked {.byaddr.} = tile.stacked.get
-    case tile.stacked.get.kind
+    case stacked.kind
     of turret:
-      case stacked.turnsToNextShot
-      of 0:
-        if playerMoved:
+      if playerMoved:
+        case stacked.turnsToNextShot
+        of 0:
           case stacked.projectileKind
           of hitScan:
             stacked.flags[toggled] = toggled notin stacked.flags
           of dynamicProjectile:
             result = shootProjectile
           stacked.turnsToNextShot = stacked.turnsPerShot
-      else:
-        if toggled in stacked.flags:
-          result = shootHitscan
-        if playerMoved:
+        else:
           dec stacked.turnsToNextShot
-        
+
+      if toggled in stacked.flags:
+          result = shootHitscan
+
     else: discard
 
 proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false)

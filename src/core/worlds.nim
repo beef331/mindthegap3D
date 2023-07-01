@@ -579,8 +579,8 @@ proc update*(
           funnyScale = 1f #abs(sin(dt * float32 i) * 100)
           theScale = vec3(max(abs(thisPos.x - hitPos.x), funnyScale), funnyScale, max(abs(thisPos.z - hitPos.z), funnyScale))
         hitPos = (thisPos + hitPos) / 2
-        hitPos.y = 1.5 + sin(dt * float32 i) * 10
-        renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
+        hitPos.y = 1.1 + sin(dt * float32 i) * 10
+        renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(getTime() * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
         renderInstance.buffer[lazes].reuploadSsbo()
 
       of nothing:
