@@ -533,6 +533,40 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     buff.reuploadSsbo
 
 
+
+proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInstance: var renderinstances.RenderInstance) =
+  let stacked = tile.stacked.unsafeGet()
+  var hitInd = -1
+  for ind in world.tiles.tilesTilCollision(i, stacked.direction):
+    hitInd = 
+      if world.tiles[ind].collides():
+        ind
+      else:
+        -1
+    let pos = world.getPos(ind)
+    if floor(pos.x) == floor(world.player.movingToPos.x) and floor(pos.z) == floor(world.player.movingToPos.z):
+      world.rewindTo({start, checkpoint}) # Player died
+      return
+
+  let thisPos = world.getPos(i)
+  var 
+    hitPos = 
+      if hitInd == -1: # We didnt hit anything, go to the furthest point
+        let dirVec = stacked.direction.asVec3
+        vec3(thisPos.x + dirVec.x * abs(thisPos.x - float32 world.tiles.width), 0, thisPos.z + dirVec.z * abs(thisPos.z - float32 world.tiles.height)) 
+      else:
+        world.getPos(hitInd)
+  let
+    funnyScale = abs(sin(dt * float32 i) * 50)
+    theScale = vec3(max(abs(thisPos.x - hitPos.x), funnyScale), funnyScale, max(abs(thisPos.z - hitPos.z), funnyScale))
+
+  hitPos = (thisPos + hitPos) / 2 # Centre it
+  hitPos.y = 1.1 + sin(dt * float32 i) * 10 # make it interesting
+  renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(getTime() * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
+  renderInstance.buffer[lazes].reuploadSsbo()
+
+
+
 proc update*(
   world: var World;
   cam: Camera;
@@ -564,25 +598,7 @@ proc update*(
         let stacked = tile.stacked.unsafeGet()
         world.projectiles.spawnProjectile(tile.shootPos, stacked.direction)
       of shootHitscan:
-        let 
-          stacked = tile.stacked.unsafeGet()
-          hitInd = world.tiles.firstCollision(i, stacked.direction)
-          thisPos = world.getPos(i)
-        var 
-          hitPos = 
-            if hitInd == -1:
-              let dirVec = stacked.direction.asVec3
-              vec3(thisPos.x + dirVec.x * abs(thisPos.x - float32 world.tiles.width), 0, thisPos.z + dirVec.z * abs(thisPos.z - float32 world.tiles.height)) 
-            else:
-              world.getPos(hitInd)
-        let
-          funnyScale = 1f #abs(sin(dt * float32 i) * 100)
-          theScale = vec3(max(abs(thisPos.x - hitPos.x), funnyScale), funnyScale, max(abs(thisPos.z - hitPos.z), funnyScale))
-        hitPos = (thisPos + hitPos) / 2
-        hitPos.y = 1.1 + sin(dt * float32 i) * 10
-        renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(getTime() * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
-        renderInstance.buffer[lazes].reuploadSsbo()
-
+        hitScanCheck(world, tile, i, dt, renderInstance)
       of nothing:
         discard
       of unlock:

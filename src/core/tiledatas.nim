@@ -104,10 +104,10 @@ iterator tilesInDir*(tiles: TileData, start: int, dir: Direction): (int, int) =
     for i, _ in enumerate countDown(int start mod tiles.width, 0):
       yield (start - i, start - i - 1) 
 
-proc firstCollision*(tiles: TileData, start: int, dir: Direction): int =
+iterator tilesTilCollision*(tiles: TileData, start: int, dir: Direction): int =
   ## Finds first projectile collision along the world
-  ## Returns that index if hit, else `-1`.
   for x, y in tiles.tilesInDir(start, dir):
-    if x != start and tiles[x].collides:
-      return x
-  -1
+    if x != start:
+      yield x
+      if tiles[x].collides():
+        break
