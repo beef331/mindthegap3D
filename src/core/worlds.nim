@@ -15,7 +15,6 @@ type
     state*: set[WorldState]
     player*: Player
     projectiles*: Projectiles
-    pastProjectiles: seq[Projectile]
     history: seq[History]
 
     playerStart {.unserialized.}: Player ## Player stats before moving, meant for history
@@ -34,7 +33,7 @@ type
     kind: HistoryKind
     player: Player
     tiles: seq[Tile]
-    projectiles: seq[Projectile]
+    projectiles: Projectiles
 
   PlaceState = enum
     cannotPlace
@@ -151,14 +150,14 @@ proc resize*(world: var World, newSize: IVec2) =
   world.history.setLen(0)
 
 # History Procs
-proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
+proc saveHistoryStep(world: var World, kind: HistoryKind) =
   var player = world.playerStart
   case kind
   of HistoryKind.start:
     player = world.player
   else: discard
 
-  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.pastProjectiles, player: player)
+  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.projectiles, player: player)
 
 proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = false) =
   var
@@ -175,8 +174,7 @@ proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = fal
   if ind >= 0:
     let targetHis {.cursor.} = world.history[ind]
     world.tiles.data = targetHis.tiles
-    world.projectiles = Projectiles.init
-    world.projectiles.spawnProjectiles(targetHis.projectiles)
+    world.projectiles = targetHis.projectiles
     world.player = targetHis.player
     world.player.skipMoveAnim()
     world.history.setLen(ind + 1)
@@ -273,10 +271,10 @@ proc givePickupIfCan(world: var World) =
 
 proc reload*(world: var World, skipStepOn = false) =
   ## Used to reload the world state and reposition player
-  world.unload()
-  world.load()
   if world.history.len > 1:
     world.rewindTo({HistoryKind.start})
+  world.unload()
+  world.load()
   world.finished = false
   world.history.setLen(0)
   world.saveHistoryStep(start)
@@ -409,11 +407,6 @@ proc getSign*(world: World, pos: Vec3): Sign =
       break
 
 proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
-  if playerDidMove:
-    world.pastProjectiles.setLen(0)
-    for proj in world.projectiles.items:
-      world.pastProjectiles.add proj
-
   var projRemoveBuffer: seq[int]
   for id, proj in world.projectiles.idProj:
     let pos = ivec3(proj.toPos.floor)
@@ -606,7 +599,6 @@ proc update*(
           dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
     world.projectileUpdate(dt, moveDir.isSome)
-
 
     if KeyCodeF11.isDown and world.state == {playing, editing}:
       world.state = {editing}

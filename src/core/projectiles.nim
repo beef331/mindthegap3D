@@ -2,7 +2,7 @@ import vmath
 import directions, resources, consts, cameras
 import truss3D/[models, shaders]
 
-const projectileCount = 1024 # Cmon we're not making a bullet hell
+const projectileCount = 128 # Cmon we're not making a bullet hell
 
 var arrowmodel: Model
 
@@ -20,6 +20,8 @@ type
     active*, inactive*: set[ProjectileRange]
     projectiles: array[projectileCount, Projectile]
 
+proc fullymoved*(proj: Projectile): bool = proj.moveTime > MoveTime
+
 iterator mitems(projs: var Projectiles): var Projectile =
   for x in projs.active:
     yield projs.projectiles[x]
@@ -36,6 +38,7 @@ proc pos*(projectile: Projectile): Vec3 = mix(projectile.fromPos, projectile.toP
 proc toPos*(projectile: Projectile): Vec3 = projectile.toPos
 
 proc getNextId(projs: var Projectiles): int =
+  result = -1
   for x in projs.inactive:
     return x
 
@@ -45,6 +48,7 @@ proc init*(_: typedesc[Projectiles]): Projectiles =
 
 proc spawnProjectile*(projs: var Projectiles, pos: Vec3, direction: Direction) =
   let id = projs.getNextId()
+  assert id > -1
   projs.projectiles[id] = Projectile(fromPos: pos + direction.asVec3, toPos: pos + direction.asVec3, direction: direction)
   projs.active.incl id
   projs.inactive.excl id
