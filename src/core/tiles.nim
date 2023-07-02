@@ -1,7 +1,7 @@
-import directions, pickups, cameras, resources, projectiles, consts, renderinstances, serializers
+import directions, pickups, cameras, resources, consts, renderinstances
 import vmath, easings, opengl, pixie
-import truss3D/[shaders, models, textures, instancemodels]
-import std/[options, decls]
+import truss3D/[shaders, models, textures]
+import std/[options, decls, setutils]
 
 
 var
@@ -53,7 +53,8 @@ type
     ice = "Ice"
 
   StackedFlag = enum
-    spawnedParticle, toggled
+    spawnedParticle
+    toggled
 
   ShotRange* = 0i8..10i8
 
@@ -74,7 +75,8 @@ type
 
 
   ProjectileKind* = enum
-    hitScan, dynamicProjectile
+    hitScan = "Hit Scan"
+    dynamicProjectile = "Dynamic"
 
   TileFlags = enum
     reserved
@@ -92,6 +94,13 @@ type
       progress*: float32
     else: discard
 
+  TileActionState* = enum
+    nothing
+    shootProjectile
+    shootHitscan
+    unlock
+
+
   NonEmpty* = range[succ(TileKind.empty)..TileKind.high]
 
 const # Gamelogic constants
@@ -100,6 +109,9 @@ const # Gamelogic constants
   Walkable* = {box} + AlwaysWalkable
   FallingTiles* = {TileKind.box, ice}
   FallingStacked* = {StackedObjectKind.box, ice}
+  ProjectilesAlwaysCollide = {wall}
+
+proc shootPos*(t: Tile): Vec3 = t.stacked.unsafeGet.startPos + vec3(0, 0.5, 0)
 
 proc completed*(t: Tile): bool =
   case t.kind:
@@ -117,7 +129,6 @@ proc fullyStacked*(tile: Tile): bool =
 
 proc shouldSpawnParticle*(tile: var Tile): bool =
   assert tile.hasStacked()
-
   let
     stacked {.cursor.} = tile.stacked.unsafeGet
     y = stacked.startPos.y.mix(stacked.toPos.y, clampedProgress(stacked.moveTime / MoveTime))
@@ -133,6 +144,8 @@ proc isWalkable*(tile: Tile): bool =
   else:
     (tile.kind in AlwaysWalkable) or
     (tile.kind == Tilekind.box and not tile.steppedOn and tile.progress >= FallTime)
+
+proc collides*(tile: Tile): bool = tile.kind in ProjectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked())
 
 proc isSlidable*(tile: Tile): bool = tile.isWalkable and not tile.hasStacked
 
@@ -174,8 +187,7 @@ proc calcYPos*(tile: Tile): float32 =
   else:
     result = 0
 
-
-proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMoved: bool) =
+proc update*(tile: var Tile, dt: float32, playerMoved: bool): TileActionState =
   case tile.kind
   of box, ice:
     tile.updateFalling(dt)
@@ -198,14 +210,23 @@ proc update*(tile: var Tile, projectiles: var Projectiles, dt: float32, playerMo
   if tile.hasStacked():
     tile.stacked.get.moveTime += dt
     let stacked {.byaddr.} = tile.stacked.get
-    case tile.stacked.get.kind
+    case stacked.kind
     of turret:
       if playerMoved:
-        if stacked.turnsToNextShot == 0:
+        case stacked.turnsToNextShot
+        of 0:
+          case stacked.projectileKind
+          of hitScan:
+            stacked.flags[toggled] = toggled notin stacked.flags
+          of dynamicProjectile:
+            result = shootProjectile
           stacked.turnsToNextShot = stacked.turnsPerShot
-          projectiles.spawnProjectile(stacked.toPos + vec3(0, 0.5, 0), stacked.direction)
         else:
           dec stacked.turnsToNextShot
+
+      if toggled in stacked.flags:
+          result = shootHitscan
+
     else: discard
 
 proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, pos: Vec3, drawAtPos = false)
@@ -229,8 +250,6 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
       shader.setUniform("m", modelMatrix)
       render(crossbowmodel)
-
-      ##renderBlock(Tile(kind: shooter), cam)
     of none:
       discard
 
@@ -270,6 +289,10 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
     of turret:
       let modelMatrix = mat4() * translate(pos) * rotateY stacked.direction.asRot
       instance.buffer[RenderedModel.crossbows].push modelMatrix
+
+      if stacked.projectileKind == hitScan: discard
+        
+
     of box:
       instance.buffer[RenderedModel.blocks].push BlockInstanceData(matrix: mat4() * translate(pos))
     of ice:

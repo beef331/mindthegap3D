@@ -189,6 +189,21 @@ proc makeEditorGui(world: var World): auto =
             )
           )
         ),
+        HGroup[(Label, DropDown[ProjectileKind])](
+          visible: (proc(): bool = isInspecting() and inspectingTile().hasStacked and inspectingTile.stacked.get.kind == turret),
+          color: vec4(0),
+          entries:(
+            Label(size: entrySize, text: "Projectile Kind:"),
+            DropDown[ProjectileKind](
+              size: entrySize,
+              color: vec4(0, 0, 0, 0.5),
+              hoveredColor: vec4(0, 0, 0, 0.7),
+              watchValue: (proc(): ProjectileKind = inspectingTile.stacked.unsafeGet.projectileKind),
+              onChange: (proc(proj: ProjectileKind) = inspectingTile.stacked.get.projectileKind = proj)
+            )
+          )
+        ),
+
         HGroup[(Label, HSlider[ShotRange])](
           visible: (proc(): bool = isInspecting() and inspectingTile().hasStacked and inspectingTile.stacked.get.kind == turret),
           color: vec4(0),

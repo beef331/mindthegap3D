@@ -15,7 +15,6 @@ type
     state*: set[WorldState]
     player*: Player
     projectiles*: Projectiles
-    pastProjectiles: seq[Projectile]
     history: seq[History]
 
     playerStart {.unserialized.}: Player ## Player stats before moving, meant for history
@@ -34,7 +33,7 @@ type
     kind: HistoryKind
     player: Player
     tiles: seq[Tile]
-    projectiles: seq[Projectile]
+    projectiles: Projectiles
 
   PlaceState = enum
     cannotPlace
@@ -46,7 +45,6 @@ proc height*(world: World): int64 = world.tiles.height
 proc `width=`*(world: var World, newWidth: int64) = world.tiles.width = newWidth
 proc `height=`*(world: var World, newHeight: int64) = world.tiles.height = newHeight
 
-const projectilesAlwaysCollide = {wall}
 
 iterator activeSign(world: var World): var Sign =
   let pos = ivec2(int32 world.inspecting mod world.width, int32 world.inspecting div world.width)
@@ -152,14 +150,14 @@ proc resize*(world: var World, newSize: IVec2) =
   world.history.setLen(0)
 
 # History Procs
-proc saveHistoryStep(world: var World, kind = HistoryKind.nothing) =
+proc saveHistoryStep(world: var World, kind: HistoryKind) =
   var player = world.playerStart
   case kind
   of HistoryKind.start:
     player = world.player
   else: discard
 
-  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.pastProjectiles, player: player)
+  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.projectiles, player: player)
 
 proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = false) =
   var
@@ -176,8 +174,7 @@ proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = fal
   if ind >= 0:
     let targetHis {.cursor.} = world.history[ind]
     world.tiles.data = targetHis.tiles
-    world.projectiles = Projectiles.init
-    world.projectiles.spawnProjectiles(targetHis.projectiles)
+    world.projectiles = targetHis.projectiles
     world.player = targetHis.player
     world.player.skipMoveAnim()
     world.history.setLen(ind + 1)
@@ -274,10 +271,10 @@ proc givePickupIfCan(world: var World) =
 
 proc reload*(world: var World, skipStepOn = false) =
   ## Used to reload the world state and reposition player
-  world.unload()
-  world.load()
   if world.history.len > 1:
     world.rewindTo({HistoryKind.start})
+  world.unload()
+  world.load()
   world.finished = false
   world.history.setLen(0)
   world.saveHistoryStep(start)
@@ -410,11 +407,6 @@ proc getSign*(world: World, pos: Vec3): Sign =
       break
 
 proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
-  if playerDidMove:
-    world.pastProjectiles.setLen(0)
-    for proj in world.projectiles.items:
-      world.pastProjectiles.add proj
-
   var projRemoveBuffer: seq[int]
   for id, proj in world.projectiles.idProj:
     let pos = ivec3(proj.toPos.floor)
@@ -426,7 +418,7 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
       projRemoveBuffer.add id
     else:
       let tile = world.tiles[vec3 pos]
-      if tile.kind in projectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked()):
+      if tile.collides():
         projRemoveBuffer.add id
 
   world.projectiles.destroyProjectiles(projRemoveBuffer.items)
@@ -456,24 +448,6 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
 
   if KeycodeZ.isDown:
     world.rewindTo({start, checkpoint})
-
-  for i, tile in enumerate world.tiles.mitems:
-    let startY =
-      if tile.kind in {TileKind.box, ice}:
-        tile.calcYPos()
-      else:
-        0f32
-    tile.update(world.projectiles, dt, moveDir.isSome)
-
-    case tile.kind
-    of box, ice:
-      if startY > 1 and tile.calcYPos() <= 1:
-        splashSfx.play()
-        waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
-    else:
-      if tile.hasStacked() and tile.shouldSpawnParticle:
-        fallSfx.play()
-        dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
 
 var ui: typeof(makeEditorGui((var wrld = default(World); wrld)))
@@ -559,6 +533,40 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     buff.reuploadSsbo
 
 
+
+proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInstance: var renderinstances.RenderInstance) =
+  let stacked = tile.stacked.unsafeGet()
+  var hitInd = -1
+  for ind in world.tiles.tilesTilCollision(i, stacked.direction):
+    hitInd = 
+      if world.tiles[ind].collides():
+        ind
+      else:
+        -1
+    let pos = world.getPos(ind)
+    if floor(pos.x) == floor(world.player.movingToPos.x) and floor(pos.z) == floor(world.player.movingToPos.z):
+      world.rewindTo({start, checkpoint}) # Player died
+      return
+
+  let thisPos = world.getPos(i)
+  var 
+    hitPos = 
+      if hitInd == -1: # We didnt hit anything, go to the furthest point
+        let dirVec = stacked.direction.asVec3
+        vec3(thisPos.x + dirVec.x * abs(thisPos.x - float32 world.tiles.width), 0, thisPos.z + dirVec.z * abs(thisPos.z - float32 world.tiles.height)) 
+      else:
+        world.getPos(hitInd)
+  let
+    funnyScale = abs(sin(dt * float32 i) * 50)
+    theScale = vec3(max(abs(thisPos.x - hitPos.x), funnyScale), funnyScale, max(abs(thisPos.z - hitPos.z), funnyScale))
+
+  hitPos = (thisPos + hitPos) / 2 # Centre it
+  hitPos.y = 1.1 + sin(dt * float32 i) * 10 # make it interesting
+  renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(getTime() * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
+  renderInstance.buffer[lazes].reuploadSsbo()
+
+
+
 proc update*(
   world: var World;
   cam: Camera;
@@ -578,6 +586,34 @@ proc update*(
     var moveDir = options.none(Direction)
 
     world.playerMovementUpdate(cam, dt, moveDir)
+
+    for i, tile in enumerate world.tiles.mitems:
+      let startY =
+        if tile.kind in {TileKind.box, ice}:
+          tile.calcYPos()
+        else:
+          0f32
+      case tile.update(dt, moveDir.isSome)
+      of shootProjectile:
+        let stacked = tile.stacked.unsafeGet()
+        world.projectiles.spawnProjectile(tile.shootPos, stacked.direction)
+      of shootHitscan:
+        hitScanCheck(world, tile, i, dt, renderInstance)
+      of nothing:
+        discard
+      of unlock:
+        discard
+
+      case tile.kind
+      of box, ice:
+        if startY > 1 and tile.calcYPos() <= 1:
+          splashSfx.play()
+          waterParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
+      else:
+        if tile.hasStacked() and tile.shouldSpawnParticle:
+          fallSfx.play()
+          dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
+
     world.projectileUpdate(dt, moveDir.isSome)
 
     if KeyCodeF11.isDown and world.state == {playing, editing}:
