@@ -28,7 +28,11 @@ type
     levelName* {.unserialized.}: string
 
   HistoryKind* = enum
-    nothing, start, checkpoint, ontoBox, pushed, placed
+    nothing
+    start
+    checkpoint
+
+
   History = object
     kind: HistoryKind
     player: Player
@@ -235,14 +239,26 @@ proc steppedOn(world: var World, pos: Vec3) =
     if tile.kind != ice or playerNextPos notin world or not world.tiles[nextIndex].isSlidable:
       world.player.stopSliding()
 
+    if tile.isLocked():
+      assert world.player.keyCount > 0
+      dec world.player.keyCount
+      tile.lockState = Unlocked
+
 
     case tile.kind
     of checkpoint:
       if not hadSteppedOn:
         world.playerStart = world.player
         world.saveHistoryStep(checkpoint)
-    else:
+    of key:
+      inc world.player.keyCount
       world.saveHistoryStep(nothing)
+    else:
+      if tile.isLocked:
+        tile.lockState = Unlocked
+        dec world.player.keyCount
+      world.saveHistoryStep(nothing)
+
     if not world.finished:
       world.finished = world.isFinished
       if world.finished:
@@ -310,7 +326,7 @@ proc placeStateAt(world: World, pos: Vec3): PlaceState =
     of empty:
       placeEmpty
     else:
-      if tile.isWalkable() and not tile.hasStacked():
+      if tile.isWalkable() and not tile.hasStacked() and not tile.isLocked:
         placeStacked
       else:
         cannotPlace
@@ -341,31 +357,39 @@ proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
 proc canPush(world: World, index: int, dir: Direction): bool =
   result = false
   var isLast = false
+  var firstIter = true
   for tile in world.tiles.tilesInDir(index, dir, isLast):
     if isLast:
       return false
     case tile.kind
     of Walkable:
+      if tile.isLocked():
+        return (firstIter and world.player.keyCount > 0)
       if not tile.hasStacked():
         return tile.isWalkable()
     of empty:
       return not tile.hasStacked()
     else: discard
+    firstIter = false
 
-proc canWalk(world: World, index: int, dir: Direction): bool =
+proc canWalk(world: World, index: int, dir: Direction, isPlayer: bool): bool =
   let tile = world.tiles[index]
-  result = tile.isWalkable()
+  result = 
+    if isPlayer:
+      tile.isWalkable and (not tile.isLocked or world.player.keyCount > 0)
+    else:
+      tile.isWalkable and not tile.isLocked
   if result and tile.hasStacked():
     result = world.canPush(index, dir)
 
-proc getSafeDirections(world: World, index: Natural): set[Direction] =
-  if index >= world.width and world.canWalk(index - world.width.int, down):
+proc getSafeDirections(world: World, index: Natural, isPlayer: bool): set[Direction] =
+  if index >= world.width and world.canWalk(index - world.width.int, down, isPlayer):
     result.incl down
-  if index + world.width < world.tiles.len and world.canWalk(index + world.width.int, up):
+  if index + world.width < world.tiles.len and world.canWalk(index + world.width.int, up, isPlayer):
     result.incl up
-  if index mod world.width < world.width - 1 and world.canWalk(index + 1, left):
+  if index mod world.width < world.width - 1 and world.canWalk(index + 1, left, isPlayer):
     result.incl left
-  if index mod world.width > 0 and world.canWalk(index - 1, right):
+  if index mod world.width > 0 and world.canWalk(index - 1, right, isPlayer):
     result.incl right
 
 
@@ -384,13 +408,13 @@ proc pushBlock(world: var World, direction: Direction) =
     pushSfx.play()
     world.tiles[start].clearStack()
 
-proc getSafeDirections(world: World, pos: Vec3): set[Direction] =
+proc getSafeDirections(world: World, pos: Vec3, isPlayer: bool): set[Direction] =
   if pos in world:
-    world.getSafeDirections(world.tiles.getPointIndex(pos))
+    world.getSafeDirections(world.tiles.getPointIndex(pos), isPlayer)
   else:
     {}
 
-proc playerSafeDirections(world: World): set[Direction] = world.getSafeDirections(world.player.mapPos)
+proc playerSafeDirections(world: World): set[Direction] = world.getSafeDirections(world.player.mapPos, true)
 
 proc hoverSign*(world: var World, index: int) =
   world.signs[index].hovered = true
@@ -433,7 +457,7 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
 
   if world.player.doPlace():
     world.placeBlock(cam)
-    world.saveHistoryStep(placed)
+    world.saveHistoryStep(nothing)
 
   if moveDir.isSome:
     world.pushBlock(moveDir.get)
@@ -600,8 +624,6 @@ proc update*(
       of shootHitscan:
         hitScanCheck(world, tile, i, dt, renderInstance)
       of nothing:
-        discard
-      of unlock:
         discard
 
       case tile.kind

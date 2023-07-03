@@ -103,11 +103,23 @@ proc makeEditorGui(world: var World): auto =
 
   template inspectingTile: Tile = world[].tiles[world[].inspecting]
   proc isInspecting: bool = editing in world.state and world[].inspecting in 0..world[].tiles.high
-
+  
   let
     movesPerLabel = Label(size: entrySize, text: "Moves Per Shot: ") 
     movesTilLabel = Label(size: entrySize, text: "Moves Until Next Shot: ")
     topRightEntries = (
+        DropDown[LockState](
+          size: entrySize,
+          color: vec4(0, 0, 0, 0.5),
+          hoveredColor: vec4(0, 0, 0, 0.7),
+          watchValue: (proc(): LockState = 
+            if inspectingTile().isLocked:
+              Locked
+            else:
+              Unlocked
+          ),
+          onChange: (proc(kind: LockState) = inspectingTile().lockState = kind)
+        ),
         HGroup[(Label, DropDown[PickupType])](
           visible: (proc(): bool = isInspecting() and inspectingTile().kind == pickup),
           color: vec4(0),

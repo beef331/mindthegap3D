@@ -15,6 +15,8 @@ type
     checkpoints
     iceBlocks
     lazes
+    lockedwalls
+    #keys
 
   BlockInstanceData* = object
     state*: int32

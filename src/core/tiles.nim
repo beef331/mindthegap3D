@@ -44,6 +44,8 @@ type
     pickup = "Pickup"
     box = "Box"
     ice = "Ice"
+    key = "Key"
+
   RenderedTile* = TileKind.wall..TileKind.high
 
   StackedObjectKind* = enum
@@ -79,6 +81,7 @@ type
     dynamicProjectile = "Dynamic"
 
   TileFlags = enum
+    locked # Whether this tile requires a lock to access
     reserved
 
   Tile* = object
@@ -92,20 +95,25 @@ type
       active*: bool
     of box, ice:
       progress*: float32
+    of key:
+      discard
     else: discard
 
   TileActionState* = enum
     nothing
     shootProjectile
     shootHitscan
-    unlock
 
+
+  LockState* = enum
+    Unlocked
+    Locked
 
   NonEmpty* = range[succ(TileKind.empty)..TileKind.high]
 
 const # Gamelogic constants
-  FloorDrawn* = {wall, floor, pickup}
-  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice}
+  FloorDrawn* = {wall, floor, pickup, key}
+  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice, key}
   Walkable* = {box} + AlwaysWalkable
   FallingTiles* = {TileKind.box, ice}
   FallingStacked* = {StackedObjectKind.box, ice}
@@ -137,6 +145,8 @@ proc shouldSpawnParticle*(tile: var Tile): bool =
   if result:
     tile.stacked.get.flags.incl spawnedParticle
 
+proc isLocked*(tile: Tile): bool = locked in tile.flags
+proc `lockState=`*(tile: var Tile, val: LockState) = tile.flags[locked] = bool(val)
 
 proc isWalkable*(tile: Tile): bool =
   if tile.hasStacked():
@@ -147,7 +157,7 @@ proc isWalkable*(tile: Tile): bool =
 
 proc collides*(tile: Tile): bool = tile.kind in ProjectilesAlwaysCollide or (tile.kind != empty and tile.hasStacked())
 
-proc isSlidable*(tile: Tile): bool = tile.isWalkable and not tile.hasStacked
+proc isSlidable*(tile: Tile): bool = tile.isWalkable and not tile.hasStacked and locked notin tile.flags
 
 proc canStackOn*(tile: Tile): bool =
   not tile.hasStacked() and tile.isWalkable
@@ -259,6 +269,9 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
       tile.calcYPos()
     else:
       0f
+
+  if tile.isLocked:
+    instance.buffer[RenderedModel.lockedwalls].push mat4() * translate(pos + vec3(0, 1, 0))
   
   case tile.kind
   of wall:
@@ -275,6 +288,8 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
 
   of ice:
     instance.buffer[RenderedModel.iceBlocks].push mat4() * translate(vec3(pos.x, yOffset, pos.z))
+  of key:
+    instance.buffer[RenderedModel.pickups].push mat4() * translate(pos + vec3(0, 1, 0))
   else:
     discard
 
@@ -342,4 +357,6 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
       shader.setUniform("mvp", cam.orthoView * modelMatrix)
       shader.setUniform("m", modelMatrix)
       render(floorModel)
+  of key:
+    discard
   of empty: discard
