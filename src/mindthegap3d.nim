@@ -169,6 +169,9 @@ proc gameInit() =
   renderInstance.buffer[lockedwalls] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("lockedwall.glb", lockedwalls.ord))
   renderInstance.shaders[lockedwalls] = renderInstance.shaders[signs] 
 
+  renderInstance.buffer[keys] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("key.glb", keys.ord))
+  renderInstance.shaders[keys] = renderInstance.shaders[signs] 
+
   renderInstance.buffer[pickupIcons] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("pickup_quad.dae", signs.ord))
   renderInstance.shaders[pickupIcons] = loadShader(ShaderPath"insttexturedvert.glsl", ShaderPath"instpickupfrag.glsl")
 

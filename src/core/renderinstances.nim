@@ -16,7 +16,7 @@ type
     iceBlocks
     lazes
     lockedwalls
-    #keys
+    keys
 
   BlockInstanceData* = object
     state*: int32

@@ -1,6 +1,7 @@
 import directions, pickups, cameras, resources, consts, renderinstances
 import vmath, easings, opengl, pixie
 import truss3D/[shaders, models, textures]
+import truss3D
 import std/[options, decls, setutils]
 
 
@@ -290,6 +291,8 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
     instance.buffer[RenderedModel.iceBlocks].push mat4() * translate(vec3(pos.x, yOffset, pos.z))
   of key:
     instance.buffer[RenderedModel.pickups].push mat4() * translate(pos + vec3(0, 1, 0))
+    if not tile.steppedOn:
+      instance.buffer[RenderedModel.keys].push mat4() * translate(pos + vec3(0, 1.3, 0)) * rotateY(getTime())
   else:
     discard
 

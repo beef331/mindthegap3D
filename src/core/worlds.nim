@@ -251,7 +251,8 @@ proc steppedOn(world: var World, pos: Vec3) =
         world.playerStart = world.player
         world.saveHistoryStep(checkpoint)
     of key:
-      inc world.player.keyCount
+      if not hadSteppedOn:
+        inc world.player.keyCount
       world.saveHistoryStep(nothing)
     else:
       if tile.isLocked:
@@ -552,6 +553,9 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
       instance.buffer[RenderedModel.checkpoints].push blockInstance
     else: discard
     updateTileModel(tile, pos, instance)
+
+  if world.player.keyCount > 0:
+    instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 2, 0)) * rotateY(getTime())
 
   for buff in instance.buffer:
     buff.reuploadSsbo
