@@ -27,7 +27,7 @@ type
     pos: Vec3
     moveProgress: float32
     direction: Direction
-    keyCount*: uint8
+    hasKey*: bool
     presentPickup: Option[PickupType]
     pickupRotation: Direction
     rotation: float32

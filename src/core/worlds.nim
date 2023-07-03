@@ -225,7 +225,7 @@ proc steppedOn(world: var World, pos: Vec3) =
   if pos in world:
     var tile {.byaddr.} = world.tiles[pos]
     let hadSteppedOn = tile.steppedOn
-    if tile.kind notin {TileKind.box, ice}:
+    if tile.kind notin {TileKind.box, ice, key}:
       tile.steppedOn = true
     let 
       playerNextPos = world.player.dir.asVec3() + world.player.mapPos
@@ -240,8 +240,8 @@ proc steppedOn(world: var World, pos: Vec3) =
       world.player.stopSliding()
 
     if tile.isLocked():
-      assert world.player.keyCount > 0
-      dec world.player.keyCount
+      assert world.player.hasKey
+      world.player.hasKey = false
       tile.lockState = Unlocked
 
 
@@ -251,13 +251,14 @@ proc steppedOn(world: var World, pos: Vec3) =
         world.playerStart = world.player
         world.saveHistoryStep(checkpoint)
     of key:
-      if not hadSteppedOn:
-        inc world.player.keyCount
+      if not hadSteppedOn and not world.player.hasKey:
+        world.player.hasKey = true
+        tile.steppedOn = true
       world.saveHistoryStep(nothing)
     else:
       if tile.isLocked:
         tile.lockState = Unlocked
-        dec world.player.keyCount
+        world.player.hasKey = false
       world.saveHistoryStep(nothing)
 
     if not world.finished:
@@ -365,7 +366,7 @@ proc canPush(world: World, index: int, dir: Direction): bool =
     case tile.kind
     of Walkable:
       if tile.isLocked():
-        return (firstIter and world.player.keyCount > 0)
+        return (firstIter and world.player.hasKey)
       if not tile.hasStacked():
         return tile.isWalkable()
     of empty:
@@ -377,7 +378,7 @@ proc canWalk(world: World, index: int, dir: Direction, isPlayer: bool): bool =
   let tile = world.tiles[index]
   result = 
     if isPlayer:
-      tile.isWalkable and (not tile.isLocked or world.player.keyCount > 0)
+      tile.isWalkable and (not tile.isLocked or world.player.hasKey)
     else:
       tile.isWalkable and not tile.isLocked
   if result and tile.hasStacked():
@@ -554,7 +555,7 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     else: discard
     updateTileModel(tile, pos, instance)
 
-  if world.player.keyCount > 0:
+  if world.player.hasKey:
     instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 2, 0)) * rotateY(getTime())
 
   for buff in instance.buffer:
