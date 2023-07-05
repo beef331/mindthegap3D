@@ -1,51 +1,25 @@
 import truss3D/[shaders, models, textures, inputs, audio]
 import std/[options, decls]
-import resources, cameras, directions, pickups, shadows, consts, serializers, tiles
+import resources, cameras, directions, pickups, shadows, consts, serializers, tiles, entities
 import vmath, pixie, opengl
 
-
-var font = readFont("assets/fonts/SigmarOne-Regular.ttf")
-proc makeMoveImage(character: string, border = 20f, size = 256): Image =
-  let color = rgba(32, 127, 255, 255)
-  result = newImage(size, size)
-  let ctx = newContext(result)
-  ctx.strokeStyle = color
-  ctx.lineWidth = border.float32
-  let rSize = size.float32 - border * 2
-  ctx.strokeRect(border, border, rSize, rSize)
-  font.size = size.float - border * 4
-  font.paint = color
-  result.fillText(font, character, transform = translate(vec2(border)), bounds = vec2(size.float - border * 2), hAlign = CenterAlign, vAlign = MiddleAlign)
-
-  font.paint = rgba(255, 127, 0, 255)
-  result.strokeText(font, character, strokeWidth = 10, transform = translate(vec2(border)), bounds = vec2(size.float - border * 2), hAlign = CenterAlign, vAlign = MiddleAlign)
+export entities # any module using Player likely needs this
 
 type
-  Player* = object
-    fromPos: Vec3
-    toPos: Vec3
-    pos: Vec3
-    moveProgress: float32
-    direction: Direction
+  Player* = object of Entity
     hasKey*: bool
     presentPickup: Option[PickupType]
     pickupRotation: Direction
-    rotation: float32
-    lastSound {.unserialized.}: Sound
-    isSliding {.unserialized.}: bool
-
+   
 proc serialize*[S](output: var S; player: Player) =
   output.saveSkippingFields(player)
 
 proc deserialize*[S](input: var S; player: var Player) =
   input.loadSkippingFields(player)
 
-func fullymoved*(player: Player): bool = player.moveProgress >= MoveTime
-
 var
   playerModel, dirModel: Model
   playerShader, alphaClipShader: Shader
-  playerJump, slideSfx: SoundEffect
 
 addResourceProc do():
   playerModel = loadModel("player.dae")
@@ -53,47 +27,12 @@ addResourceProc do():
   alphaClipShader = loadShader(ShaderPath"vert.glsl", ShaderPath"alphaclip.glsl")
   dirModel = loadModel("pickup_quad.dae")
 
-  playerJump = loadSound("assets/sounds/jump.wav")
-  playerJump.sound.volume = 0.3
-
-
-  slideSfx = loadSound("assets/sounds/push.wav")
-  slideSfx.sound.volume = 0.3
-
 proc init*(_: typedesc[Player], pos: Vec3): Player =
   result.pos = pos
   result.fromPos = pos
   result.toPos = pos
   result.moveProgress = MoveTime
   result.rotation = up.targetRotation
-
-proc targetRotation*(d: Direction): float32 =
-  case d
-  of right: Tau / 2f
-  of Direction.up: Tau / 4f
-  of left: 0f
-  of down: 3f / 4f * Tau
-
-proc move(player: var Player, direction: Direction): bool =
-  if player.moveProgress >= MoveTime:
-    player.direction = direction
-    player.toPos = direction.asVec3 + player.pos
-    player.moveProgress = 0
-    let sfx = 
-      if player.isSliding:
-        slideSfx
-      else:
-        playerJump
-        
-    sfx.sound.volume =
-      if player.lastSound != nil and not bool(atEnd(player.lastSound)):
-        0.05f
-      else:
-        0.3f
-    player.lastSound = sfx.play()
-    result = true
-
-func isMoving*(player: Player): bool = player.moveProgress < 1
 
 func hasPickup*(player: Player): bool = player.presentPickup.isSome
 
@@ -104,37 +43,6 @@ func clearPickup*(player: var Player) = player.presentPickup = none(PickupType)
 func getPickup*(player: Player): PickupType = player.presentPickup.get
 
 func pickupRotation*(player: Player): Direction = player.pickupRotation
-
-proc movementUpdate(player: var Player, dt: float32) =
-  let
-    rotTarget = player.direction.targetRotation
-  var
-    rotDiff = (player.rotation mod Tau) - rotTarget
-  if rotDiff > Pi:
-    rotDiff -= Tau
-  if rotDiff < -Pi:
-    rotDiff += Tau
-
-  if abs(rotDiff) <= 0.1:
-    player.rotation = rotTarget
-  else:
-    player.rotation += dt * RotationSpeed * -sgn(rotDiff).float32
-  if player.moveProgress < MoveTime:
-    let
-      progress = player.moveProgress / MoveTime
-      sineOffset =
-        if player.isSliding:
-          vec3(0)
-        else:
-          vec3(0, sin(progress * Pi) * Height, 0)
-    player.pos = player.frompos + player.direction.asVec3 * progress + sineOffset
-    player.moveProgress += dt
-
-proc posOffset(player: Player): Vec3 = player.pos + vec3(0.5, 0, 0.5) # Models are centred in centre of mass not corner
-
-proc skipMoveAnim*(player: var Player) =
-  ## For moving the player without causing an animation
-  player.moveProgress = MoveTime
 
 proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
 
@@ -172,15 +80,6 @@ proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: f
     if KeycodeLCtrl.isNothing:
       let scroll = getMouseScroll().sgn
       player.pickupRotation.nextDirection(scroll)
-
-proc startSliding*(player: var Player) =
-  player.isSliding = true
-  discard player.move(player.direction)
-
-proc stopSliding*(player: var Player) =
-  player.isSliding = false
-  player.toPos = player.fromPos
-  player.moveProgress = MoveTime
 
 proc render*(player: Player, camera: Camera, safeDirs: set[Direction], thisTile, nextTile: Tile) =
   let 
