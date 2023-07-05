@@ -1,13 +1,17 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
 import pixie, opengl, vmath, frosty, gooey
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes, tiledatas
+import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes, tiledatas, enemies
 import std/[options, decls, enumerate, os, streams, macros]
 
 
 type
   WorldState* = enum
-    playing, previewing, editing
+    playing
+    previewing
+    editing
+    enemyEditing ## Placing/editing enemies, should always be on with `editing`
+
   World* = object
     tiles*: TileData
     signs*: seq[Sign]
@@ -16,6 +20,7 @@ type
     player*: Player
     projectiles*: Projectiles
     history: seq[History]
+    enemies: seq[Enemy]
 
     playerStart {.unserialized.}: Player ## Player stats before moving, meant for history
 
@@ -31,7 +36,6 @@ type
     nothing
     start
     checkpoint
-
 
   History = object
     kind: HistoryKind
@@ -476,17 +480,26 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
     world.rewindTo({start, checkpoint})
 
 
-var ui: typeof(makeEditorGui((var wrld = default(World); wrld)))
+var 
+  worldEditor: typeof(makeEditor((var wrld = default(World); wrld)))
+  enemyEditor: typeof(makeEnemyEditor(wrld))
 
-proc setupEditorGui*(world: var World) = ui = makeEditorGui(world)
+proc setupEditorGui*(world: var World) = 
+  worldEditor = makeEditor(world)
+  enemyEditor = makeEnemyEditor(world)
 
 
 proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiState, renderTarget: var UiRenderTarget) =
   ## Update for world editor logic
 
-  ui.layout(vec3(0), state)
-  ui.interact(state)
-  ui.upload(state, renderTarget)
+  if enemyEditing notin world.state:
+    worldEditor.layout(vec3(0), state)
+    worldEditor.interact(state)
+    worldEditor.upload(state, renderTarget)
+  else:
+    enemyEditor.layout(vec3(0), state)
+    enemyEditor.interact(state)
+    enemyEditor.upload(state, renderTarget)
 
   if not state.overAnyUi:
     let
@@ -651,7 +664,7 @@ proc update*(
       world.finishTime = clamp(world.finishTime, 0.000001, LevelCompleteAnimationTime)
   elif previewing in world.state:
     discard
-  elif {editing} == world.state:
+  elif editing in world.state:
     world.editorUpdate(cam, dt, uiState, target)
 
   waterParticleSystem.update(dt)

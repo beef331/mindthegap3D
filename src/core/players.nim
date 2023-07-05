@@ -1,4 +1,4 @@
-import truss3D/[shaders, models, textures, inputs, audio]
+import truss3D/[shaders, models, inputs, audio]
 import std/[options, decls]
 import resources, cameras, directions, pickups, shadows, consts, serializers, tiles, entities
 import vmath, pixie, opengl
