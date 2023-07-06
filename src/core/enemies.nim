@@ -10,6 +10,7 @@ type
     path: seq[Direction]
     pathIndex: int
     pathingDown: bool
+    lastPos* {.unserialized.}: Vec3
 
 proc serialize*[S](output: var S; enemy: Enemy) =
   output.saveSkippingFields(enemy)

@@ -157,6 +157,14 @@ proc resize*(world: var World, newSize: IVec2) =
   world.tiles.data = newTileData
   world.history.setLen(0)
 
+proc enterEnemyEdit(world: var World) =
+  world.state.incl {editing, enemyEditing}
+  world.inspecting = -1
+
+proc exitEnemyEdit(world: var World) =
+  world.state.excl enemyEditing
+  world.inspecting = -1
+
 # History Procs
 proc saveHistoryStep(world: var World, kind: HistoryKind) =
   var player = world.playerStart
@@ -488,18 +496,18 @@ proc setupEditorGui*(world: var World) =
   worldEditor = makeEditor(world)
   enemyEditor = makeEnemyEditor(world)
 
-
 proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiState, renderTarget: var UiRenderTarget) =
   ## Update for world editor logic
+  let isEnemyEditing = enemyEditing in world.state
 
-  if enemyEditing notin world.state:
-    worldEditor.layout(vec3(0), state)
-    worldEditor.interact(state)
-    worldEditor.upload(state, renderTarget)
-  else:
+  if isEnemyEditing:
     enemyEditor.layout(vec3(0), state)
     enemyEditor.interact(state)
     enemyEditor.upload(state, renderTarget)
+  else:
+    worldEditor.layout(vec3(0), state)
+    worldEditor.interact(state)
+    worldEditor.upload(state, renderTarget)
 
   if not state.overAnyUi:
     let
@@ -512,21 +520,32 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
           let selectedPos = world.cursorPos(cam)
           if selectedPos in world:
             world.inspecting = world.tiles.getPointIndex(selectedPos)
-        elif KeycodeLShift.isPressed:
-          if pos in world:
+
+        elif isEnemyEditing:
+          #[
+            let dir = directionBetween(lastEnemyPos, pos)
+            if dir.isSome:
+              lastEnemyPos = pos
+              enemy.path.add dir.get
+          ]#
+          discard
+
+        else:
+          if KeycodeLShift.isPressed:
             world.playerSpawn = ind
             world.history.setLen(0)
             world.reload(skipStepOn = true)
 
-        else:
-          world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
-          case world.paintKind:
-          of box, ice:
-            world.tiles[ind].progress = FallTime
-          of pickup:
-            world.tiles[ind].active = true
           else:
-            discard
+            world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
+            case world.paintKind:
+            of box, ice:
+              world.tiles[ind].progress = FallTime
+            of pickup:
+              world.tiles[ind].active = true
+            else:
+              discard
+
 
       if rightMb.isPressed:
         world.placeTile(Tile(kind: empty), pos.xz.ivec2)

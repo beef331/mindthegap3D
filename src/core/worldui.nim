@@ -279,7 +279,7 @@ proc makeEditor(world: var World): auto =
       label: Label(text: "Enemy Editor"),
       pos: vec3(0, 10, 0),
       anchor: {top},
-      clickCb: (proc() = world.state.incl enemyEditing)
+      clickCb: (proc() = world[].enterEnemyEdit())
     ),
 
   )
@@ -295,7 +295,7 @@ proc makeEnemyEditor(world: var World): auto =
       label: Label(text: "Tile Editor"),
       pos: vec3(0, 10, 0),
       anchor: {top},
-      clickCb: (proc() = world.state.excl enemyEditing)
+      clickCb: (proc() = world[].exitEnemyEdit())
     ),
   )
 
