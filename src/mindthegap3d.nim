@@ -196,6 +196,11 @@ proc gameInit() =
   renderInstance.buffer[crossbows] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
 
+  
+  renderInstance.buffer[enemies] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("player.dae", enemies.ord))
+  renderInstance.shaders[enemies] = renderInstance.shaders[signs]
+
+
   renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
   renderTarget.shader = loadShader(guiVert, guiFrag)
 

@@ -515,37 +515,56 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
       ind = world.tiles.getPointIndex(pos)
 
     if pos in world:
-      if leftMb.isPressed:
-        if KeycodeLCtrl.isPressed:
-          let selectedPos = world.cursorPos(cam)
-          if selectedPos in world:
-            world.inspecting = world.tiles.getPointIndex(selectedPos)
+      if isEnemyEditing:
+        if leftMb.isPressed:
+          if KeycodeLCtrl.isPressed:
+            for i, enemy in world.enemies.pairs:
+              if floor(pos) == enemy.pos.floor:
+                world.inspecting = i
+          elif KeyCodeLShift.isPressed:
+            let isValid = block:
+              var isValid = true
+              for enemy in world.enemies:
+                if enemy.pos == pos:
+                  isValid = false
+                  break
+              isValid
 
-        elif isEnemyEditing:
-          #[
-            let dir = directionBetween(lastEnemyPos, pos)
-            if dir.isSome:
-              lastEnemyPos = pos
-              enemy.path.add dir.get
-          ]#
-          discard
+            if isValid:
+              world.enemies.add Enemy.init(pos)
+              world.inspecting = world.enemies.high
+              echo "add"
+          elif world.inspecting > -1: # We have a selected enemy add to path
+            let
+              enemy {.byaddr.} = world.enemies[world.inspecting]
+              dir = enemy.path[^1].directionBetween(pos)
 
-        else:
-          if KeycodeLShift.isPressed:
-            world.playerSpawn = ind
-            world.history.setLen(0)
-            world.reload(skipStepOn = true)
+            if dir.isSome and world.tiles[ind].isWalkable and not world.tiles[ind].isLocked:
+              enemy.path.add pos
 
+            let ind = enemy.path.find(pos)
+            if ind > 1: # Presently pathing has no backpathing
+              enemy.path.setLen(ind)
+
+      else:
+        if leftMb.isPressed:
+          if KeycodeLCtrl.isPressed:
+            world.inspecting = world.tiles.getPointIndex(pos)
           else:
-            world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
-            case world.paintKind:
-            of box, ice:
-              world.tiles[ind].progress = FallTime
-            of pickup:
-              world.tiles[ind].active = true
-            else:
-              discard
+            if KeycodeLShift.isPressed:
+              world.playerSpawn = ind
+              world.history.setLen(0)
+              world.reload(skipStepOn = true)
 
+            else:
+              world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
+              case world.paintKind:
+              of box, ice:
+                world.tiles[ind].progress = FallTime
+              of pickup:
+                world.tiles[ind].active = true
+              else:
+                discard
 
       if rightMb.isPressed:
         world.placeTile(Tile(kind: empty), pos.xz.ivec2)

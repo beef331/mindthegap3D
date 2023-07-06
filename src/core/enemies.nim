@@ -7,10 +7,10 @@ export entities # any module using Enemies likely needs this
 
 type
   Enemy* = object of Entity
-    path: seq[Direction]
+    path*: seq[Vec3]
     pathIndex: int
     pathingDown: bool
-    lastPos* {.unserialized.}: Vec3
+
 
 proc serialize*[S](output: var S; enemy: Enemy) =
   output.saveSkippingFields(enemy)
@@ -18,12 +18,20 @@ proc serialize*[S](output: var S; enemy: Enemy) =
 proc deserialize*[S](input: var S; enemy: var Enemy) =
   input.loadSkippingFields(enemy)
 
-proc init*(_: typedesc[Enemy], pos: Vec3): Entity = 
-  Entity(pos: pos, fromPos: pos, toPos: pos, moveProgress: MoveTime, rotation = up.targetRotation)
+proc init*(_: typedesc[Enemy], pos: Vec3): Enemy = 
+  Enemy(
+    pos: pos,
+    fromPos: pos,
+    toPos: pos,
+    path: @[pos],
+    moveProgress: MoveTime,
+    rotation: up.targetRotation
+  )
 
 proc pathIfSafe(enemy: var Enemy, safeDirs: set[Direction], index: int): bool =
-  if enemy.path[index] in safeDirs:
-    discard enemy.move(enemy.path[index])
+  let dir = directionBetween(enemy.pos, enemy.path[index])
+  if dir.isSome and dir.unsafeGet in safeDirs:
+    discard enemy.move(dir.unsafeGet)
     enemy.pathIndex = index
     result = true
 
