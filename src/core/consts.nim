@@ -9,6 +9,7 @@ const
   SinkHeight* = -0.6
   LevelCompleteAnimationTime* = 1f
   PlayerSoundDelay* = 1f
+  EntityOffset* = 1.1f
 
 
 let

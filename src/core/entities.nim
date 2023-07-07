@@ -90,3 +90,8 @@ proc stopSliding*(ent: var Entity) =
   ent.isSliding = false
   ent.toPos = ent.fromPos
   ent.moveProgress = MoveTime
+
+func mapPos*(ent: Entity): Vec3 =
+  let pos = ent.posOffset()
+  vec3(pos.x.floor, pos.y.floor, pos.z.floor)
+

@@ -1,5 +1,5 @@
 import truss3D/[shaders, models, inputs, audio]
-import std/[options, decls]
+import std/[options, decls, streams]
 import resources, cameras, directions, pickups, shadows, consts, serializers, tiles, entities
 import vmath, pixie, opengl
 
@@ -11,10 +11,10 @@ type
     presentPickup: Option[PickupType]
     pickupRotation: Direction
    
-proc serialize*[S](output: var S; player: Player) =
+proc serialize*(output: var Stream; player: Player) =
   output.saveSkippingFields(player)
 
-proc deserialize*[S](input: var S; player: var Player) =
+proc deserialize*(input: var Stream; player: var Player) =
   input.loadSkippingFields(player)
 
 var
@@ -83,10 +83,10 @@ proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: f
 
 proc render*(player: Player, camera: Camera, safeDirs: set[Direction], thisTile, nextTile: Tile) =
   let 
-    height = mix(thisTile.calcYPos(), nextTile.calcYPos(), player.moveProgress / MoveTime)
+    height = mix(thisTile.calcYPos(true), nextTile.calcYPos(true), player.moveProgress / MoveTime)
   with playerShader:
     let 
-      modelMatrix = (mat4() * translate(player.pos + vec3(0, height + 1.1, 0)) * rotateY(player.rotation)) * scale(vec3(0.9))
+      modelMatrix = (mat4() * translate(player.pos + vec3(0, height, 0)) * rotateY(player.rotation)) * scale(vec3(0.9))
     playerShader.setUniform("mvp", camera.orthoView * modelMatrix)
     playerShader.setUniform("m", modelMatrix)
     render(playerModel)
@@ -94,14 +94,10 @@ proc render*(player: Player, camera: Camera, safeDirs: set[Direction], thisTile,
   if player.moveProgress < MoveTime and not player.isSliding:
     let
       scale = vec3(abs(player.moveProgress - (MoveTime / 2)) / (MoveTime / 2) * 1.4)
-      pos = vec3(player.pos.x, height + 0.8, player.pos.z)
+      pos = vec3(player.pos.x, height - 0.3, player.pos.z)
     renderShadow(camera, pos, scale)
 
 func pos*(player: Player): Vec3 = player.pos
-
-func mapPos*(player: Player): Vec3 =
-  let pos = player.posOffset()
-  vec3(pos.x.floor, pos.y.floor, pos.z.floor)
 
 func movingToPos*(player: Player): Vec3 = player.toPos + vec3(0.5, 0, 0.5)
 func startPos*(player: Player): Vec3 = (player.fromPos + vec3(0.5, 0, 0.5)).floor

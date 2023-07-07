@@ -525,15 +525,16 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
             let isValid = block:
               var isValid = true
               for enemy in world.enemies:
-                if enemy.pos == pos:
+                if enemy.pos.xz == pos.xz:
                   isValid = false
                   break
               isValid
 
             if isValid:
+              let pos = vec3(pos.x, 0, pos.z)
               world.enemies.add Enemy.init(pos)
               world.inspecting = world.enemies.high
-              echo "add"
+
           elif world.inspecting > -1: # We have a selected enemy add to path
             let
               enemy {.byaddr.} = world.enemies[world.inspecting]
@@ -545,6 +546,14 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
             let ind = enemy.path.find(pos)
             if ind > 1: # Presently pathing has no backpathing
               enemy.path.setLen(ind)
+
+        if rightMb.isPressed:
+          for i, enemy in world.enemies.pairs:
+            if enemy.pos.xz == pos.floor.xz:
+              world.enemies.del(i)
+              world.inspecting = -1
+              break
+
 
       else:
         if leftMb.isPressed:
@@ -566,8 +575,8 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
               else:
                 discard
 
-      if rightMb.isPressed:
-        world.placeTile(Tile(kind: empty), pos.xz.ivec2)
+        if rightMb.isPressed:
+          world.placeTile(Tile(kind: empty), pos.xz.ivec2)
 
     if (KeyCodeF11.isDown or KeyCodeEscape.isDown) and world.state == {editing}:
       world.history.setLen(0)
@@ -606,13 +615,22 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     else: discard
     updateTileModel(tile, pos, instance)
 
+  for enemy in world.enemies:
+    let
+      ind = world.tiles.getPointIndex(enemy.mapPos)
+      tile = world.tiles[ind]
+
+    instance.buffer[RenderedModel.enemies].push translate(enemy.pos + vec3(0, tile.calcYPos(true), 0))
+
+
   if world.player.hasKey:
-    instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 2, 0)) * rotateY(getTime())
+    let 
+      ind = world.tiles.getPointIndex(world.player.mapPos)
+      tile = world.tiles[ind]
+    instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 1, 0) + vec3(0, tile.calcYPos(true), 0)) * rotateY(getTime())
 
   for buff in instance.buffer:
     buff.reuploadSsbo
-
-
 
 proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInstance: var renderinstances.RenderInstance) =
   let stacked = tile.stacked.unsafeGet()
@@ -820,6 +838,17 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
           render(flagModel)
         else:
           renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, pos, true)
+    elif world.state == {editing, enemyEditing}:
+      if world.inspecting >= 0:
+        with cursorShader:
+          let pos = world.enemies[world.inspecting].pos
+          let modelMatrix = mat4() * translate(pos)
+          cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
+          cursorShader.setUniform("m", modelMatrix)
+          cursorSHader.setUniform("valid", int32 1)
+          render(selectionModel)
+
+
 
   world.projectiles.render(cam, levelShader)
 

@@ -181,7 +181,7 @@ proc updateFalling*(tile: var Tile, dt: float32) =
   assert tile.kind in FallingTiles
   tile.progress += dt
 
-proc calcYPos*(tile: Tile): float32 =
+proc calcYPos*(tile: Tile, offsetForEnt = false): float32 =
   ## Calculates drop pos for boxes
   case tile.kind
   of FallingTiles:
@@ -197,6 +197,8 @@ proc calcYPos*(tile: Tile): float32 =
     result = 0.1
   else:
     result = 0
+  if offsetForEnt:
+    result += EntityOffset
 
 proc update*(tile: var Tile, dt: float32, playerMoved: bool): TileActionState =
   case tile.kind

@@ -1,5 +1,5 @@
 import truss3D/[shaders, models, inputs, audio]
-import std/[options, decls]
+import std/[options, decls, streams]
 import resources, cameras, directions, pickups, shadows, consts, serializers, tiles, entities
 import vmath, pixie, opengl
 
@@ -12,10 +12,10 @@ type
     pathingDown: bool
 
 
-proc serialize*[S](output: var S; enemy: Enemy) =
+proc serialize*(output: var Stream; enemy: Enemy) =
   output.saveSkippingFields(enemy)
 
-proc deserialize*[S](input: var S; enemy: var Enemy) =
+proc deserialize*(input: var Stream; enemy: var Enemy) =
   input.loadSkippingFields(enemy)
 
 proc init*(_: typedesc[Enemy], pos: Vec3): Enemy = 
