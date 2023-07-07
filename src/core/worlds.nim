@@ -519,7 +519,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
         if leftMb.isPressed:
           if KeycodeLCtrl.isPressed:
             for i, enemy in world.enemies.pairs:
-              if floor(pos) == enemy.pos.floor:
+              if pos.xz.ivec2 == enemy.pos.xz.ivec2:
                 world.inspecting = i
           elif KeyCodeLShift.isPressed:
             let isValid = block:
@@ -535,7 +535,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
               world.enemies.add Enemy.init(pos)
               world.inspecting = world.enemies.high
 
-          elif world.inspecting > -1: # We have a selected enemy add to path
+          elif world.inspecting >= 0: # We have a selected enemy add to path
             let
               enemy {.byaddr.} = world.enemies[world.inspecting]
               dir = enemy.path[^1].directionBetween(pos)
@@ -838,15 +838,15 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
           render(flagModel)
         else:
           renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, pos, true)
-    elif world.state == {editing, enemyEditing}:
-      if world.inspecting >= 0:
-        with cursorShader:
-          let pos = world.enemies[world.inspecting].pos
-          let modelMatrix = mat4() * translate(pos)
-          cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
-          cursorShader.setUniform("m", modelMatrix)
-          cursorSHader.setUniform("valid", int32 1)
-          render(selectionModel)
+  if enemyEditing in world.state:
+    if world.inspecting >= 0:
+      with cursorShader:
+        let pos = world.enemies[world.inspecting].pos
+        let modelMatrix = mat4() * translate(pos + vec3(0, EntityOffset, 0))
+        cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
+        cursorShader.setUniform("m", modelMatrix)
+        cursorSHader.setUniform("valid", int32 1)
+        render(selectionModel)
 
 
 
