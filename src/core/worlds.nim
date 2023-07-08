@@ -11,6 +11,8 @@ type
     previewing
     editing
     enemyEditing ## Placing/editing enemies, should always be on with `editing`
+    playerMoving
+    enemyMoving
 
   World* = object
     tiles*: TileData
@@ -539,13 +541,21 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
             let
               enemy {.byaddr.} = world.enemies[world.inspecting]
               dir = enemy.path[^1].directionBetween(pos)
+              flooredPos = pos.xz.ivec2
+
+            for i, pos in enemy.path.pairs: 
+              if pos.xz.ivec2 == flooredPos:
+                enemy.path.setLen(i + 1)
+                break
 
             if dir.isSome and world.tiles[ind].isWalkable and not world.tiles[ind].isLocked:
-              enemy.path.add pos
+              var found = false
+              for pathPos in enemy.path:
+                if pathPos.xz.ivec2 == flooredPos:
+                  found = true
 
-            let ind = enemy.path.find(pos)
-            if ind > 1: # Presently pathing has no backpathing
-              enemy.path.setLen(ind)
+              if not found:
+                enemy.path.add vec3(pos.x, 0, pos.z)
 
         if rightMb.isPressed:
           for i, enemy in world.enemies.pairs:
@@ -615,13 +625,20 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     else: discard
     updateTileModel(tile, pos, instance)
 
-  for enemy in world.enemies:
+  for eInd, enemy in world.enemies.pairs:
     let
       ind = world.tiles.getPointIndex(enemy.mapPos)
       tile = world.tiles[ind]
 
-    instance.buffer[RenderedModel.enemies].push translate(enemy.pos + vec3(0, tile.calcYPos(true), 0))
+    instance.buffer[RenderedModel.enemies].push mat4() * translate(enemy.pos + vec3(0, tile.calcYPos(true), 0)) * rotateY(enemy.rotation) * scale(vec3(0.6))
 
+    if enemyEditing in world.state and world.inspecting == eInd:
+      for i in 0 .. enemy.path.high - 1:
+        let 
+          pos = enemy.path[i + 1]
+          dir = pos.directionBetween(enemy.path[i]).get #enemy.path[i].directionBetween(pos).get
+
+        instance.buffer[RenderedModel.enemies].push mat4() * translate(pos + vec3(0, tile.calcYPos(true), 0)) * scale(vec3(0.3)) * rotateY(dir.asRot + float32(TAU / 4))
 
   if world.player.hasKey:
     let 
@@ -663,7 +680,15 @@ proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInst
   renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(getTime() * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
   renderInstance.buffer[lazes].reuploadSsbo()
 
+proc enemiesFinishedMoving(world: World): bool =
+  for enemy in world.enemies:
+    if not enemy.fullyMoved:
+      return false
+  true
 
+proc enemyMovementUpdate*(world: var World, dt: float32) =
+  for enemy in world.enemies.mitems:
+    enemy.update(world.getSafeDirections(enemy.pos, false), dt, world.finished)
 
 proc update*(
   world: var World;
@@ -683,7 +708,20 @@ proc update*(
 
     var moveDir = options.none(Direction)
 
-    world.playerMovementUpdate(cam, dt, moveDir)
+    if enemyMoving notin world.state:
+      world.playerMovementUpdate(cam, dt, moveDir)
+      if moveDir.isSome:
+        world.state.incl playerMoving
+
+    if {playerMoving, enemyMoving} * world.state == {playerMoving} and world.player.fullymoved:
+      world.state.incl enemyMoving
+      world.state.excl playerMoving
+    
+    if enemyMoving in world.state:
+      world.enemyMovementUpdate(dt)
+      if world.enemiesFinishedMoving:
+        world.state.excl {playerMoving, enemyMoving}
+
 
     for i, tile in enumerate world.tiles.mitems:
       let startY =

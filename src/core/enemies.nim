@@ -29,26 +29,29 @@ proc init*(_: typedesc[Enemy], pos: Vec3): Enemy =
   )
 
 proc pathIfSafe(enemy: var Enemy, safeDirs: set[Direction], index: int): bool =
-  let dir = directionBetween(enemy.pos, enemy.path[index])
-  if dir.isSome and dir.unsafeGet in safeDirs:
-    discard enemy.move(dir.unsafeGet)
-    enemy.pathIndex = index
-    result = true
+  if index in 0..enemy.path.high:
+    let dir = directionBetween(enemy.pos, enemy.path[index])
+    if dir.isSome and dir.unsafeGet in safeDirs:
+      discard enemy.move(dir.unsafeGet)
+      enemy.pathIndex = index
+      result = true
 
 proc move(enemy: var Enemy, safeDirs: set[Direction]) =
-  let nextIndex =
-    if enemy.pathingDown:
-      enemy.pathIndex - 1
-    else:
-      enemy.pathIndex + 1
-  
-  if not enemy.pathIfSafe(safeDirs, nextIndex):
+  if enemy.path.len > 1:
     let nextIndex =
       if enemy.pathingDown:
-        enemy.pathIndex + 1
-      else:
         enemy.pathIndex - 1
-    discard enemy.pathIfSafe(safeDirs, nextIndex)
+      else:
+        enemy.pathIndex + 1
+
+    if not enemy.pathIfSafe(safeDirs, nextIndex):
+      let nextIndex =
+        if enemy.pathingDown:
+          enemy.pathIndex + 1
+        else:
+          enemy.pathIndex - 1
+      if enemy.pathIfSafe(safeDirs, nextIndex):
+        enemy.pathingDown = not enemy.pathingDown
 
 proc update*(enemy: var Enemy, safeDirs: set[Direction], dt: float32, levelFinished: bool) =
   let wasFullyMoved = enemy.fullyMoved

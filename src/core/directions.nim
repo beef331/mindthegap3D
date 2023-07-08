@@ -27,24 +27,22 @@ proc asVec3*(dir: Direction): Vec3 =
 
 proc directionBetween*(a, b: Vec3): Option[Direction] =
   let
-    a = floor(a)
-    b = floor(b)
-  if a.x == b.x:
-    if b.z == a.z - 1:
-      some down
-    elif b.z == a.z + 1:
+    a = a.xz.ivec2
+    b = b.xz.ivec2
+    xDiff = a.x - b.x
+    yDiff = a.y - b.y
+
+  if xDiff == 0 and abs(yDiff) == 1:
+    if yDiff < 0:
       some up
     else:
-      none(Direction)
-  elif a.z == b.z:
-    if b.x == a.x - 1:
+      some down
+  elif yDiff == 0 and abs(xDiff) == 1:
+    if xDiff < 0:
       some left
-    elif b.x == a.x + 1:
-      some right
     else:
-      none(Direction)
+      some right
   else:
-    none(Direction)
-
+    none Direction
 
 
