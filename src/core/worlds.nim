@@ -44,6 +44,7 @@ type
     player: Player
     tiles: seq[Tile]
     projectiles: Projectiles
+    enemies: seq[Enemy]
 
   PlaceState = enum
     cannotPlace
@@ -175,7 +176,7 @@ proc saveHistoryStep(world: var World, kind: HistoryKind) =
     player = world.player
   else: discard
 
-  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.projectiles, player: player)
+  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.projectiles, player: player, enemies: world.enemies)
 
 proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = false) =
   var
@@ -196,6 +197,7 @@ proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = fal
     world.player = targetHis.player
     world.player.skipMoveAnim()
     world.history.setLen(ind + 1)
+    world.enemies = targetHis.enemies
 
 proc unload*(world: var World) =
   for sign in world.signs.mitems:
@@ -394,7 +396,7 @@ proc canWalk(world: World, index: int, dir: Direction, isPlayer: bool): bool =
     if isPlayer:
       tile.isWalkable and (not tile.isLocked or world.player.hasKey)
     else:
-      tile.isWalkable and not tile.isLocked
+      tile.isWalkable and not tile.isLocked and not tile.hasStacked # enemies cannot push
   if result and tile.hasStacked():
     result = world.canPush(index, dir)
 
@@ -690,6 +692,21 @@ proc enemyMovementUpdate*(world: var World, dt: float32) =
   for enemy in world.enemies.mitems:
     enemy.update(world.getSafeDirections(enemy.pos, false), dt, world.finished)
 
+proc enemyCollisionCheck*(world: var World) =
+  let playerPos = world.player.pos.xz.ivec2
+  var toKill {.global.}: seq[int]
+  toKill.setLen(0) # reset buffer
+
+  for eInd, enemy in world.enemies.pairs:
+    if enemy.pos.xz.ivec2 == playerPos:
+      world.rewindTo({checkpoint, start})
+    let ind = world.tiles.getPointIndex(enemy.pos)
+    if world.tiles[ind].kind == box or world.tiles[ind].hasStacked():
+      toKill.add eInd
+  for ind in toKill:
+    world.enemies.del(ind)
+
+
 proc update*(
   world: var World;
   cam: Camera;
@@ -722,6 +739,7 @@ proc update*(
       if world.enemiesFinishedMoving:
         world.state.excl {playerMoving, enemyMoving}
 
+    world.enemyCollisionCheck()
 
     for i, tile in enumerate world.tiles.mitems:
       let startY =
