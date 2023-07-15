@@ -1,6 +1,6 @@
 import truss3D, vmath, chroma, pixie, frosty, gooey
 import frosty/streams as froststreams
-import truss3D/[shaders, textures, gui, audio, instancemodels]
+import truss3D/[shaders, textures, gui, audio, instancemodels, logging]
 import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances, saves]
 import std/[os, sugar, streams, algorithm]
 
@@ -390,5 +390,5 @@ proc draw =
     screenShader.setUniform("isPlayable", int32(canPlayLevel()))
     render(screenQuad)
 
-
+addLoggers("Mind The Gap")
 initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)
