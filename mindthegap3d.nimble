@@ -11,7 +11,7 @@ bin           = @["mindthegap3d"]
 # Dependencies
 
 requires "nim >= 1.6.0"
-requires "https://github.com/beef331/truss3D >= 0.2.8"
+requires "https://github.com/beef331/truss3D >= 0.2.9"
 requires "constructor"
 requires "https://github.com/disruptek/frosty" # For level editor bridge
 
