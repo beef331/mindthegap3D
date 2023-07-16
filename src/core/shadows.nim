@@ -13,7 +13,7 @@ var
   shadowShader: Shader
   shadowTex: Texture
 
-addResourceProc:
+addResourceProc do():
   shadowShader = loadShader(ShaderPath"vert.glsl", ShaderPath"shadow.glsl")
   shadowModel = loadModel("pickup_quad.dae")
   shadowTex = genTexture()

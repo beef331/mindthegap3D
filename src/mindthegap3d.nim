@@ -1,8 +1,8 @@
 import truss3D, vmath, chroma, pixie, frosty, gooey
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio, instancemodels, logging]
-import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances, saves]
-import std/[os, sugar, streams, algorithm]
+import core/[worlds, resources, cameras, players, tiles, consts, renderinstances, saves]
+import std/[os, streams, algorithm]
 
 shaderPath = "assets/shaders"
 modelPath = "assets/models"
