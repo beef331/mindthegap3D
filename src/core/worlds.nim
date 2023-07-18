@@ -690,7 +690,7 @@ proc enemiesFinishedMoving(world: World): bool =
 
 proc enemyMovementUpdate*(world: var World, dt: float32) =
   for enemy in world.enemies.mitems:
-    enemy.update(world.getSafeDirections(enemy.pos, false), dt, world.finished)
+    enemy.update(world.getSafeDirections(enemy.pos, false), dt, world.finished, world.tiles)
 
 proc enemyCollisionCheck*(world: var World) =
   let playerPos = world.player.pos.xz.ivec2
