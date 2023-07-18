@@ -1,8 +1,8 @@
 import truss3D, vmath, chroma, pixie, frosty, gooey
 import frosty/streams as froststreams
-import truss3D/[shaders, textures, gui, audio, instancemodels]
-import core/[worlds, resources, cameras, players, directions, tiles, consts, shadowcasters, renderinstances, saves]
-import std/[os, sugar, streams, algorithm]
+import truss3D/[shaders, textures, gui, audio, instancemodels, logging]
+import core/[worlds, resources, cameras, players, tiles, consts, renderinstances, saves]
+import std/[os, streams, algorithm]
 
 shaderPath = "assets/shaders"
 modelPath = "assets/models"
@@ -196,6 +196,11 @@ proc gameInit() =
   renderInstance.buffer[crossbows] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
 
+  
+  renderInstance.buffer[enemies] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("player.dae", enemies.ord))
+  renderInstance.shaders[enemies] = renderInstance.shaders[signs]
+
+
   renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
   renderTarget.shader = loadShader(guiVert, guiFrag)
 
@@ -385,5 +390,5 @@ proc draw =
     screenShader.setUniform("isPlayable", int32(canPlayLevel()))
     render(screenQuad)
 
-
+addLoggers("Mind The Gap")
 initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)

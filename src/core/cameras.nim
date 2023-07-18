@@ -1,6 +1,6 @@
 import vmath
 import truss3D
-import constructor/constructor
+
 type
   Camera* = object
     pos: Vec3

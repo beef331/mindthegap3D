@@ -1,13 +1,19 @@
 import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instancemodels]
 import pixie, opengl, vmath, frosty, gooey
 import frosty/streams as froststreams
-import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes, tiledatas
+import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes, tiledatas, enemies
 import std/[options, decls, enumerate, os, streams, macros]
 
 
 type
   WorldState* = enum
-    playing, previewing, editing
+    playing
+    previewing
+    editing
+    enemyEditing ## Placing/editing enemies, should always be on with `editing`
+    playerMoving
+    enemyMoving
+
   World* = object
     tiles*: TileData
     signs*: seq[Sign]
@@ -16,6 +22,7 @@ type
     player*: Player
     projectiles*: Projectiles
     history: seq[History]
+    enemies: seq[Enemy]
 
     playerStart {.unserialized.}: Player ## Player stats before moving, meant for history
 
@@ -32,12 +39,12 @@ type
     start
     checkpoint
 
-
   History = object
     kind: HistoryKind
     player: Player
     tiles: seq[Tile]
     projectiles: Projectiles
+    enemies: seq[Enemy]
 
   PlaceState = enum
     cannotPlace
@@ -153,6 +160,14 @@ proc resize*(world: var World, newSize: IVec2) =
   world.tiles.data = newTileData
   world.history.setLen(0)
 
+proc enterEnemyEdit(world: var World) =
+  world.state.incl {editing, enemyEditing}
+  world.inspecting = -1
+
+proc exitEnemyEdit(world: var World) =
+  world.state.excl enemyEditing
+  world.inspecting = -1
+
 # History Procs
 proc saveHistoryStep(world: var World, kind: HistoryKind) =
   var player = world.playerStart
@@ -161,7 +176,7 @@ proc saveHistoryStep(world: var World, kind: HistoryKind) =
     player = world.player
   else: discard
 
-  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.projectiles, player: player)
+  world.history.add History(kind: kind, tiles: world.tiles.data, projectiles: world.projectiles, player: player, enemies: world.enemies)
 
 proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = false) =
   var
@@ -182,6 +197,7 @@ proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = fal
     world.player = targetHis.player
     world.player.skipMoveAnim()
     world.history.setLen(ind + 1)
+    world.enemies = targetHis.enemies
 
 proc unload*(world: var World) =
   for sign in world.signs.mitems:
@@ -380,7 +396,7 @@ proc canWalk(world: World, index: int, dir: Direction, isPlayer: bool): bool =
     if isPlayer:
       tile.isWalkable and (not tile.isLocked or world.player.hasKey)
     else:
-      tile.isWalkable and not tile.isLocked
+      tile.isWalkable and not tile.isLocked and not tile.hasStacked # enemies cannot push
   if result and tile.hasStacked():
     result = world.canPush(index, dir)
 
@@ -476,17 +492,26 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
     world.rewindTo({start, checkpoint})
 
 
-var ui: typeof(makeEditorGui((var wrld = default(World); wrld)))
+var 
+  worldEditor: typeof(makeEditor((var wrld = default(World); wrld)))
+  enemyEditor: typeof(makeEnemyEditor(wrld))
 
-proc setupEditorGui*(world: var World) = ui = makeEditorGui(world)
-
+proc setupEditorGui*(world: var World) = 
+  worldEditor = makeEditor(world)
+  enemyEditor = makeEnemyEditor(world)
 
 proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiState, renderTarget: var UiRenderTarget) =
   ## Update for world editor logic
+  let isEnemyEditing = enemyEditing in world.state
 
-  ui.layout(vec3(0), state)
-  ui.interact(state)
-  ui.upload(state, renderTarget)
+  if isEnemyEditing:
+    enemyEditor.layout(vec3(0), state)
+    enemyEditor.interact(state)
+    enemyEditor.upload(state, renderTarget)
+  else:
+    worldEditor.layout(vec3(0), state)
+    worldEditor.interact(state)
+    worldEditor.upload(state, renderTarget)
 
   if not state.overAnyUi:
     let
@@ -494,29 +519,76 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
       ind = world.tiles.getPointIndex(pos)
 
     if pos in world:
-      if leftMb.isPressed:
-        if KeycodeLCtrl.isPressed:
-          let selectedPos = world.cursorPos(cam)
-          if selectedPos in world:
-            world.inspecting = world.tiles.getPointIndex(selectedPos)
-        elif KeycodeLShift.isPressed:
-          if pos in world:
-            world.playerSpawn = ind
-            world.history.setLen(0)
-            world.reload(skipStepOn = true)
+      if isEnemyEditing:
+        if leftMb.isPressed:
+          if KeycodeLCtrl.isPressed:
+            for i, enemy in world.enemies.pairs:
+              if pos.xz.ivec2 == enemy.pos.xz.ivec2:
+                world.inspecting = i
+          elif KeyCodeLShift.isPressed:
+            let isValid = block:
+              var isValid = true
+              for enemy in world.enemies:
+                if enemy.pos.xz == pos.xz:
+                  isValid = false
+                  break
+              isValid
 
-        else:
-          world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
-          case world.paintKind:
-          of box, ice:
-            world.tiles[ind].progress = FallTime
-          of pickup:
-            world.tiles[ind].active = true
+            if isValid:
+              let pos = vec3(pos.x, 0, pos.z)
+              world.enemies.add Enemy.init(pos)
+              world.inspecting = world.enemies.high
+
+          elif world.inspecting >= 0: # We have a selected enemy add to path
+            let
+              enemy {.byaddr.} = world.enemies[world.inspecting]
+              dir = enemy.path[^1].directionBetween(pos)
+              flooredPos = pos.xz.ivec2
+
+            for i, pos in enemy.path.pairs: 
+              if pos.xz.ivec2 == flooredPos:
+                enemy.path.setLen(i + 1)
+                break
+
+            if dir.isSome and world.tiles[ind].isWalkable and not world.tiles[ind].isLocked:
+              var found = false
+              for pathPos in enemy.path:
+                if pathPos.xz.ivec2 == flooredPos:
+                  found = true
+
+              if not found:
+                enemy.path.add vec3(pos.x, 0, pos.z)
+
+        if rightMb.isPressed:
+          for i, enemy in world.enemies.pairs:
+            if enemy.pos.xz == pos.floor.xz:
+              world.enemies.del(i)
+              world.inspecting = -1
+              break
+
+
+      else:
+        if leftMb.isPressed:
+          if KeycodeLCtrl.isPressed:
+            world.inspecting = world.tiles.getPointIndex(pos)
           else:
-            discard
+            if KeycodeLShift.isPressed:
+              world.playerSpawn = ind
+              world.history.setLen(0)
+              world.reload(skipStepOn = true)
 
-      if rightMb.isPressed:
-        world.placeTile(Tile(kind: empty), pos.xz.ivec2)
+            else:
+              world.placeTile(Tile(kind: world.paintKind), pos.xz.ivec2)
+              case world.paintKind:
+              of box, ice:
+                world.tiles[ind].progress = FallTime
+              of pickup:
+                world.tiles[ind].active = true
+              else:
+                discard
+
+        if rightMb.isPressed:
+          world.placeTile(Tile(kind: empty), pos.xz.ivec2)
 
     if (KeyCodeF11.isDown or KeyCodeEscape.isDown) and world.state == {editing}:
       world.history.setLen(0)
@@ -555,13 +627,29 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     else: discard
     updateTileModel(tile, pos, instance)
 
+  for eInd, enemy in world.enemies.pairs:
+    let
+      ind = world.tiles.getPointIndex(enemy.mapPos)
+      tile = world.tiles[ind]
+
+    instance.buffer[RenderedModel.enemies].push mat4() * translate(enemy.pos + vec3(0, tile.calcYPos(true), 0)) * rotateY(enemy.rotation) * scale(vec3(0.6))
+
+    if enemyEditing in world.state and world.inspecting == eInd:
+      for i in 0 .. enemy.path.high - 1:
+        let 
+          pos = enemy.path[i + 1]
+          dir = pos.directionBetween(enemy.path[i]).get #enemy.path[i].directionBetween(pos).get
+
+        instance.buffer[RenderedModel.enemies].push mat4() * translate(pos + vec3(0, tile.calcYPos(true), 0)) * scale(vec3(0.3)) * rotateY(dir.asRot + float32(TAU / 4))
+
   if world.player.hasKey:
-    instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 2, 0)) * rotateY(getTime())
+    let 
+      ind = world.tiles.getPointIndex(world.player.mapPos)
+      tile = world.tiles[ind]
+    instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 1, 0) + vec3(0, tile.calcYPos(true), 0)) * rotateY(getTime())
 
   for buff in instance.buffer:
     buff.reuploadSsbo
-
-
 
 proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInstance: var renderinstances.RenderInstance) =
   let stacked = tile.stacked.unsafeGet()
@@ -594,6 +682,29 @@ proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInst
   renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(getTime() * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
   renderInstance.buffer[lazes].reuploadSsbo()
 
+proc enemiesFinishedMoving(world: World): bool =
+  for enemy in world.enemies:
+    if not enemy.fullyMoved:
+      return false
+  true
+
+proc enemyMovementUpdate*(world: var World, dt: float32) =
+  for enemy in world.enemies.mitems:
+    enemy.update(world.getSafeDirections(enemy.pos, false), dt, world.finished, world.tiles)
+
+proc enemyCollisionCheck*(world: var World) =
+  let playerPos = world.player.pos.xz.ivec2
+  var toKill {.global.}: seq[int]
+  toKill.setLen(0) # reset buffer
+
+  for eInd, enemy in world.enemies.pairs:
+    if enemy.pos.xz.ivec2 == playerPos:
+      world.rewindTo({checkpoint, start})
+    let ind = world.tiles.getPointIndex(enemy.pos)
+    if world.tiles[ind].kind == box or world.tiles[ind].hasStacked():
+      toKill.add eInd
+  for ind in toKill:
+    world.enemies.del(ind)
 
 
 proc update*(
@@ -614,7 +725,21 @@ proc update*(
 
     var moveDir = options.none(Direction)
 
-    world.playerMovementUpdate(cam, dt, moveDir)
+    if enemyMoving notin world.state:
+      world.playerMovementUpdate(cam, dt, moveDir)
+      if moveDir.isSome:
+        world.state.incl playerMoving
+
+    if {playerMoving, enemyMoving} * world.state == {playerMoving} and world.player.fullymoved:
+      world.state.incl enemyMoving
+      world.state.excl playerMoving
+    
+    if enemyMoving in world.state:
+      world.enemyMovementUpdate(dt)
+      if world.enemiesFinishedMoving:
+        world.state.excl {playerMoving, enemyMoving}
+
+    world.enemyCollisionCheck()
 
     for i, tile in enumerate world.tiles.mitems:
       let startY =
@@ -651,7 +776,7 @@ proc update*(
       world.finishTime = clamp(world.finishTime, 0.000001, LevelCompleteAnimationTime)
   elif previewing in world.state:
     discard
-  elif {editing} == world.state:
+  elif editing in world.state:
     world.editorUpdate(cam, dt, uiState, target)
 
   waterParticleSystem.update(dt)
@@ -769,6 +894,17 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
           render(flagModel)
         else:
           renderBlock(Tile(kind: world.paintKind), cam, cursorShader, cursorShader, pos, true)
+  if enemyEditing in world.state:
+    if world.inspecting >= 0:
+      with cursorShader:
+        let pos = world.enemies[world.inspecting].pos
+        let modelMatrix = mat4() * translate(pos + vec3(0, EntityOffset, 0))
+        cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)
+        cursorShader.setUniform("m", modelMatrix)
+        cursorSHader.setUniform("valid", int32 1)
+        render(selectionModel)
+
+
 
   world.projectiles.render(cam, levelShader)
 

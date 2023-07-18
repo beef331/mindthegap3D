@@ -1,4 +1,4 @@
-import std/math
+import std/[math, options]
 import vmath
 
 type
@@ -23,3 +23,26 @@ proc asVec3*(dir: Direction): Vec3 =
   of right: vec3(-1, 0, 0)
   of down: vec3(0, 0, -1)
   of left: vec3(1, 0, 0)
+
+
+proc directionBetween*(a, b: Vec3): Option[Direction] =
+  let
+    a = a.xz.ivec2
+    b = b.xz.ivec2
+    xDiff = a.x - b.x
+    yDiff = a.y - b.y
+
+  if xDiff == 0 and abs(yDiff) == 1:
+    if yDiff < 0:
+      some up
+    else:
+      some down
+  elif yDiff == 0 and abs(xDiff) == 1:
+    if xDiff < 0:
+      some left
+    else:
+      some right
+  else:
+    none Direction
+
+

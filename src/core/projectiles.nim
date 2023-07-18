@@ -6,7 +6,7 @@ const projectileCount = 128 # Cmon we're not making a bullet hell
 
 var arrowmodel: Model
 
-addResourceProc:
+addResourceProc do():
   arrowmodel = loadModel("arrow.dae")
 
 type

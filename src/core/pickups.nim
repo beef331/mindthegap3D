@@ -39,7 +39,7 @@ var
   pickupTextures: array[PickupType, Texture]
   textureArray*: TextureArray
 
-addResourceProc:
+addResourceProc do():
   for i in PickupType:
     pickupTextures[i] = genTexture()
     let img = readImage(imageNames[i])

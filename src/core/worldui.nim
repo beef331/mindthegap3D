@@ -1,5 +1,5 @@
-proc makeEditorGui(world: var World): auto =
-  const entrySize = vec2(125, 30)
+const entrySize = vec2(125, 30)
+proc makeEditor(world: var World): auto =
 
   let world = world.addr
 
@@ -271,6 +271,34 @@ proc makeEditorGui(world: var World): auto =
   (
     topLeft,
     topRight,
-    saveLabel
+    saveLabel,
+    Button(
+      color: vec4(0, 0, 0, 0.5),
+      hoveredColor: vec4(0, 0, 0, 0.3),
+      size: entrySize,
+      label: Label(text: "Enemy Editor"),
+      pos: vec3(0, 10, 0),
+      anchor: {top},
+      clickCb: (proc() = world[].enterEnemyEdit())
+    ),
+
   )
+
+
+proc makeEnemyEditor(world: var World): auto =
+  let world = world.addr
+  (
+    Button(
+      color: vec4(0, 0, 0, 0.5),
+      hoveredColor: vec4(0, 0, 0, 0.3),
+      size: entrySize,
+      label: Label(text: "Tile Editor"),
+      pos: vec3(0, 10, 0),
+      anchor: {top},
+      clickCb: (proc() = world[].exitEnemyEdit())
+    ),
+  )
+
+
+
 

@@ -17,6 +17,7 @@ type
     lazes
     lockedwalls
     keys
+    enemies
 
   BlockInstanceData* = object
     state*: int32
