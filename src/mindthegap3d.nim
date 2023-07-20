@@ -197,7 +197,7 @@ proc gameInit() =
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
 
   
-  renderInstance.buffer[enemies] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("player.dae", enemies.ord))
+  renderInstance.buffer[enemies] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("rook.glb", enemies.ord))
   renderInstance.shaders[enemies] = renderInstance.shaders[signs]
 
 

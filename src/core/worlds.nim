@@ -632,7 +632,7 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
       ind = world.tiles.getPointIndex(enemy.mapPos)
       tile = world.tiles[ind]
 
-    instance.buffer[RenderedModel.enemies].push mat4() * translate(enemy.pos + vec3(0, tile.calcYPos(true), 0)) * rotateY(enemy.rotation) * scale(vec3(0.6))
+    instance.buffer[RenderedModel.enemies].push mat4() * translate(enemy.pos + vec3(0, tile.calcYPos(true), 0)) * rotateY(enemy.rotation)
 
     if enemyEditing in world.state and world.inspecting == eInd:
       for i in 0 .. enemy.path.high - 1:
