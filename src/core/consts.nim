@@ -2,6 +2,7 @@
 import std/[math, os]
 const
   MoveTime* = 0.3f
+  EnemyMoveTime* = 0.2f
   RotationSpeed* = Tau * 3
   Height* = 2
   StartHeight* = 10f

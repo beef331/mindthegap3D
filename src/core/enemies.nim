@@ -11,6 +11,7 @@ type
     pathIndex: int
     pathingDown: bool
 
+proc moveTime(enemy: Enemy): float32 = EnemyMoveTime 
 
 proc serialize*(output: var Stream; enemy: Enemy) =
   output.saveSkippingFields(enemy)
@@ -24,7 +25,7 @@ proc init*(_: typedesc[Enemy], pos: Vec3): Enemy =
     fromPos: pos,
     toPos: pos,
     path: @[pos],
-    moveProgress: MoveTime,
+    moveProgress: moveTime(result),
     rotation: up.targetRotation
   )
 

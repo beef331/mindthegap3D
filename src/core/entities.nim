@@ -23,14 +23,21 @@ addresourceproc do():
   slideSfx = loadSound("assets/sounds/push.wav")
   slideSfx.sound.volume = 0.3
 
-func fullymoved*(ent: Entity): bool = ent.moveProgress >= MoveTime
+proc moveTime(ent: Entity): float32 = MoveTime
 
-proc skipMoveAnim*(ent: var Entity) =
+func fullyMoved*[T: Entity](ent: T): bool =
+  mixin moveTime
+  ent.moveProgress >= moveTime(ent)
+
+proc skipMoveAnim*[T: Entity](ent: var T) =
   ## For moving the entity without causing an animation
-  ent.moveProgress = MoveTime
+  mixin moveTime
+  ent.moveProgress = moveTime(ent)
 
-proc move*(ent: var Entity, direction: Direction): bool =
-  if ent.moveProgress >= MoveTime:
+proc move*[T: Entity](ent: var T, direction: Direction): bool =
+  mixin moveTime
+
+  if ent.moveProgress >= moveTime(ent):
     ent.direction = direction
     ent.toPos = direction.asVec3 + ent.pos
     ent.moveProgress = 0
@@ -57,7 +64,9 @@ proc targetRotation*(d: Direction): float32 =
   of left: 0f
   of down: 3f / 4f * Tau
 
-proc movementUpdate*(ent: var Entity, dt: float32) =
+proc movementUpdate*[T: Entity](ent: var T, dt: float32) =
+  mixin moveTime
+
   let
     rotTarget = ent.direction.targetRotation
   var
@@ -71,9 +80,10 @@ proc movementUpdate*(ent: var Entity, dt: float32) =
     ent.rotation = rotTarget
   else:
     ent.rotation += dt * RotationSpeed * -sgn(rotDiff).float32
-  if ent.moveProgress < MoveTime:
+
+  if not ent.fullyMoved():
     let
-      progress = ent.moveProgress / MoveTime
+      progress = ent.moveProgress / moveTime(ent)
       sineOffset =
         if ent.isSliding:
           vec3(0)
@@ -82,14 +92,16 @@ proc movementUpdate*(ent: var Entity, dt: float32) =
     ent.pos = ent.frompos + ent.direction.asVec3 * progress + sineOffset
     ent.moveProgress += dt
 
-proc startSliding*(ent: var Entity) =
+proc startSliding*[T](ent: var T) =
+  mixin move
   ent.isSliding = true
   discard ent.move(ent.direction)
 
-proc stopSliding*(ent: var Entity) =
+proc stopSliding*[T](ent: var T) =
+  mixin moveTime
   ent.isSliding = false
   ent.toPos = ent.fromPos
-  ent.moveProgress = MoveTime
+  ent.moveProgress = moveTime(ent)
 
 func mapPos*(ent: Entity): Vec3 =
   let pos = ent.posOffset()
