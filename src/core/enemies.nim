@@ -37,6 +37,14 @@ proc pathIfSafe(enemy: var Enemy, safeDirs: set[Direction], index: int): bool =
       enemy.pathIndex = index
       result = true
 
+proc movePathPosIfNeeded(enemy: var Enemy) =
+  ## This will move the enemy's path index to the proper index,
+  ## ensuring sliding or pushing does not cause it no longer path
+  for i, path in enemy.path.pairs:
+    if path.xz.ivec2 == enemy.pos.xz.ivec2:
+      enemy.pathIndex = i
+      break
+
 proc move(enemy: var Enemy, safeDirs: set[Direction]) =
   if enemy.path.len > 1:
     let nextIndex =
@@ -79,4 +87,4 @@ proc update*(enemy: var Enemy, safeDirs: set[Direction], dt: float32, levelFinis
   if not levelFinished and not enemy.isSliding and enemy.fullyMoved and wasFullyMoved and playerMoved:
     enemy.move(safeDirs)
 
-
+  movePathPosIfNeeded(enemy)
