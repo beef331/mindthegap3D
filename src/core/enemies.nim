@@ -54,7 +54,7 @@ proc move(enemy: var Enemy, safeDirs: set[Direction]) =
       if enemy.pathIfSafe(safeDirs, nextIndex):
         enemy.pathingDown = not enemy.pathingDown
 
-proc update*(enemy: var Enemy, safeDirs: set[Direction], dt: float32, levelFinished: bool, tileData: TileData) =
+proc update*(enemy: var Enemy, safeDirs: set[Direction], dt: float32, levelFinished: bool, tileData: TileData, playerMoved: bool) =
   let wasFullyMoved = enemy.fullyMoved
   movementUpdate(enemy, dt)
   if not wasFullyMoved and enemy.fullyMoved:
@@ -75,9 +75,8 @@ proc update*(enemy: var Enemy, safeDirs: set[Direction], dt: float32, levelFinis
     if tile.kind != ice or enemyNextPos notin tileData or not tileData[nextIndex].isSlidable:
       enemy.stopSliding()
 
-
     
-  if not levelFinished and not enemy.isSliding and enemy.fullyMoved and wasFullyMoved:
+  if not levelFinished and not enemy.isSliding and enemy.fullyMoved and wasFullyMoved and playerMoved:
     enemy.move(safeDirs)
 
 

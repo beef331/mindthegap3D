@@ -688,9 +688,9 @@ proc enemiesFinishedMoving(world: World): bool =
       return false
   true
 
-proc enemyMovementUpdate*(world: var World, dt: float32) =
+proc enemyMovementUpdate*(world: var World, dt: float32, playerMoved: bool) =
   for enemy in world.enemies.mitems:
-    enemy.update(world.getSafeDirections(enemy.pos, false), dt, world.finished, world.tiles)
+    enemy.update(world.getSafeDirections(enemy.pos, false), dt, world.finished, world.tiles, playerMoved)
 
 proc enemyCollisionCheck*(world: var World) =
   let playerPos = world.player.pos.xz.ivec2
@@ -730,12 +730,15 @@ proc update*(
       if moveDir.isSome:
         world.state.incl playerMoving
 
+    let startState = world.state
     if {playerMoving, enemyMoving} * world.state == {playerMoving} and world.player.fullymoved:
       world.state.incl enemyMoving
       world.state.excl playerMoving
-    
+   
+    let playerMoved = playerMoving in startState and playerMoving notin world.state # Union of this might work?
+
     if enemyMoving in world.state:
-      world.enemyMovementUpdate(dt)
+      world.enemyMovementUpdate(dt, playerMoved)
       if world.enemiesFinishedMoving:
         world.state.excl {playerMoving, enemyMoving}
 
@@ -747,7 +750,7 @@ proc update*(
           tile.calcYPos()
         else:
           0f32
-      case tile.update(dt, moveDir.isSome)
+      case tile.update(dt, playerMoved)
       of shootProjectile:
         let stacked = tile.stacked.unsafeGet()
         world.projectiles.spawnProjectile(tile.shootPos, stacked.direction)
@@ -766,7 +769,7 @@ proc update*(
           fallSfx.play()
           dirtParticleSystem.spawn(100, some(world.getPos(i) + vec3(0, 1, 0)))
 
-    world.projectileUpdate(dt, moveDir.isSome)
+    world.projectileUpdate(dt, playerMoved)
 
     if KeyCodeF11.isDown and world.state == {playing, editing}:
       world.state = {editing}
