@@ -37,7 +37,7 @@ addResourceProc do():
   readImage("assets/progress.png").copyto progressTex
 
 type
-  TileKind* = enum
+  TileKind* {.size: 2.} = enum
     empty = "Empty"
     wall = "Wall"# Insert before wall for non rendered tiles
     checkpoint = "Checkpoint"
@@ -46,10 +46,11 @@ type
     box = "Box"
     ice = "Ice"
     key = "Key"
+    portal = "Portal"
 
   RenderedTile* = TileKind.wall..TileKind.high
 
-  StackedObjectKind* = enum
+  StackedObjectKind* {.size: 2.} = enum
     none = "None"
     turret = "Turret"
     box = "Box"
@@ -81,21 +82,24 @@ type
     hitScan = "Hit Scan"
     dynamicProjectile = "Dynamic"
 
-  TileFlags = enum
+  TileFlag = enum
     locked # Whether this tile requires a lock to access
-    reserved
+
+  TileFlags {.size: 2.}= set[TileFlag]
 
   Tile* = object
     stacked*: Option[StackedObject]
     direction*: Direction
     steppedOn*: bool
-    flags: set[TileFlags]
+    flags: TileFlags 
     case kind*: TileKind
     of pickup:
       pickupKind*: PickupType
       active*: bool
     of box, ice:
       progress*: float32
+    of portal:
+      exit: int16 # Where we jump out at
     of key:
       discard
     else: discard
@@ -105,15 +109,22 @@ type
     shootProjectile
     shootHitscan
 
-
   LockState* = enum
     Unlocked
     Locked
 
   NonEmpty* = range[succ(TileKind.empty)..TileKind.high]
 
+
+static:
+  assert sizeof(Tile) == 52
+  assert sizeof(TileKind) == 2
+  assert sizeof(TileFlags) == 2
+  assert sizeof(StackedObjectKind) == 2
+
+
 const # Gamelogic constants
-  FloorDrawn* = {wall, floor, pickup, key}
+  FloorDrawn* = {wall, floor, pickup, key, portal}
   AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice, key}
   Walkable* = {box} + AlwaysWalkable
   FallingTiles* = {TileKind.box, ice}
@@ -349,6 +360,9 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
         else:
           iceModel
       render(model)
+
+  of portal:
+    discard
 
   of checkpoint:
     with shader:
