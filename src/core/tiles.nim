@@ -310,7 +310,7 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
     if not tile.steppedOn:
       instance.buffer[RenderedModel.keys].push mat4() * translate(pos + vec3(0, 1.3, 0)) * rotateY(getTime())
   of portal:
-    instance.buffer[RenderedModel.portals].push mat4() * translate(pos + vec3(0, 1, 0))
+    instance.buffer[RenderedModel.portals].push BlockInstanceData(matrix: mat4() * translate(pos + vec3(0, 1, 0)))
   else:
     discard
 
