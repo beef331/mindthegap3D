@@ -84,13 +84,13 @@ type
 
   TileFlag = enum
     locked # Whether this tile requires a lock to access
+    steppedOn
 
-  TileFlags {.size: 2.}= set[TileFlag]
+  TileFlags {.size: 2.} = set[TileFlag]
 
   Tile* = object
     stacked*: Option[StackedObject]
     direction*: Direction
-    steppedOn*: bool
     flags: TileFlags 
     case kind*: TileKind
     of pickup:
@@ -99,7 +99,7 @@ type
     of box, ice:
       progress*: float32
     of portal:
-      exit: int16 # Where we jump out at
+      portalExit*: int16 # Where we jump out at
     of key:
       discard
     else: discard
@@ -125,7 +125,7 @@ static:
 
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup, key, portal}
-  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice, key}
+  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice, key, portal}
   Walkable* = {box} + AlwaysWalkable
   FallingTiles* = {TileKind.box, ice}
   FallingStacked* = {StackedObjectKind.box, ice}
@@ -136,9 +136,12 @@ proc shootPos*(t: Tile): Vec3 = t.stacked.unsafeGet.startPos + vec3(0, 0.5, 0)
 proc completed*(t: Tile): bool =
   case t.kind:
   of checkpoint:
-    t.steppedOn
+    steppedOn in t.flags
   else:
     true
+
+proc steppedOn*(t: Tile): bool = steppedOn in t.flags
+proc `steppedOn=`*(t: var Tile, val: bool) = t.flags[steppedOn] = val
 
 proc clampedProgress(progress: float32): float32 = clamp(outBounce(progress), 0f, 1f)
 
@@ -306,6 +309,8 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
     instance.buffer[RenderedModel.pickups].push mat4() * translate(pos + vec3(0, 1, 0))
     if not tile.steppedOn:
       instance.buffer[RenderedModel.keys].push mat4() * translate(pos + vec3(0, 1.3, 0)) * rotateY(getTime())
+  of portal:
+    instance.buffer[RenderedModel.portals].push mat4() * translate(pos + vec3(0, 1, 0))
   else:
     discard
 

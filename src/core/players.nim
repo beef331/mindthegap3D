@@ -68,6 +68,12 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
 proc doPlace*(player: var Player): bool =
   leftMb.isDown and player.hasPickup and not player.isSliding
 
+proc moveTo*(player: var Player, pos: Vec3) =
+  player.pos = pos
+  player.fromPos = pos
+  player.toPos = pos
+  player.skipMoveAnim()
+
 proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction], levelFinished: bool) =
   let wasFullyMoved = player.fullyMoved
   movementUpdate(player, dt)

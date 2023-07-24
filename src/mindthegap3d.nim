@@ -200,6 +200,9 @@ proc gameInit() =
   renderInstance.buffer[enemies] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("rook.glb", enemies.ord))
   renderInstance.shaders[enemies] = renderInstance.shaders[signs]
 
+  renderInstance.buffer[portals] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("portal.glb", enemies.ord))
+  renderInstance.shaders[portals] = renderInstance.shaders[signs]
+
 
   renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
   renderTarget.shader = loadShader(guiVert, guiFrag)

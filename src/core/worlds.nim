@@ -271,6 +271,8 @@ proc steppedOn(world: var World, pos: Vec3) =
         world.player.hasKey = true
         tile.steppedOn = true
       world.saveHistoryStep(nothing)
+    of portal:
+      world.player.moveTo world.getPos(int tile.portalExit)
     else:
       if tile.isLocked:
         tile.lockState = Unlocked

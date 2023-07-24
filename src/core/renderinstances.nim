@@ -18,6 +18,7 @@ type
     lockedwalls
     keys
     enemies
+    portals
 
   BlockInstanceData* = object
     state*: int32
