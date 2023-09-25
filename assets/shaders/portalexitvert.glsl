@@ -7,9 +7,11 @@ layout(location = 3) in vec4 colour;
 
 
 uniform mat4 vp;
+uniform float time;
 out vec4 fColour;
 out vec3 fNormal;
 out vec2 fuv;
+out vec3 pos;
 
 struct data{
   int portalId;
@@ -37,12 +39,10 @@ const vec3 colors[10] = vec3[10](
 void main() {
   data theData = instData[gl_InstanceID];
   mat3 normToWorld = mat3(theData.matrix);
-  gl_Position =  vp * theData.matrix * vec4(vertex_position, 1);
-  if(colour == vec4(1)){
-    fColour = vec4(colors[theData.portalId], vertex_position.y);
-  }else{
-    fColour = colour;
-  }
+  vec3 newPos = vertex_position + vec3(0, 1, 0) * (sin(time) * vertex_position.y * 0.1);
+  gl_Position =  vp * theData.matrix * vec4(newPos, 1);
+  fColour = vec4(colors[theData.portalId], 1);
+  pos = newPos;
   fNormal = normalize(normToWorld * normal).xyz;
   fuv = uv;
 }

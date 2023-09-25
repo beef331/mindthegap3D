@@ -16,7 +16,7 @@ type MenuState = enum
   previewingUserLevels
   optionsMenu
 
-const previewingLevels = {previewingBuiltinLevels, previewingUserLevels}
+const previewingLevels {.used.} = {previewingBuiltinLevels, previewingUserLevels}
 
 proc loadBuiltinLevels*(): seq[string] =
   try:
@@ -203,6 +203,8 @@ proc gameInit() =
   renderInstance.buffer[portals] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("portal.glb", enemies.ord))
   renderInstance.shaders[portals] = loadShader(ShaderPath"portalvert.glsl", ShaderPath"portalfrag.glsl")
 
+  renderInstance.buffer[portalExits] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("portalexit.glb", enemies.ord))
+  renderInstance.shaders[portalExits] = loadShader(ShaderPath"portalexitvert.glsl", ShaderPath"portalexitfrag.glsl") 
 
   renderTarget.model = uploadInstancedModel[gui.RenderInstance](modelData)
   renderTarget.shader = loadShader(guiVert, guiFrag)

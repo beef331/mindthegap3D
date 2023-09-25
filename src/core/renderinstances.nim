@@ -19,6 +19,7 @@ type
     keys
     enemies
     portals
+    portalExits
 
   BlockInstanceData* = object
     state*: int32

@@ -1,6 +1,7 @@
 #version 430
 out vec4 frag_colour;
 
+uniform float time;
 
 in vec4 fColour;
 in vec3 fNormal;
@@ -20,9 +21,17 @@ mat4 threshold = mat4
 void main() {
   int x = int(gl_FragCoord.x - 0.5);
   int y = int(gl_FragCoord.y - 0.5);
-  if(fColour.a < threshold[x % 4][y % 4])
+
+
+  frag_colour.a += 1 - abs(sin(pos.y + time * 3));
+
+  frag_colour.a = clamp(frag_colour.a, 0.3, 1);
+
+  if(frag_colour.a < threshold[x % 4][y % 4] || abs(1 - pos.y) < 0.1)
       discard;
+
+  float oldAlpha = frag_colour.a;
+  frag_colour = fColour;
+  frag_colour.rgb += frag_colour.rgb * (1 + oldAlpha);
  
-  float light = (1 - dot(fNormal, normalize(vec3(-1, -1, 0)))) * (fColour.a == 1 ? 1: 0);
-  frag_colour = fColour * (1 - dot(fNormal, normalize(vec3(-1, -1, 0))));
-}
+  }

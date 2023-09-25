@@ -853,6 +853,8 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
         setUniform("textures", textureArray)
       of iceBlocks:
         setUniform("screenTex", fb.colourTexture)
+      of portalExits:
+        setUniform("time", getTime())
       else: discard
 
       renderInstance.buffer[kind].render()
