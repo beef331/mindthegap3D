@@ -13,11 +13,5 @@ bin           = @["mindthegap3d"]
 requires "nim >= 1.6.0"
 requires "https://github.com/beef331/truss3D >= 0.2.11"
 requires "constructor"
-requires "https://github.com/disruptek/frosty" # For level editor bridge
+requires "https://github.com/disruptek/frosty" # For serialisation
 
-
-
-task leveleditor, "builds and run elevel editor":
-  selfexec("c --out:leveleditor -r ./src/core/leveleditor.nim")
-task wleveleditor, "builds and run elevel editor":
-  selfexec("c --out:leveleditor -d:mingw -r ./src/core/leveleditor.nim")
