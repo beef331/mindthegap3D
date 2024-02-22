@@ -34,7 +34,6 @@ addResourceProc do():
   quadModel = makeQuad(1, 1)
   progressShader = loadShader(ShaderPath"texvert.glsl", ShaderPath"animtextfrag.glsl")
   progressTex = genTexture()
-  readImage("assets/progress.png").copyto progressTex
 
 type
   TileKind* {.size: 2.} = enum

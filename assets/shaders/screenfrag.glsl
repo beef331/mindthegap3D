@@ -46,9 +46,7 @@ vec3 aces(vec3 x) {
 void main() {
   vec4 uiColor = texture(uiTex, fuv);
   vec4 col = texture(tex, fuv);
-  if(isPlayable == 0){
-    col.rgb = vec3((col.r + col.g + col.b) / 3);
-  }
+
   col.rgb = aces(col.rgb);
   frag_colour.rgb = uiColor.rgb + col.rgb * (1 - uiColor.a);
   if(finishProgress > 0){
@@ -58,4 +56,9 @@ void main() {
     vec2 offsetUv = fuv * vec2(1, (texSize.y / texSize.x)) - realPlayerPos * vec2(1, (texSize.y / texSize.x));
     frag_colour.rgb *= float(length(offsetUv) < 1 - finishProgress);
   }
+
+  if(isPlayable == 0){
+    frag_colour.rgb = vec3((frag_colour.r + frag_colour.g + frag_colour.b) / 3);
+  }
+
 }
