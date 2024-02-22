@@ -160,44 +160,44 @@ proc gameInit() =
   audio.init()
   invokeResourceProcs()
 
-  renderInstance.buffer[floors] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("floor.dae", floors.ord))
+  renderInstance.buffer[floors] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("floor.dae", floors.ord))
   renderInstance.shaders[floors] = loadShader(ShaderPath"instblockvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[signs] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("sign.dae", signs.ord))
+  renderInstance.buffer[signs] = Instance.new(loadInstancedModel[seq[Mat4]]("sign.dae", signs.ord))
   renderInstance.shaders[signs] = loadShader(ShaderPath"instvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[lockedwalls] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("lockedwall.glb", lockedwalls.ord))
+  renderInstance.buffer[lockedwalls] = Instance.new(loadInstancedModel[seq[Mat4]]("lockedwall.glb", lockedwalls.ord))
   renderInstance.shaders[lockedwalls] = renderInstance.shaders[signs] 
 
-  renderInstance.buffer[keys] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("key.glb", keys.ord))
+  renderInstance.buffer[keys] = Instance.new(loadInstancedModel[seq[Mat4]]("key.glb", keys.ord))
   renderInstance.shaders[keys] = renderInstance.shaders[signs] 
 
-  renderInstance.buffer[pickupIcons] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("pickup_quad.dae", signs.ord))
+  renderInstance.buffer[pickupIcons] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("pickup_quad.dae", signs.ord))
   renderInstance.shaders[pickupIcons] = loadShader(ShaderPath"insttexturedvert.glsl", ShaderPath"instpickupfrag.glsl")
 
-  renderInstance.buffer[walls] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("wall.dae", walls.ord))
+  renderInstance.buffer[walls] = Instance.new(loadInstancedModel[seq[Mat4]]("wall.dae", walls.ord))
   renderInstance.shaders[walls] = renderInstance.shaders[signs]
 
-  renderInstance.buffer[pickups] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("pickup_platform.dae", pickups.ord))
+  renderInstance.buffer[pickups] = Instance.new(loadInstancedModel[seq[Mat4]]("pickup_platform.dae", pickups.ord))
   renderInstance.shaders[pickups] = renderInstance.shaders[signs]
 
-  renderInstance.buffer[blocks] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("box.dae", blocks.ord))
+  renderInstance.buffer[blocks] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("box.dae", blocks.ord))
   renderInstance.shaders[blocks] = loadShader(ShaderPath"instblockvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[lazes] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("laze.glb", blocks.ord))
+  renderInstance.buffer[lazes] = Instance.new(loadInstancedModel[seq[Mat4]]("laze.glb", blocks.ord))
   renderInstance.shaders[lazes] = loadShader(ShaderPath"lazevert.glsl", ShaderPath"lazefrag.glsl")
 
-  renderInstance.buffer[checkpoints] = Instance[seq[BlockInstanceData]].new(loadInstancedModel[seq[BlockInstanceData]]("checkpoint.dae", checkpoints.ord))
+  renderInstance.buffer[checkpoints] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("checkpoint.dae", checkpoints.ord))
   renderInstance.shaders[checkpoints] = renderInstance.shaders[blocks]
 
-  renderInstance.buffer[iceBlocks] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("ice.glb", iceBlocks.ord))
+  renderInstance.buffer[iceBlocks] = Instance.new(loadInstancedModel[seq[Mat4]]("ice.glb", iceBlocks.ord))
   renderInstance.shaders[iceBlocks] = loadShader(ShaderPath"icevert.glsl", ShaderPath"icefrag.glsl")
 
-  renderInstance.buffer[crossbows] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
+  renderInstance.buffer[crossbows] = Instance.new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
 
   
-  renderInstance.buffer[enemies] = Instance[seq[Mat4]].new(loadInstancedModel[seq[Mat4]]("rook.glb", enemies.ord))
+  renderInstance.buffer[enemies] = Instance.new(loadInstancedModel[seq[Mat4]]("rook.glb", enemies.ord))
   renderInstance.shaders[enemies] = renderInstance.shaders[signs]
 
 
