@@ -141,24 +141,26 @@ proc contains*(world: World, vec: Vec3): bool = vec in world.tiles
 
 proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, float ind div world.width)
 
+proc reload*(world: var World, skipStepOn = false)
+
 proc resize*(world: var World, newSize: IVec2) =
-  var newTileData = newSeq[Tile](newSize.x * newSize.y)
-  for i, tile in world.tiles.pairs:
-    let (x, y) = (i mod world.width, i div world.width)
-    if x < newSize.x and y < newSize.y:
-      newTileData[x + y * newSize.x] = tile
-  let (playerX, playerY) = (world.playerSpawn mod world.width, world.playerSpawn div world.width)
-  world.playerSpawn =
-    if playerX in 0..<newSize.x and playerY in 0..<newSize.y:
-      playerX + playerY * newSize.x
-    else:
-      0
+  if newSize.x != world.width or newSize.y != world.height:
+    var newTileData = newSeq[Tile](newSize.x * newSize.y)
+    for i, tile in world.tiles.pairs:
+      let (x, y) = (i mod world.width, i div world.width)
+      if x < newSize.x and y < newSize.y:
+        newTileData[x + y * newSize.x] = tile
+    let (playerX, playerY) = (world.playerSpawn mod world.width, world.playerSpawn div world.width)
+    world.playerSpawn =
+      if playerX in 0..<newSize.x and playerY in 0..<newSize.y:
+        playerX + playerY * newSize.x
+      else:
+        0
 
-
-  world.width = newSize.x
-  world.height = newSize.y
-  world.tiles.data = newTileData
-  world.history.setLen(0)
+    world.width = newSize.x
+    world.height = newSize.y
+    world.tiles.data = newTileData
+    world.player = Player.init(world.getPos(int world.playerSpawn))
 
 proc enterEnemyEdit(world: var World) =
   world.state.incl {editing, enemyEditing}
@@ -603,27 +605,25 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
 
   for sign in world.signs:
     instance.buffer[RenderedModel.signs].push translate(sign.pos)
-  let safeDirs = world.playerSafeDirections()
+  let
+    safeDirs = world.playerSafeDirections()
+    playerXZ = ivec2(int32 ceil(world.player.mapPos.x), int32 ceil(world.player.mapPos.z))
+
   for i, (tile, pos) in enumerate world.tiles.tileKindCoords:
     case tile.kind
     of FloorDrawn:
-      let
-        playerXZ = ivec2(int32 ceil(world.player.mapPos.x), int32 ceil(world.player.mapPos.z))
-        floorState = block:
-          var res = 2i32
-          for dir in safeDirs:
-            if playerXZ + dir.asVec3.xz.ivec2 == ivec2 pos.xz:
-              res = 1
-              break
-          res
-        blockInstance = BlockInstanceData(state: floorState, matrix: translate(pos))
+      let floorState = block:
+        var res = 2i32
+        for dir in safeDirs:
+          if playerXZ + dir.asVec3.xz.ivec2 == ivec2 pos.xz:
+            res = 1
+            break
+        res
 
-      instance.buffer[RenderedModel.floors].push blockInstance
+      instance.buffer[RenderedModel.floors].push BlockInstanceData(state: floorState, matrix: translate(pos))
     of TileKind.checkpoint:
-      let
-        isWalkable = tile.steppedOn
-        blockInstance = BlockInstanceData(state: int32 isWalkable, matrix: translate(pos))
-      instance.buffer[RenderedModel.checkpoints].push blockInstance
+      let isWalkable = tile.steppedOn
+      instance.buffer[RenderedModel.checkpoints].push BlockInstanceData(state: int32 isWalkable, matrix: translate(pos))
     else: discard
     updateTileModel(tile, pos, instance)
 

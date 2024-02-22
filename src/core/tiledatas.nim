@@ -55,7 +55,7 @@ iterator tileKindCoords*(tiles: TileData): (Tile, Vec3) =
     let
       x = i mod tiles.width
       z = i div tiles.width
-    yield (tile, vec3(x.float, 0, z.float))
+    yield (tile, vec3(x.float32, 0, z.float32))
 
 iterator tilesInDir*(tiles: TileData, index: int, dir: Direction, isLast: var bool): Tile =
   assert index in 0..tiles.high
