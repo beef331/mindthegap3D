@@ -9,7 +9,7 @@ proc makeEditor(world: var World): auto =
     pos: vec3(0, 30, 0),
     size: vec2(300, 60),
     anchor: {bottom},
-    time: 1)
+    time: 5)
 
   let topLeft = VGroup[(
         DropDown[NonEmpty],
@@ -88,14 +88,21 @@ proc makeEditor(world: var World): auto =
             size: entrySize, label: Label(text: "Save"),
             clickCb: (proc() =
               try:
+                if world[].levelName.len == 0:
+                  raise newException(ValueError, "Level name is empty.")
+
                 world[].history.setLen(0)
                 world[].saveHistoryStep(start)
+                if world[].isFinished:
+                  raise newException(ValueError, "There are no checkpoints")
                 world[].reload()
+
+
 
                 world[].save()
                 saveLabel.show("Successfully Saved the Level.")
               except CatchableError as e:
-                saveLabel.show("Could not save Level. Error: " & e.msg)
+                saveLabel.show("Could not save Level. " & e.msg)
             ),
           )
         )
