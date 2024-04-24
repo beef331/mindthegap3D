@@ -28,9 +28,11 @@ type
   Instance*[T] = ref object of InstanceBase
     model*: InstancedModel[T]
 
+  ShaderRef = ref Shader
+
   RenderInstance* = object
     buffer*: array[RenderedModel, InstanceBase]
-    shaders*: array[RenderedModel, Shader]
+    shaders*: array[RenderedModel, ShaderRef]
 
 method render*(base: InstanceBase) {.base.} = discard
 method clear*(base: InstanceBase) {.base.} = discard
@@ -50,7 +52,7 @@ proc push*[T](instance: InstanceBase, val: T) =
   bind push
   Instance[seq[T]](instance).model.push(val)
 
-proc new*[T](_: typedesc[Instance[T]], model: InstancedModel[T]): Instance[T] =
+proc new*[T](_: typedesc[Instance[T]], model: sink InstancedModel[T]): Instance[T] =
   Instance[T](model: model)
 
 

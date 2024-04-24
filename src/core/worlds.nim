@@ -833,7 +833,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
 
 proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance, state: UiState, fb: FrameBuffer) =
   for kind in RenderedModel:
-    with renderInstance.shaders[kind]:
+    with renderInstance.shaders[kind][]:
       setUniform("vp", cam.orthoView)
       const
         activeColour = vec4(1, 1, 0, 1)
