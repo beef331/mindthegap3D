@@ -125,7 +125,7 @@ static:
 const # Gamelogic constants
   FloorDrawn* = {wall, floor, pickup, key, portal}
   AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice, key}
-  Walkable* = {box} + AlwaysWalkable
+  Walkable* = {TileKind.box} + AlwaysWalkable
   FallingTiles* = {TileKind.box, ice}
   FallingStacked* = {StackedObjectKind.box, ice}
   ProjectilesAlwaysCollide = {wall}
