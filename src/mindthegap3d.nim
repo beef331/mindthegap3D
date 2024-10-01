@@ -1,4 +1,4 @@
-import truss3D, vmath, chroma, pixie, frosty, gooey
+import pkg/[truss3D, vmath, chroma, pixie, frosty, gooey]
 import frosty/streams as froststreams
 import truss3D/[shaders, textures, gui, audio, instancemodels, logging]
 import core/[worlds, resources, cameras, players, tiles, consts, renderinstances, saves]
@@ -45,6 +45,7 @@ var
   saveData = loadSaveData()
   finishTransition = -1f
   transitionDir = 0f
+  truss: Truss
 
 proc canPlayLevel: bool =
   menuState != previewingBuiltinLevels or selectedLevel == 0 or saveData.finished(selectedLevel - 1)
@@ -69,14 +70,15 @@ proc makeScreenQuad(): Model =
   result = data.uploadData()
 
 addResourceProc do():
-  camera.pos = vec3(0, 8, 0)
+  let scrSize = truss.windowSize
+  camera.setPos(vec3(0, 8, 0), scrSize)
   camera.forward = normalize(vec3(5, 0, 5) - camera.pos)
-  camera.pos = camera.pos - camera.forward * 20
-  camera.changeSize(camDefaultSize)
-  mainBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color, Depth})
-  uiBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color})
-  signBuffer = genFrameBuffer(screenSize(), tfR, {FrameBufferKind.Color, Depth})
-  waterBuffer = genFrameBuffer(screenSize(), tfRgba, {FrameBufferKind.Color, Depth})
+  camera.setPos(camera.pos - camera.forward * 20, scrSize)
+  camera.changeSize(camDefaultSize, scrSize)
+  mainBuffer = genFrameBuffer(scrSize, tfRgba, {FrameBufferKind.Color, Depth})
+  uiBuffer = genFrameBuffer(scrSize, tfRgba, {FrameBufferKind.Color})
+  signBuffer = genFrameBuffer(scrSize, tfR, {FrameBufferKind.Color, Depth})
+  waterBuffer = genFrameBuffer(scrSize, tfRgba, {FrameBufferKind.Color, Depth})
   waterQuad = makeRect(300, 300)
   screenQuad = makeScreenQuad()
   waterShader = loadShader(ShaderPath"watervert.glsl", ShaderPath"waterfrag.glsl")
@@ -110,8 +112,7 @@ proc saveLastPlayed() =
 proc positionCamera() =
   var worldSize = vec2(float32 world.width, float32 world.height) / 2
   camera.size = max(worldSize.x, worldSize.y).max(6)
-  camera.pos = vec3(worldSize.x, 0, worldSize.y) - camera.forward * 20
-  camera.calculateMatrix()
+  camera.setPos(vec3(worldSize.x, 0, worldSize.y) - camera.forward * 20, truss.windowSize)
   
 
 proc loadSelectedLevel(path: string) =
@@ -157,7 +158,7 @@ proc new*[T](val: sink T): ref T =
   new result
   result[] = val
 
-proc gameInit() =
+proc gameInit(truss: var Truss) =
   fontPath = getAppDir() / "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
   invokeResourceProcs()
@@ -215,36 +216,36 @@ proc cameraMovement =
     mouseStartPos {.global.}: IVec2
     mouseOffset {.global.} : IVec2
   if world.finished:
-    setMouseMode(MouseAbsolute)
-    releaseWindow()
-  case middleMb.state()
+    truss.inputs.setMouseMode(MouseAbsolute)
+    truss.releaseWindow()
+  case truss.inputs.state(middleMb)
   of pressed:
-    cameraDragPos = camera.raycast(getMousePos())
+    cameraDragPos = camera.raycast(truss.inputs.getMousePos(), truss.windowSize)
     cameraStartPos = camera.pos
-    mouseStartPos = getMousePos()
+    mouseStartPos = truss.inputs.getMousePos()
     mouseOffset = ivec2(0)
-    setMouseMode(MouseRelative)
+    truss.inputs.setMouseMode(MouseRelative)
   of held:
     let
-      frameOffset = getMouseDelta()
-      hitPos = camera.raycast(frameOffset + mouseStartPos)
+      frameOffset = truss.inputs.getMouseDelta()
+      hitPos = camera.raycast(frameOffset + mouseStartPos, truss.windowSize)
       offset = hitPos - cameraDragPos
-    camera.pos = cameraStartPos + offset
+    camera.setPos(cameraStartPos + offset, truss.windowSize)
     mouseOffset -= frameOffset
-    grabWindow()
+    truss.grabWindow()
   of released:
-    setMouseMode(MouseAbsolute)
-    releaseWindow()
-    moveMouse(mouseStartPos + mouseOffset)
+    truss.inputs.setMouseMode(MouseAbsolute)
+    truss.releaseWindow()
+    truss.moveMouse(mouseStartPos + mouseOffset)
   else:
     discard
 
-proc update(dt: float32) =
+proc update(truss: var Truss, dt: float32) =
 
-  let scrSize = screenSize()
+  let scrSize = truss.windowSize
   if lastScreenSize != scrSize:
     lastScreenSize = scrSize
-    camera.calculateMatrix()
+    camera.calculateMatrix(scrSize)
     mainBuffer.resize(scrSize)
     signBuffer.resize(scrSize)
     uiBuffer.resize(scrSize)
@@ -252,21 +253,21 @@ proc update(dt: float32) =
 
   if previewing notin world.state:
     cameraMovement()
-    let scroll = getMouseScroll()
+    let scroll = truss.inputs.getMouseScroll()
     if scroll != 0:
-      if KeycodeLCtrl.isPressed and not middleMb.isPressed:
-        camera.changeSize(clamp(camera.size + -scroll.float, 3, 20))
+      if truss.inputs.isPressed(KeycodeLCtrl) and not truss.inputs.isPressed(middleMb):
+        camera.changeSize(clamp(camera.size + -scroll.float, 3, 20), truss.windowSize)
 
     with signBuffer:
       let
-        mousePos = getMousePos()
+        mousePos = truss.inputs.getMousePos()
         colData = 0u8
-      glReadPixels(mousePos.x, screenSize().y - mousePos.y, 1, 1, GlRed, GlUnsignedByte, colData.unsafeAddr)
+      glReadPixels(mousePos.x, truss.windowSize.y - mousePos.y, 1, 1, GlRed, GlUnsignedByte, colData.unsafeAddr)
       let selected = world.getSignIndex(colData / 255)
       if selected >= 0:
         world.hoverSign(selected)
 
-    if KeyCodeQ.isDown:
+    if truss.inputs.isDown(KeyCodeQ):
       world.state.excl editing
       world.state.excl playing
       saveLastPlayed()
@@ -285,29 +286,29 @@ proc update(dt: float32) =
 
 
   uiState.dt = dt
-  uiState.screenSize = vec2 screenSize()
-  uiState.inputPos = vec2 getMousePos()
-  if leftMb.isDown:
+  uiState.screenSize = vec2 truss.windowSize
+  uiState.inputPos = vec2 truss.inputs.getMousePos()
+  if truss.inputs.isDown(leftMb):
     uiState.input = UiInput(kind: leftClick)
-  elif leftMb.isPressed:
+  elif truss.inputs.isPressed(leftMb):
     uiState.input = UiInput(kind: leftClick, isHeld: true)
   elif isTextInputActive():
-    if inputText() != "":
-      uiState.input = UiInput(kind: textInput, str: inputText())
-    elif KeyCodeBackspace.isDownRepeating:
+    if truss.inputs.inputText() != "":
+      uiState.input = UiInput(kind: textInput, str: truss.inputs.inputText())
+    elif truss.inputs.isDownRepeating(KeyCodeBackspace):
       uiState.input = UiInput(kind: textDelete)
-    elif KeyCodeReturn.isDownRepeating:
+    elif truss.inputs.isDownRepeating(KeyCodeReturn):
       uiState.input = UiInput(kind: textNewline)
     else:
       reset uiState.input
   else:
     reset uiState.input
-  setInputText("")
+  truss.inputs.setInputText("")
   uiState.interactedWithCurrentElement = false
   uiState.overAnyUi = false
 
   let isFinished = world.finished
-  world.update(camera, dt, renderInstance, uiState, renderTarget)
+  world.update(truss, camera, dt, renderInstance, uiState, renderTarget)
 
   if not isFinished and world.finished:
     finishTransition = 0
@@ -329,7 +330,7 @@ proc update(dt: float32) =
 
   audio.update()
 
-proc draw =
+proc draw(truss: var Truss) =
   glEnable(GlDepthTest)
   with signBuffer:
     signBuffer.clear()
@@ -349,7 +350,7 @@ proc draw =
       reset uiState.action
       uiState.currentElement = nil
       if isTextInputActive():
-        stopTextInput()
+        truss.inputs.stopTextInput()
 
     glDisable(GlDepthTest)
     atlas.ssbo.bindBuffer(1)
@@ -367,7 +368,7 @@ proc draw =
   with mainBuffer:
     mainBuffer.clear()
     if menuState == noMenu or previewing in world.state:
-      world.render(camera, renderInstance, uiState, mainBuffer)
+      world.render(camera, truss, renderInstance, uiState, mainBuffer)
     renderWaterSplashes(camera)
 
   with waterBuffer:
@@ -379,7 +380,7 @@ proc draw =
       waterShader.setUniform("depthTex", mainBuffer.depthTexture)
       waterShader.setUniform("colourTex", mainBuffer.colourTexture)
       waterShader.setUniform("waterTex", waterTex)
-      watershader.setUniform("time", getTime())
+      watershader.setUniform("time", truss.time)
       waterShader.setUniform("mvp", camera.orthoView * waterMatrix)
       render(waterQuad)
 
@@ -387,10 +388,13 @@ proc draw =
     screenShader.setUniform("matrix", scale(vec3(2)) * translate(vec3(-0.5, -0.5, 0f)))
     screenShader.setUniform("tex", waterBuffer.colourTexture)
     screenShader.setUniform("uiTex", uiBuffer.colourTexture)
-    screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0)))
+    screenShader.setUniform("playerPos", vec2 camera.screenPosFromWorld(world.player.pos + vec3(0, 1.5, 0), truss.windowSize))
     screenShader.setUniform("finishProgress", finishTransition / LevelCompleteAnimationTime)
     screenShader.setUniform("isPlayable", int32(canPlayLevel()))
     render(screenQuad)
 
 addLoggers("Mind The Gap")
-initTruss("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)
+truss = Truss.init("Mind The Gap", ivec2(1280, 720), gameInit, update, draw)
+
+while truss.isRunning:
+  truss.update()

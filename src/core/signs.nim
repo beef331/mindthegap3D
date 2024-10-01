@@ -81,6 +81,6 @@ proc load*(sign: var Sign) =
   sign.makeSignTexture()
   sign.pos.y = 1
 
-proc free*(sign: var Sign) = 
+proc free*(sign: var Sign) =
   sign.messageTexture.delete()
-  reset sign.messageTexture
+  sign = Sign()

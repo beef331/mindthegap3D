@@ -327,7 +327,7 @@ proc reverseLerp[T](f: T, rng: Slice[T]): float32 =
 
 include worldui # Some times in our lives we all have pain, this is ugly
 
-proc cursorPos(world: World, cam: Camera): Vec3 = cam.raycast(getMousePos()).floor
+proc cursorPos(world: World, cam: Camera, mousePos, screenSize: IVec2): Vec3 = cam.raycast(mousePos, screenSize).floor
 
 proc init*(_: typedesc[World], width, height: int): World =
   result = World(
@@ -353,10 +353,10 @@ proc placeStateAt(world: World, pos: Vec3): PlaceState =
   else:
     cannotPlace
 
-proc placeBlock(world: var World, cam: Camera) =
+proc placeBlock(world: var World, cam: Camera, truss: var Truss) =
   var player {.byaddr.} = world.player
   let
-    pos = cam.raycast(getMousePos())
+    pos = cam.raycast(truss.inputs.getMousePos(), truss.windowSize)
     dir = player.pickupRotation
   for x in player.getPickup.positions(dir, pos):
     if world.placeStateAt(x) == cannotPlace:
@@ -468,15 +468,15 @@ proc projectileUpdate(world: var World, dt: float32, playerDidMove: bool) =
   world.projectiles.destroyProjectiles(projRemoveBuffer.items)
   world.projectiles.update(dt, playerDidMove)
 
-proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: var Option[Direction]) =
+proc playerMovementUpdate*(world: var World, truss: var Truss, cam: Camera, dt: float, moveDir: var Option[Direction]) =
   ## Orchestrates player movement and historyWriting for movement
   # Top down game dev
   world.playerStart = world.player
   let wasFullyMoved = world.player.fullymoved
-  world.player.update(world.playerSafeDirections(), cam, dt, moveDir, world.finished)
+  world.player.update(truss, world.playerSafeDirections(), cam, dt, moveDir, world.finished)
 
-  if world.player.doPlace():
-    world.placeBlock(cam)
+  if world.player.doPlace(truss):
+    world.placeBlock(cam, truss)
     world.saveHistoryStep(nothing)
 
   if moveDir.isSome:
@@ -487,10 +487,10 @@ proc playerMovementUpdate*(world: var World, cam: Camera, dt: float, moveDir: va
     world.steppedOn(world.player.movingToPos)
 
   world.givePickupIfCan()
-  if KeycodeP.isDown:
+  if truss.inputs.isDown(KeycodeP):
     world.reload()
 
-  if KeycodeZ.isDown:
+  if truss.inputs.isDown(KeycodeZ):
     world.rewindTo({start, checkpoint})
 
 
@@ -502,7 +502,7 @@ proc setupEditorGui*(world: var World) =
   worldEditor = makeEditor(world)
   enemyEditor = makeEnemyEditor(world)
 
-proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiState, renderTarget: var UiRenderTarget) =
+proc editorUpdate*(world: var World, truss: var Truss, cam: Camera, dt: float32, state: var MyUiState, renderTarget: var UiRenderTarget) =
   ## Update for world editor logic
   let isEnemyEditing = enemyEditing in world.state
 
@@ -517,17 +517,17 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
 
   if not state.overAnyUi:
     let
-      pos = world.cursorPos(cam)
+      pos = world.cursorPos(cam, truss.inputs.getMousePos(), truss.windowSize)
       ind = world.tiles.getPointIndex(pos)
 
     if pos in world:
       if isEnemyEditing:
-        if leftMb.isPressed:
-          if KeycodeLCtrl.isPressed:
+        if truss.inputs.isPressed(leftMb):
+          if truss.inputs.isPressed(KeycodeLCtrl):
             for i, enemy in world.enemies.pairs:
               if pos.xz.ivec2 == enemy.pos.xz.ivec2:
                 world.inspecting = i
-          elif KeyCodeLShift.isPressed:
+          elif truss.inputs.isPressed(KeyCodeLShift):
             let isValid = block:
               var isValid = true
               for enemy in world.enemies:
@@ -561,7 +561,7 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
               if not found:
                 enemy.path.add vec3(pos.x, 0, pos.z)
 
-        if rightMb.isPressed:
+        if truss.inputs.isPressed(rightMb):
           for i, enemy in world.enemies.pairs:
             if enemy.pos.xz == pos.floor.xz:
               world.enemies.del(i)
@@ -570,11 +570,11 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
 
 
       else:
-        if leftMb.isPressed:
-          if KeycodeLCtrl.isPressed:
+        if truss.inputs.isPressed(leftMb):
+          if truss.inputs.isPressed(KeycodeLCtrl):
             world.inspecting = world.tiles.getPointIndex(pos)
           else:
-            if KeycodeLShift.isPressed:
+            if truss.inputs.isPressed(KeycodeLShift):
               world.playerSpawn = ind
               world.history.setLen(0)
               world.reload(skipStepOn = true)
@@ -589,17 +589,17 @@ proc editorUpdate*(world: var World, cam: Camera, dt: float32, state: var MyUiSt
               else:
                 discard
 
-        if rightMb.isPressed:
+        if truss.inputs.isPressed(rightMb):
           world.placeTile(Tile(kind: empty), pos.xz.ivec2)
 
-    if (KeyCodeF11.isDown or KeyCodeEscape.isDown) and world.state == {editing}:
+    if (truss.inputs.isDown(KeyCodeF11) or truss.inputs.isDown(KeyCodeEscape)) and world.state == {editing}:
       world.history.setLen(0)
       world.saveHistoryStep(start)
       world.state.incl playing
       world.reload()
 
 
-proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
+proc updateModels(world: World, instance: var renderinstances.RenderInstance, truss: var Truss) =
   for buffer in instance.buffer.mitems:
     buffer.clear()
 
@@ -625,7 +625,7 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
       let isWalkable = tile.steppedOn
       instance.buffer[RenderedModel.checkpoints].push BlockInstanceData(state: int32 isWalkable, matrix: translate(pos))
     else: discard
-    updateTileModel(tile, pos, instance)
+    updateTileModel(tile, pos, instance, truss)
 
   for eInd, enemy in world.enemies.pairs:
     let
@@ -646,12 +646,12 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance) =
     let 
       ind = world.tiles.getPointIndex(world.player.mapPos)
       tile = world.tiles[ind]
-    instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 1, 0) + vec3(0, tile.calcYPos(true), 0)) * rotateY(getTime())
+    instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 1, 0) + vec3(0, tile.calcYPos(true), 0)) * rotateY(truss.time().float32)
 
   for buff in instance.buffer:
     buff.reuploadSsbo
 
-proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInstance: var renderinstances.RenderInstance) =
+proc hitScanCheck*(world: var World, tile: Tile, i: int, dt, time: float32, renderInstance: var renderinstances.RenderInstance) =
   let stacked = tile.stacked.unsafeGet()
   var hitInd = -1
   for ind in world.tiles.tilesTilCollision(i, stacked.direction):
@@ -679,7 +679,7 @@ proc hitScanCheck*(world: var World, tile: Tile, i: int, dt: float32, renderInst
 
   hitPos = (thisPos + hitPos) / 2 # Centre it
   hitPos.y = 1.1 + sin(dt * float32 i) * 10 # make it interesting
-  renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(getTime() * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
+  renderInstance.buffer[lazes].push mat4() * translate(hitPos) *  scale(theScale) * rotateX(time * 30) * rotateY(stacked.direction.asRot - Tau.float32 / 4f) #* scale(theScale) #* translate(hitPos)
   renderInstance.buffer[lazes].reuploadSsbo()
 
 proc enemiesFinishedMoving(world: World): bool =
@@ -709,13 +709,14 @@ proc enemyCollisionCheck*(world: var World) =
 
 proc update*(
   world: var World;
+  truss: var Truss;
   cam: Camera;
   dt: float32;
   renderInstance: var renderInstances.RenderInstance;
   uiState: var UiState;
   target: var UiRenderTarget
   ) = # Maybe make camera var...?
-  updateModels(world, renderInstance)
+  updateModels(world, renderInstance, truss)
 
   fishes.update(dt)
 
@@ -726,7 +727,7 @@ proc update*(
     var moveDir = options.none(Direction)
 
     if enemyMoving notin world.state:
-      world.playerMovementUpdate(cam, dt, moveDir)
+      world.playerMovementUpdate(truss, cam, dt, moveDir)
       if moveDir.isSome:
         world.state.incl playerMoving
 
@@ -755,7 +756,7 @@ proc update*(
         let stacked = tile.stacked.unsafeGet()
         world.projectiles.spawnProjectile(tile.shootPos, stacked.direction)
       of shootHitscan:
-        hitScanCheck(world, tile, i, dt, renderInstance)
+        hitScanCheck(world, tile, i, dt, truss.time, renderInstance)
       of nothing:
         discard
 
@@ -771,7 +772,7 @@ proc update*(
 
     world.projectileUpdate(dt, playerMoved)
 
-    if KeyCodeF11.isDown and world.state == {playing, editing}:
+    if truss.inputs.isDown(KeyCodeF11) and world.state == {playing, editing}:
       world.state = {editing}
       world.reload()
     if world.finished:
@@ -780,7 +781,7 @@ proc update*(
   elif previewing in world.state:
     discard
   elif editing in world.state:
-    world.editorUpdate(cam, dt, uiState, target)
+    world.editorUpdate(truss, cam, dt, uiState, target)
 
   waterParticleSystem.update(dt)
   dirtParticleSystem.update(dt)
@@ -807,9 +808,9 @@ proc renderSigns(world: World, cam: Camera) =
     glEnable(GlDepthTest)
     sign.render(cam)
 
-proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2, dir: Direction) =
+proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos, screenSize: IVec2, dir: Direction) =
   if playing in world.state:
-    let start = ivec3(cam.raycast(pos))
+    let start = ivec3(cam.raycast(pos, screenSize))
     with cursorShader:
       for pos in pickup.positions(dir, vec3 start):
         let placeState = world.placeStateAt(pos)
@@ -831,7 +832,7 @@ proc renderDropCursor*(world: World, cam: Camera, pickup: PickupType, pos: IVec2
         renderBlock(Tile(kind: box), cam, cursorShader, alphaClipShader, pos, true)
         glEnable(GlDepthTest)
 
-proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderInstance, state: UiState, fb: FrameBuffer) =
+proc render*(world: World, cam: Camera, truss: Truss, renderInstance: renderinstances.RenderInstance, state: UiState, fb: FrameBuffer) =
   for kind in RenderedModel:
     with renderInstance.shaders[kind][]:
       setUniform("vp", cam.orthoView)
@@ -845,7 +846,7 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
       of floors:
         const baseColour = vec4(0.49, 0.369, 0.302, 1)
 
-        setUniform("activeColour", mix(activeColour, baseColour, abs(sin(getTime() * 4))))
+        setUniform("activeColour", mix(activeColour, baseColour, abs(sin(truss.time.float32 * 4))))
         setUniform("inactiveColour", baseColour)
       of pickupIcons:
         setUniform("textures", textureArray)
@@ -855,7 +856,7 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
       renderInstance.buffer[kind].render()
 
-  fishes.render(cam)
+  fishes.render(cam, truss.time)
   let
     thisTile = world.tiles[world.player.startPos]
     nextTile = world.tiles[world.player.movingToPos]
@@ -864,7 +865,7 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
 
   if world.player.hasPickup:
-    world.renderDropCursor(cam, world.player.getPickup, getMousePos(), world.player.pickupRotation)
+    world.renderDropCursor(cam, world.player.getPickup, truss.inputs.getMousePos(), truss.windowSize, world.player.pickupRotation)
   if world.state == {editing}:
     with flagShader:
       var pos = world.getPos(world.playerSpawn.int)
@@ -886,10 +887,10 @@ proc render*(world: World, cam: Camera, renderInstance: renderinstances.RenderIn
 
     if not state.overAnyUi:
       with cursorShader:
-        var pos = world.cursorPos(cam)
+        var pos = world.cursorPos(cam, truss.inputs.getMousePos(), truss.windowSize)
         pos.y = 0
         cursorShader.setUniform("valid", ord(pos in world))
-        if KeycodeLShift.isPressed:
+        if truss.inputs.isPressed(KeycodeLShift):
           pos.y = 1
           let modelMatrix = mat4() * translate(pos)
           cursorShader.setUniform("mvp", cam.orthoView * modelMatrix)

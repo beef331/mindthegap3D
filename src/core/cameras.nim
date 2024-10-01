@@ -10,8 +10,7 @@ type
     orthoView*: Mat4
     size*: float32
 
-proc calculateMatrix*(camera: var Camera) =
-  let sSize = screenSize()
+proc calculateMatrix*(camera: var Camera, sSize: IVec2) =
   if sSize.x > sSize.y:
     let aspect = float32(sSize.x / sSize.y)
     camera.ortho = ortho(-camera.size * aspect, camera.size * aspect, -camera.size, camera.size, 0.001f, 50f)
@@ -23,13 +22,13 @@ proc calculateMatrix*(camera: var Camera) =
   camera.orthoView = camera.ortho * camera.view
 
 
-proc changeSize*(camera: var Camera, size: float32) =
+proc changeSize*(camera: var Camera, size: float32, scrSize: IVec2) =
   camera.size = size
-  camera.calculateMatrix()
+  camera.calculateMatrix(scrSize)
 
-proc init*(_: typedesc[Camera], pos, forward: Vec3, size: float32): Camera =
+proc init*(_: typedesc[Camera], pos, forward: Vec3, size: float32, scrSize: IVec2): Camera =
   result = Camera(pos: pos, forward: forward, size: size)
-  result.calculateMatrix()
+  result.calculateMatrix(scrSize)
 
 const globalUp = vec3(0, 1, 0)
 
@@ -39,12 +38,11 @@ proc up*(cam: Camera): Vec3 =
     camRight = cross(camDir, globalUp).normalize
   result = cross(camRight, camDir).normalize
 
-proc raycast*(cam: Camera, point: IVec2): Vec3 =
+proc raycast*(cam: Camera, point, screenSize: IVec2): Vec3 =
   let
     camDir = normalize(cam.forward)
     camRight = cross(camDir, globalUp).normalize
     camUp = cross(camRight, camDir).normalize
-    screenSize = screenSize()
     xNdc = (2 * point.x) / screenSize.x - 1
     yNdc = (2 * point.y) / screenSize.y - 1
     origin =
@@ -57,17 +55,16 @@ proc raycast*(cam: Camera, point: IVec2): Vec3 =
     dist = dot(origin, globalUp) / dot(camDir, globalUp)
   result = -dist * camDir + origin
 
-proc screenPosFromWorld*(cam: Camera, pos: Vec3): IVec2 =
+proc screenPosFromWorld*(cam: Camera, pos: Vec3, screenSize: IVec2): IVec2 =
   let
-    size = screenSize()
     screenSpace = (cam.orthoView * vec4(pos.x, pos.y, pos.z, 1))
   var zeroToOne = (screenSpace.xy * 0.5 + 0.5).xy
   zeroToOne = vec2(zeroToOne.x, 1f - zeroToOne.y)
-  result = iVec2((zeroToOne.x * size.x.float).int, (zeroToOne.y * size.y.float).int)
+  result = iVec2((zeroToOne.x * screenSize.x.float).int, (zeroToOne.y * screenSize.y.float).int)
 
 proc `pos`*(camera: var Camera): Vec3 = camera.pos
 
-proc `pos=`*(camera: var Camera, pos: Vec3) =
+proc setPos*(camera: var Camera, pos: Vec3, screenSize: IVec2) =
   camera.pos = pos
-  camera.calculateMatrix()
+  camera.calculateMatrix(screenSize)
 

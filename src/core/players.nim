@@ -1,4 +1,5 @@
 import truss3D/[shaders, models, inputs, audio]
+import truss3D
 import std/[options, decls, streams]
 import resources, cameras, directions, pickups, shadows, consts, serializers, tiles, entities
 import vmath, pixie, opengl
@@ -44,13 +45,13 @@ func getPickup*(player: Player): PickupType = player.presentPickup.get
 
 func pickupRotation*(player: Player): Direction = player.pickupRotation
 
-proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
+proc move(player: var Player, truss: var Truss, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction]) =
 
   template move(keycodes: set[TKeycode], dir: Direction) =
     var player{.byaddr.} = player
     if moveDir.isNone:
       for key in keycodes:
-        if key.isPressed and dir in safeDirs and player.move(dir):
+        if truss.inputs.isPressed(key) and dir in safeDirs and player.move(dir):
           moveDir = some(dir)
 
   move({KeyCodeW, KeyCodeUp}, Direction.up)
@@ -58,27 +59,27 @@ proc move(player: var Player, safeDirs: set[Direction], camera: Camera, dt: floa
   move({KeyCodeS, KeyCodeDown}, down)
   move({KeyCodeA, KeyCodeLeft}, left)
 
-  if rightMb.isPressed():
-    let hit = vec3 ivec3 camera.raycast(getMousePos())
+  if truss.inputs.isPressed(rightMb):
+    let hit = vec3 ivec3 camera.raycast(truss.inputs.getMousePos(), truss.windowSize)
     for dir in Direction:
       if dir in safeDirs and distSq(hit, player.pos + dir.asVec3) < 0.1:
         if player.move(dir):
           moveDir = some(dir)
 
-proc doPlace*(player: var Player): bool =
-  leftMb.isDown and player.hasPickup and not player.isSliding
+proc doPlace*(player: var Player, truss: var Truss): bool =
+  truss.inputs.isDown(leftMb) and player.hasPickup and not player.isSliding
 
-proc update*(player: var Player, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction], levelFinished: bool) =
+proc update*(player: var Player, truss: var Truss, safeDirs: set[Direction], camera: Camera, dt: float32, moveDir: var Option[Direction], levelFinished: bool) =
   let wasFullyMoved = player.fullyMoved
   movementUpdate(player, dt)
   if not wasFullyMoved and player.fullyMoved:
     player.pos = player.toPos
     player.fromPos = player.pos
   if not levelFinished and not player.isSliding and player.fullyMoved and wasFullyMoved:
-    player.move(safeDirs, camera, dt, moveDir)
+    player.move(truss, safeDirs, camera, dt, moveDir)
 
-    if KeycodeLCtrl.isNothing:
-      let scroll = getMouseScroll().sgn
+    if truss.inputs.isNothing(KeycodeLCtrl):
+      let scroll = truss.inputs.getMouseScroll().sgn
       player.pickupRotation.nextDirection(scroll)
 
 proc render*(player: Player, camera: Camera, safeDirs: set[Direction], thisTile, nextTile: Tile) =

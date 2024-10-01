@@ -63,11 +63,11 @@ proc update*(dt: float32) =
       fish.relocate()
     fishSpawner.model.push FishRenderInstance(velocity: fish.velocity, mat: mat4() * translate(fish.pos) * scale(vec3(fish.scale)) * rotateY(fish.rot))
 
-proc render*(cam: Camera) =
+proc render*(cam: Camera, time: float32) =
   fishSpawner.model.reuploadSsbo()
   with shader:
     shader.setUniform("vp", cam.orthoView)
-    shader.setUniform("time", getTime())
+    shader.setUniform("time", time)
     fishSpawner.model.render()
 
 

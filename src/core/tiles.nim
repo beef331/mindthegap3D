@@ -276,7 +276,7 @@ proc renderStack*(tile: Tile, cam: Camera, shader: Shader, pos: Vec3) =
     of none:
       discard
 
-proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
+proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance, truss: var Truss) =
   let yOffset =
     if tile.kind in FallingTiles:
       tile.calcYPos()
@@ -304,7 +304,7 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance) =
   of key:
     instance.buffer[RenderedModel.pickups].push mat4() * translate(pos + vec3(0, 1, 0))
     if not tile.steppedOn:
-      instance.buffer[RenderedModel.keys].push mat4() * translate(pos + vec3(0, 1.3, 0)) * rotateY(getTime())
+      instance.buffer[RenderedModel.keys].push mat4() * translate(pos + vec3(0, 1.3, 0)) * rotateY(truss.time().float32)
   else:
     discard
 
