@@ -201,10 +201,6 @@ proc rewindTo*(world: var World, targetStates: set[HistoryKind], skipFirst = fal
     world.history.setLen(ind + 1)
     world.enemies = targetHis.enemies
 
-proc unload*(world: var World) =
-  for sign in world.signs.mitems:
-    sign.free()
-
 proc load*(world: var World) =
   for sign in world.signs.mitems:
     sign.load()
@@ -219,7 +215,6 @@ proc serialize*[S](output: var S; world: World) =
 
 proc deserialize*[S](input: var S; world: var World) =
   input.loadSkippingFields(world)
-  world.unload()
   world.load()
 
 
@@ -309,7 +304,6 @@ proc reload*(world: var World, skipStepOn = false) =
   ## Used to reload the world state and reposition player
   if world.history.len > 1:
     world.rewindTo({HistoryKind.start})
-  world.unload()
   world.load()
   world.finished = false
   world.history.setLen(0)

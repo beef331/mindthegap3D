@@ -120,7 +120,6 @@ proc loadSelectedLevel(path: string) =
   var fs = newFileStream(path)
   defer: fs.close
   world = World(levelName: name)
-  unload(world)
   fs.thaw world
   world.state.incl previewing
   load(world)
@@ -159,6 +158,7 @@ proc new*[T](val: sink T): ref T =
   result[] = val
 
 proc gameInit(truss: var Truss) =
+  uiState.truss = truss.addr
   fontPath = getAppDir() / "assets/fonts/MarradaRegular-Yj0O.ttf"
   audio.init()
   invokeResourceProcs()

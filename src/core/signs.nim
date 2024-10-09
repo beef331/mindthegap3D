@@ -29,8 +29,6 @@ addResourceProc do():
   messageShader = loadShader(ShaderPath"texvert.glsl", ShaderPath"alphaclip.glsl")
   messageModel = makeQuad(4, 2)
 
-
-
 var font = readFont("assets/fonts/MarradaRegular-Yj0O.ttf")
 
 proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
@@ -46,6 +44,7 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
   sign.messageTexture.delete()
   sign.messageTexture = genTexture()
   img.copyTo(sign.messageTexture)
+  echo sign.message
 
 proc init*(_: typedesc[Sign], pos: Vec3, message: string): Sign =
   var pos = pos
@@ -80,7 +79,3 @@ proc render*(sign: Sign, cam: Camera) =
 proc load*(sign: var Sign) =
   sign.makeSignTexture()
   sign.pos.y = 1
-
-proc free*(sign: var Sign) =
-  sign.messageTexture.delete()
-  sign = Sign()
