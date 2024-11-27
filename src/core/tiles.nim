@@ -7,7 +7,7 @@ import std/[options, decls, setutils]
 
 var
   floorModel, wallModel, pedestalModel, pickupQuadModel: Model
-  checkpointModel, flagModel, boxModel, iceModel, signModel, crossbowmodel: Model
+  checkpointModel, flagModel, boxModel, iceModel, portalModel, signModel, crossbowmodel: Model
   quadModel: Model
   progressShader: Shader
   progressTex: Texture
@@ -28,6 +28,7 @@ addResourceProc do():
   flagModel = loadModel("flag.dae")
   boxModel = loadModel("box.dae")
   iceModel = loadModel("ice.glb")
+  portalModel = loadModel("portal.glb")
   signModel = loadModel("sign.dae")
   crossbowmodel = loadModel("crossbow.dae")
   checkpointModel = loadModel("checkpoint.dae")
@@ -98,7 +99,8 @@ type
     of box, ice:
       progress*: float32
     of portal:
-      exit: int16 # Where we jump out at
+      portalExit*: int16 # Where we jump out at
+      portalColour*: int8 # Our index in the colour array
     of key:
       discard
     else: discard
@@ -123,8 +125,8 @@ static:
 
 
 const # Gamelogic constants
-  FloorDrawn* = {wall, floor, pickup, key, portal}
-  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice, key}
+  FloorDrawn* = {wall, floor, pickup, key}
+  AlwaysWalkable* = {TileKind.floor, pickup, checkpoint, ice, key, portal}
   Walkable* = {TileKind.box} + AlwaysWalkable
   FallingTiles* = {TileKind.box, ice}
   FallingStacked* = {StackedObjectKind.box, ice}
@@ -298,7 +300,8 @@ proc updateTileModel*(tile: Tile, pos: Vec3, instance: var RenderInstance, truss
       isWalkable = tile.isWalkable
       blockInstance = BlockInstanceData(state: int32 isWalkable, matrix: mat4() * translate(vec3(pos.x, yOffset, pos.z)))
     instance.buffer[RenderedModel.blocks].push blockInstance
-
+  of portal:
+    instance.buffer[RenderedModel.portals].push  BlockInstanceData(state: int32 tile.portalColour, matrix: mat4() * translate(vec3(pos.x, pos.y, pos.z)))
   of ice:
     instance.buffer[RenderedModel.iceBlocks].push mat4() * translate(vec3(pos.x, yOffset, pos.z))
   of key:
@@ -361,7 +364,11 @@ proc renderBlock*(tile: Tile, cam: Camera, shader, transparentShader: Shader, po
       render(model)
 
   of portal:
-    discard
+    with shader:
+      let modelMatrix = mat4() * translate(pos)
+      shader.setUniform("mvp", cam.orthoView * modelMatrix)
+      shader.setUniform("m", modelMatrix)
+      render(portalModel)
 
   of checkpoint:
     with shader:

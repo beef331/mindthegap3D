@@ -44,7 +44,6 @@ proc makeSignTexture(sign: var Sign, width = 1024, height = 512, border = 10) =
   sign.messageTexture.delete()
   sign.messageTexture = genTexture()
   img.copyTo(sign.messageTexture)
-  echo sign.message
 
 proc init*(_: typedesc[Sign], pos: Vec3, message: string): Sign =
   var pos = pos

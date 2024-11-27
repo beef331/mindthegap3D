@@ -196,6 +196,9 @@ proc gameInit(truss: var Truss) =
   renderInstance.buffer[iceBlocks] = Instance.new(loadInstancedModel[seq[Mat4]]("ice.glb", iceBlocks.ord))
   renderInstance.shaders[iceBlocks] = new loadShader(ShaderPath"icevert.glsl", ShaderPath"icefrag.glsl")
 
+  renderInstance.buffer[portals] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("portal.glb", iceBlocks.ord))
+  renderInstance.shaders[portals] = new loadShader(ShaderPath"instportalvert.glsl", ShaderPath"portalfrag.glsl")
+
   renderInstance.buffer[crossbows] = Instance.new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
 

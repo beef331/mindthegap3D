@@ -107,3 +107,8 @@ func mapPos*(ent: Entity): Vec3 =
   let pos = ent.posOffset()
   vec3(pos.x.floor, pos.y.floor, pos.z.floor)
 
+proc moveTo*(entity: var Entity, pos: Vec3) =
+  entity.fromPos = pos
+  entity.toPos = pos
+  entity.pos = pos
+  entity.skipMoveAnim()

@@ -31,8 +31,11 @@ type
 
     # Editor fields
     inspecting {.unserialized.}: int
+    lastPortal {.unserialized.}: int16 = -1
+    portalCount {.unserialized.}: int
     paintKind {.unserialized.}: TileKind = succ(TileKind.low)
     levelName* {.unserialized.}: string
+    time {.unserialized.}: float32 # Not used for anything but shaders
 
   HistoryKind* = enum
     nothing
@@ -130,6 +133,9 @@ addResourceProc do():
     dirtParticleUpdate
   )
 
+proc placingPortal*(world: World): bool =
+  world.lastPortal != -1
+
 proc isFinished(world: World): bool =
   result = true
   for x in world.tiles:
@@ -208,6 +214,12 @@ proc load*(world: var World) =
   if world.history.len == 0:
     world.saveHistoryStep(start)
   world.finishTime = LevelCompleteAnimationTime
+  for tile in world.tiles:
+    if tile.kind == portal:
+      world.portalCount = max(world.portalCount, tile.portalColour)
+
+  if world.portalCount > 0:
+    inc world.portalCount
 
 
 proc serialize*[S](output: var S; world: World) =
@@ -244,10 +256,15 @@ proc steppedOn(world: var World, pos: Vec3) =
       playerNextPos = world.player.dir.asVec3() + world.player.mapPos
       nextIndex = world.tiles.getPointIndex(playerNextPos)
 
-    if tile.kind == ice:
+    case tile.kind
+    of ice:
       if playerNextPos in world:
         world.player.startSliding()
-
+    of portal:
+      if world.tiles[tile.portalExit].isWalkable and not world.tiles[tile.portalExit].hasStacked:
+        world.player.moveTo(world.getPos(tile.portalExit))
+    else:
+      discard
 
     if tile.kind != ice or playerNextPos notin world or not world.tiles[nextIndex].isSlidable:
       world.player.stopSliding()
@@ -269,10 +286,7 @@ proc steppedOn(world: var World, pos: Vec3) =
         tile.steppedOn = true
       world.saveHistoryStep(nothing)
     else:
-      if tile.isLocked:
-        tile.lockState = Unlocked
-        world.player.hasKey = false
-      world.saveHistoryStep(nothing)
+      discard
 
     if not world.finished:
       world.finished = world.isFinished
@@ -365,8 +379,24 @@ proc placeBlock(world: var World, cam: Camera, truss: var Truss) =
 
 proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   let ind = world.tiles.getPointIndex(vec3(float pos.x, 0, float pos.y))
-  if ind >= 0:
+  if ind >= 0 and world.tiles[ind].kind != tile.kind:
     world.tiles[ind] = tile
+    if tile.kind == portal:
+      if not world.placingPortal:
+        world.lastPortal = int16 ind
+        world.tiles[ind].portalColour = int8 world.portalCount
+      else:
+        if world.tiles[int world.lastPortal].kind == portal:
+          world.tiles[ind].portalExit = int16 world.lastPortal
+          world.tiles[int world.lastPortal].portalExit = int16 ind
+          world.tiles[ind].portalColour = int8 world.portalCount
+          world.lastPortal = -1i16
+          inc world.portalCount
+        else:
+          world.lastPortal = int16 ind
+          world.tiles[ind].portalColour = int8 world.portalCount
+
+
 
 proc canPush(world: World, index: int, dir: Direction): bool =
   result = false
@@ -413,12 +443,17 @@ proc pushBlock(world: var World, direction: Direction) =
   if world.tiles[start].hasStacked():
     for (lastIndex, nextIndex) in world.tiles.tilesInDir(start, direction):
       template nextTile: auto = world.tiles[nextIndex]
-      let hadStack = nextTile.hasStacked
-      let temp = nextTile.stacked
-      nextTile.giveStackedObject(buffer, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
-      buffer = temp
-      if not hadStack:
+      if nextTile.kind == portal:
+        let portalNext = nextTile.portalExit
+        world.tiles[portalNext].giveStackedObject(buffer, world.getPos(nextIndex) + vec3(0, 1, 0), world.getPos(portalNext) + vec3(0, 1, 0))
         break
+      else:
+        let hadStack = nextTile.hasStacked
+        let temp = nextTile.stacked
+        nextTile.giveStackedObject(buffer, world.getPos(lastIndex) + vec3(0, 1, 0), world.getPos(nextIndex) + vec3(0, 1, 0))
+        buffer = temp
+        if not hadStack:
+          break
     pushSfx.play()
     world.tiles[start].clearStack()
 
@@ -713,6 +748,7 @@ proc update*(
   updateModels(world, renderInstance, truss)
 
   fishes.update(dt)
+  world.time += dt
 
   if playing in world.state:
     for sign in world.signs.mitems:
@@ -846,6 +882,9 @@ proc render*(world: World, cam: Camera, truss: Truss, renderInstance: renderinst
         setUniform("textures", textureArray)
       of iceBlocks:
         setUniform("screenTex", fb.colourTexture)
+      of portals:
+        setUniform("time", world.time)
+
       else: discard
 
       renderInstance.buffer[kind].render()
