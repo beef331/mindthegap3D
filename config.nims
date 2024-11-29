@@ -1,2 +1,4 @@
 --experimental:overloadableEnums
 --define:nimOldCaseObjects
+--cc:clang
+--passC:"-fuse-ld=mold"

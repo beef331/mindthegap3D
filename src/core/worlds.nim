@@ -677,8 +677,8 @@ proc updateModels(world: World, instance: var renderinstances.RenderInstance, tr
       tile = world.tiles[ind]
     instance.buffer[RenderedModel.keys].push mat4() * translate(world.player.pos + vec3(0, 1, 0) + vec3(0, tile.calcYPos(true), 0)) * rotateY(truss.time().float32)
 
-  for buff in instance.buffer:
-    buff.reuploadSsbo
+  for buff in instance.buffer.mitems:
+    buff.reuploadSsbo()
 
 proc hitScanCheck*(world: var World, tile: Tile, i: int, dt, time: float32, renderInstance: var renderinstances.RenderInstance) =
   let stacked = tile.stacked.unsafeGet()

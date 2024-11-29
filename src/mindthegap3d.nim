@@ -163,47 +163,47 @@ proc gameInit(truss: var Truss) =
   audio.init()
   invokeResourceProcs()
 
-  renderInstance.buffer[floors] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("floor.dae", floors.ord))
+  renderInstance.buffer[floors] = Instance.new("floor.dae")
   renderInstance.shaders[floors] = new loadShader(ShaderPath"instblockvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[signs] = Instance.new(loadInstancedModel[seq[Mat4]]("sign.dae", signs.ord))
+  renderInstance.buffer[signs] = Instance.new("sign.dae")
   renderInstance.shaders[signs] = new loadShader(ShaderPath"instvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[lockedwalls] = Instance.new(loadInstancedModel[seq[Mat4]]("lockedwall.glb", lockedwalls.ord))
+  renderInstance.buffer[lockedwalls] = Instance.new("lockedwall.glb")
   renderInstance.shaders[lockedwalls] = renderInstance.shaders[signs]
 
-  renderInstance.buffer[keys] = Instance.new(loadInstancedModel[seq[Mat4]]("key.glb", keys.ord))
+  renderInstance.buffer[keys] = Instance.new("key.glb")
   renderInstance.shaders[keys] = renderInstance.shaders[signs]
 
-  renderInstance.buffer[pickupIcons] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("pickup_quad.dae", signs.ord))
+  renderInstance.buffer[pickupIcons] = Instance.new("pickup_quad.dae")
   renderInstance.shaders[pickupIcons] = new loadShader(ShaderPath"insttexturedvert.glsl", ShaderPath"instpickupfrag.glsl")
 
-  renderInstance.buffer[walls] = Instance.new(loadInstancedModel[seq[Mat4]]("wall.dae", walls.ord))
+  renderInstance.buffer[walls] = Instance.new("wall.dae")
   renderInstance.shaders[walls] = renderInstance.shaders[signs]
 
-  renderInstance.buffer[pickups] = Instance.new(loadInstancedModel[seq[Mat4]]("pickup_platform.dae", pickups.ord))
+  renderInstance.buffer[pickups] = Instance.new("pickup_platform.dae")
   renderInstance.shaders[pickups] = renderInstance.shaders[signs]
 
-  renderInstance.buffer[blocks] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("box.dae", blocks.ord))
+  renderInstance.buffer[blocks] = Instance.new("box.dae")
   renderInstance.shaders[blocks] = new loadShader(ShaderPath"instblockvert.glsl", ShaderPath"frag.glsl")
 
-  renderInstance.buffer[lazes] = Instance.new(loadInstancedModel[seq[Mat4]]("laze.glb", blocks.ord))
+  renderInstance.buffer[lazes] = Instance.new("laze.glb")
   renderInstance.shaders[lazes] = new loadShader(ShaderPath"lazevert.glsl", ShaderPath"lazefrag.glsl")
 
-  renderInstance.buffer[checkpoints] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("checkpoint.dae", checkpoints.ord))
+  renderInstance.buffer[checkpoints] = Instance.new("checkpoint.dae")
   renderInstance.shaders[checkpoints] = renderInstance.shaders[blocks]
 
-  renderInstance.buffer[iceBlocks] = Instance.new(loadInstancedModel[seq[Mat4]]("ice.glb", iceBlocks.ord))
+  renderInstance.buffer[iceBlocks] = Instance.new("ice.glb")
   renderInstance.shaders[iceBlocks] = new loadShader(ShaderPath"icevert.glsl", ShaderPath"icefrag.glsl")
 
-  renderInstance.buffer[portals] = Instance.new(loadInstancedModel[seq[BlockInstanceData]]("portal.glb", iceBlocks.ord))
+  renderInstance.buffer[portals] = Instance.new("portal.glb")
   renderInstance.shaders[portals] = new loadShader(ShaderPath"instportalvert.glsl", ShaderPath"portalfrag.glsl")
 
-  renderInstance.buffer[crossbows] = Instance.new(loadInstancedModel[seq[Mat4]]("crossbow.dae", crossbows.ord))
+  renderInstance.buffer[crossbows] = Instance.new("crossbow.dae")
   renderInstance.shaders[crossbows] = renderInstance.shaders[signs]
 
   
-  renderInstance.buffer[enemies] = Instance.new(loadInstancedModel[seq[Mat4]]("rook.glb", enemies.ord))
+  renderInstance.buffer[enemies] = Instance.new("rook.glb")
   renderInstance.shaders[enemies] = renderInstance.shaders[signs]
 
 

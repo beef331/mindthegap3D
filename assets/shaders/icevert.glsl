@@ -16,6 +16,7 @@ out vec2 fuv;
 out vec2 samplePos;
 
 struct data{
+  int unused;
   mat4 matrix;
 };
 

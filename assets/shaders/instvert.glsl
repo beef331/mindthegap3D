@@ -11,12 +11,17 @@ out vec4 fColour;
 out vec3 fNormal;
 out vec2 fuv;
 
+struct data{
+  int state;
+  mat4 matrix;
+};
+
 layout(std430, binding = 0) buffer instanceData{
-  mat4 instData[];
+  data instData[];
 };
 
 void main() {
-  mat4 matrix = instData[gl_InstanceID];
+  mat4 matrix = instData[gl_InstanceID].matrix;
   mat3 normToWorld = mat3(matrix);
   gl_Position =  vp * matrix * vec4(vertex_position, 1);
   fColour = colour;

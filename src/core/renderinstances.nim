@@ -24,37 +24,31 @@ type
     state*: int32
     matrix* {.align: 16.} : Mat4
 
-  InstanceBase* = ref object of RootObj
-
-  Instance*[T] = ref object of InstanceBase
-    model*: InstancedModel[T]
+  Instance* = InstancedModel[seq[BlockInstanceData]]
 
   ShaderRef = ref Shader
 
   RenderInstance* = object
-    buffer*: array[RenderedModel, InstanceBase]
+    buffer*: array[RenderedModel, Instance]
     shaders*: array[RenderedModel, ShaderRef]
 
-method render*(base: InstanceBase) {.base.} = discard
-method clear*(base: InstanceBase) {.base.} = discard
-method reuploadSsbo*(base: InstanceBase) {.base.} = discard
+proc reuploadSsbo*(inst: var Instance) =
+  if inst.drawCount > 0:
+    instancemodels.reuploadSsbo(inst)
 
-method clear*[T](inst: Instance[T]) =
-  inst.model.clear()
+proc render*(inst: var Instance) =
+  inst.render()
 
-method reuploadSsbo*[T](inst: Instance[T]) =
-  if inst.model.drawCount > 0:
-    inst.model.reuploadSsbo()
+proc push*(instance: var Instance, val: BlockInstanceData) =
+  instancemodels.push(instance, val)
 
-method render*[T](inst: Instance[T]) =
-  inst.model.render()
+proc push*(instance: var Instance, state: int32, matrix: Mat4) =
+  instance.push(BlockInstanceData(state: state, matrix: matrix))
 
-proc push*[T](instance: InstanceBase, val: T) =
-  bind push
-  Instance[seq[T]](instance).model.push(val)
+proc push*(instance: var Instance, matrix: Mat4) =
+  instance.push(0, matrix)
 
-proc new*[T](_: typedesc[Instance[T]], model: sink InstancedModel[T]): Instance[T] =
-  Instance[T](model: model)
+proc new*(_: typedesc[Instance], path: string): Instance = loadInstancedModel[seq[BlockInstanceData]](path)
 
 
 
