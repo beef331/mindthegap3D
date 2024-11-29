@@ -25,14 +25,16 @@ layout(std430, binding = 0) buffer instanceData{
   data instData[];
 };
 
-const vec4 portalColor[7] = vec4[](
+const vec4 portalColor[] = vec4[](
   vec4(1, 0, 0, 1),
   vec4(0, 1, 0, 1),
   vec4(0, 0, 1, 1),
   vec4(1, 1, 0, 1),
   vec4(1, 0, 1, 1),
   vec4(0, 1, 1, 1),
-  vec4(1, 0, 1, 1)
+  vec4(1, 0.3, 1, 1),
+  vec4(1, 0.75, 1, 1),
+  vec4(0.25, 0.25, 1, 1)
 );
 
 void main() {

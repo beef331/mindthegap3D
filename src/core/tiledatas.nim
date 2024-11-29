@@ -19,9 +19,14 @@ iterator mitems*(tileData: var TileData): var Tile =
   for x in tileData.data.mitems:
     yield x
 
+iterator mpairs*(tileData: var TileData): (int, var Tile) =
+  for i, val in tileData.data.mpairs:
+    yield (i, val)
+
 iterator pairs*(tileData: TileData): (int, Tile) =
   for val in tileData.data.pairs:
     yield val
+
 
 proc contains*(tiles: TileData, vec: Vec3): bool =
   floor(vec.x).int in 0..<tiles.width and floor(vec.z).int in 0..<tiles.height

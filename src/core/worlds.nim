@@ -2,7 +2,7 @@ import truss3D, truss3D/[models, textures, gui, particlesystems, audio, instance
 import pixie, opengl, vmath, frosty, gooey
 import frosty/streams as froststreams
 import resources, cameras, pickups, directions, shadows, signs, tiles, players, projectiles, consts, renderinstances, serializers, fishes, tiledatas, enemies
-import std/[options, decls, enumerate, os, streams, macros]
+import std/[options, decls, enumerate, os, streams, macros, intsets]
 
 
 type
@@ -149,24 +149,57 @@ proc getPos*(world: World, ind: int): Vec3 = vec3(float ind mod world.width, 0, 
 
 proc reload*(world: var World, skipStepOn = false)
 
+proc resizeIndex(i: int, oldWidth: int, newSize: Ivec2): int =
+  ## returns -1 if it cannot resize
+  let
+    x = i mod oldWidth
+    y = i div oldWidth
+
+  if x < newSize.x and y < newSize.y:
+    x + y * newSize.x
+  else:
+    -1
+
 proc resize*(world: var World, newSize: IVec2) =
   if newSize.x != world.width or newSize.y != world.height:
-    var newTileData = newSeq[Tile](newSize.x * newSize.y)
+    var
+      visitedPortals = 0
+      newTileData = newSeq[Tile](newSize.x * newSize.y)
     for i, tile in world.tiles.pairs:
       let (x, y) = (i mod world.width, i div world.width)
       if x < newSize.x and y < newSize.y:
-        newTileData[x + y * newSize.x] = tile
-    let (playerX, playerY) = (world.playerSpawn mod world.width, world.playerSpawn div world.width)
-    world.playerSpawn =
-      if playerX in 0..<newSize.x and playerY in 0..<newSize.y:
-        playerX + playerY * newSize.x
-      else:
-        0
+        let thisIndex = x + y * newSize.x
+        newTileData[thisIndex] = tile
+
+
+        if tile.kind == portal: # we need to reposition these after moving
+          let newPortal = tile.portalExit.int.resizeIndex(world.width.int, newSize)
+          if newPortal == -1:
+            world.tiles[tile.portalExit] = Tile(kind: floor)
+            newTileData[thisIndex] = Tile(kind: floor)
+          else:
+            world.tiles[tile.portalExit] = Tile(
+              kind: portal,
+              portalExit: int16 i,
+              portalColour: int8 visitedPortals div 2
+            )
+            newTileData[thisIndex].portalExit = int16 newPortal
+            newTileData[thisIndex].portalColour = int8 visitedPortals div 2
+            inc visitedPortals
+
+
+
+    let newIndex = world.playerSpawn.int.resizeIndex(world.width.int, newSize)
+    if newIndex == -1:
+      world.playerSpawn= 0
+    else:
+      world.playerSpawn = newIndex
 
     world.width = newSize.x
     world.height = newSize.y
     world.tiles.data = newTileData
     world.player = Player.init(world.getPos(int world.playerSpawn))
+    world.portalCount = visitedPortals div 2
 
 proc enterEnemyEdit(world: var World) =
   world.state.incl {editing, enemyEditing}
@@ -377,11 +410,28 @@ proc placeBlock(world: var World, cam: Camera, truss: var Truss) =
       world.tiles[index] = Tile(kind: box)
   player.clearPickup()
 
+proc recalculatePortals(world: var World) =
+  var visitedPortals: IntSet
+  for i, tile in world.tiles.mpairs:
+    if i notin visitedPortals and tile.kind == portal:
+      tile.portalColour = int8 visitedPortals.len div 2
+      world.tiles[tile.portalExit].portalColour = tile.portalColour
+      visitedPortals.incl i
+      visitedPortals.incl int tile.portalExit
+  world.portalCount = visitedPortals.len div 2
+
 proc placeTile*(world: var World, tile: Tile, pos: IVec2) =
   let ind = world.tiles.getPointIndex(vec3(float pos.x, 0, float pos.y))
   if ind >= 0 and world.tiles[ind].kind != tile.kind:
+    if world.tiles[ind].kind == portal:
+        world.tiles[world.tiles[ind].portalExit] = Tile(kind: empty)
+        world.tiles[ind] = Tile(kind: empty)
+        world.lastPortal = -1
+        world.recalculatePortals()
+
     world.tiles[ind] = tile
     if tile.kind == portal:
+      world.tiles[ind].portalExit = -1
       if not world.placingPortal:
         world.lastPortal = int16 ind
         world.tiles[ind].portalColour = int8 world.portalCount
@@ -443,9 +493,9 @@ proc pushBlock(world: var World, direction: Direction) =
   if world.tiles[start].hasStacked():
     for (lastIndex, nextIndex) in world.tiles.tilesInDir(start, direction):
       template nextTile: auto = world.tiles[nextIndex]
-      if nextTile.kind == portal:
+      if nextTile.kind == portal and not world.tiles[nextTile.portalExit].hasStacked():
         let portalNext = nextTile.portalExit
-        world.tiles[portalNext].giveStackedObject(buffer, world.getPos(nextIndex) + vec3(0, 1, 0), world.getPos(portalNext) + vec3(0, 1, 0))
+        world.tiles[portalNext].giveStackedObject(buffer, world.getPos(nextIndex) + vec3(0, 1, 0), world.getPos(portalNext) + vec3(0, 1, 0), skipAnim = true)
         break
       else:
         let hadStack = nextTile.hasStacked

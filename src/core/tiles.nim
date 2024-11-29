@@ -178,14 +178,21 @@ proc canStackOn*(tile: Tile): bool =
 proc stackBox*(tile: var Tile, pos: Vec3) = 
   tile.stacked = some(StackedObject(kind: box, startPos: pos + vec3(0, 10, 0), toPos: pos))
 
-proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromPos, toPos: Vec3) =
+proc giveStackedObject*(tile: var Tile, stackedObj: Option[StackedObject], fromPos, toPos: Vec3, skipAnim: bool = false) =
   tile.stacked = stackedObj
   if tile.hasStacked():
     if fromPos == toPos:
       tile.stacked.get.flags.incl spawnedParticle
-    tile.stacked.get.moveTime = 0
-    tile.stacked.get.startPos = fromPos
-    tile.stacked.get.toPos = toPos
+
+    if skipAnim:
+      tile.stacked.get.moveTime = MoveTime
+      tile.stacked.get.startPos = toPos
+      tile.stacked.get.toPos = toPos
+    else:
+      tile.stacked.get.moveTime = 0
+      tile.stacked.get.startPos = fromPos
+      tile.stacked.get.toPos = toPos
+
 
 proc clearStack*(frm: var Tile) = frm.stacked = none(StackedObject)
 
